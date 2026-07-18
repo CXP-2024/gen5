@@ -1,0 +1,363 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{codebg}{RGB}{246,248,250}
+\definecolor{coderule}{RGB}{208,215,222}
+\definecolor{accent}{RGB}{31,93,140}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{coderule},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  xleftmargin=0.3em,
+  xrightmargin=0.3em
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\sourcepath}[1]{\par\smallskip\noindent\textit{Source:} \path{#1}\par\smallskip}
+
+\title{\textbf{Lab 1 Report: Running Synthetic Traffic}\\[0.4em]
+       \large gem5 Garnet Network-on-Chip Simulation}
+\author{\begin{tabular}{rl}
+          Name: & \rule{7cm}{0.4pt} \\
+          Student ID: & \rule{7cm}{0.4pt}
+        \end{tabular}}
+\date{gem5 v23.0.0.1}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This laboratory studies the Garnet 3.0 network model in gem5 using synthetic
+traffic. A 64-node, $8\times8$ mesh is exercised with uniform-random,
+single-flit control traffic. The global tick frequency is corrected to
+2\,GHz, statistical units are added to Garnet, and the measured packet rate,
+latency, and hop count are analyzed. The final run injects 3165 packets and
+receives 3162 packets, with a reception rate of
+$0.004940625$ packets/node/network-cycle.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Experimental Setup}
+
+The experiment uses gem5 tag \code{v23.0.0.1}, commit
+\code{af72b9ba580546ac12ce05bfaac3fd53fa8699f4}, built for the NULL ISA with
+the \code{Garnet\_standalone} protocol. The relevant incremental build command
+is:
+
+\begin{lstlisting}[language=bash]
+scons --ignore-style build/NULL/gem5.opt \
+  PROTOCOL=Garnet_standalone -j$(nproc)
+\end{lstlisting}
+
+SCons tracks dependencies, so changing \code{GarnetNetwork.cc} recompiles the
+affected Garnet object and relinks \code{gem5.opt}; it does not require deleting
+the build directory or recompiling every source file.
+
+The test configuration is:
+
+\begin{lstlisting}[language=bash]
+./build/NULL/gem5.opt \
+  configs/example/garnet_synth_traffic.py \
+  --network=garnet --num-cpus=64 --num-dirs=64 \
+  --topology=Mesh_XY --mesh-rows=8 \
+  --inj-vnet=0 --synthetic=uniform_random \
+  --sim-cycles=10000 --injectionrate=0.01
+\end{lstlisting}
+
+The 64 objects named CPUs are synthetic traffic generators rather than
+instruction-executing processors. \code{Mesh\_XY} creates 64 routers arranged
+as eight rows by eight columns. There are also 64 directory destinations.
+Virtual network 0 carries one-flit control packets, and every source chooses a
+destination uniformly from all 64 destinations, including itself.
+
+\section{Task 1: Frequency Correction and Test Run}
+
+\subsection{Global frequency change}
+
+The original configuration used:
+
+\begin{lstlisting}[language=Python]
+m5.ticks.setGlobalFrequency("1ps")
+\end{lstlisting}
+
+This means one tick is 1\,ps, or $10^{12}$ ticks/s. It was changed to:
+
+\begin{lstlisting}[language=Python]
+m5.ticks.setGlobalFrequency("2GHz")
+\end{lstlisting}
+
+\sourcepath{/root/gem5/configs/example/garnet_synth_traffic.py}
+
+The final statistics confirm
+\code{simFreq = 2000000000} ticks/s and \code{simTicks = 10000}. Therefore,
+
+\begin{equation}
+T_{\mathrm{tick}}=\frac{1}{2\times10^9}=0.5\ \mathrm{ns},
+\qquad
+T_{\mathrm{sim}}=10000\times0.5\ \mathrm{ns}=5\ \mu\mathrm{s}.
+\end{equation}
+
+The system clock is 1\,GHz, while Ruby/Garnet runs at 2\,GHz. Consequently,
+
+\begin{equation}
+1\ \text{system cycle}=2\ \text{ticks}=1\ \mathrm{ns},\qquad
+1\ \text{Ruby cycle}=1\ \text{tick}=0.5\ \mathrm{ns}.
+\end{equation}
+
+The run thus contains approximately 5000 traffic-generator cycles and 10000
+Ruby network cycles.
+
+\subsection{Measured results}
+
+\begin{table}[h]
+\centering
+\caption{Statistics before and after correcting the global frequency.}
+\begin{tabular}{lrr}
+\toprule
+Metric & Original 1\,ps/tick & Final 2\,GHz \\
+\midrule
+Packets injected & 5 & 3165 \\
+Packets received & 2 & 3162 \\
+Average queueing latency & 1000 ticks & 2 ticks/packet \\
+Average network latency & 3000 ticks & 13.557559 ticks/packet \\
+Average total latency & 4000 ticks & 15.557559 ticks/packet \\
+Average hops & 1.500000 & 5.269450 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At an injection probability of 0.01 per node per system cycle, the expected
+number of generated packets is approximately
+
+\begin{equation}
+64\ \text{nodes}\times5000\ \text{cycles}\times0.01
+=3200\ \text{packets}.
+\end{equation}
+
+The observed 3165 injections are consistent with this Bernoulli process. Only
+three packets remain in flight at termination. For a uniform-random
+$8\times8$ mesh, the expected Manhattan distance is
+
+\begin{equation}
+E[H]=2E[|X_s-X_d|]
+=2\frac{8^2-1}{3\times8}=5.25\ \text{hops}.
+\end{equation}
+
+The measured 5.269450 hops differs from the theoretical value by only 0.37\%,
+which is reasonable for 3162 received packets.
+
+\section{Task 2: Statistical Units and Reception Rate}
+
+The original Garnet statistics were emitted as \code{(Unspecified)}. Unit
+metadata was added in \code{GarnetNetwork::regStats()} without changing any
+counter or network behavior.
+
+\begin{table}[h]
+\centering
+\caption{Units assigned to Garnet statistical variables.}
+\begin{tabular}{>{\raggedright\arraybackslash}p{7.2cm}l}
+\toprule
+Statistics & Unit \\
+\midrule
+Injected/received packets and flits; traffic distribution & Count \\
+Accumulated packet and flit latency & Tick \\
+Average packet and flit latency & Tick/Count \\
+Total hops and link activity & Count \\
+Average hops & Count/Count \\
+Average link utilization and VC load & Ratio \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\sourcepath{/root/gem5/src/mem/ruby/network/garnet/GarnetNetwork.cc}
+
+The required reception rate is normalized by node count and the 10000 network
+cycles specified by the laboratory:
+
+\begin{equation}
+R_{\mathrm{recv}}
+=\frac{N_{\mathrm{received}}}{N_{\mathrm{nodes}}N_{\mathrm{cycles}}}
+=\frac{3162}{64\times10000}
+=0.004940625\ \frac{\mathrm{packets}}{\mathrm{node\cdot cycle}}.
+\end{equation}
+
+This is a throughput, not a delivery ratio. The delivery ratio is instead
+$3162/3165\approx99.905\%$. The offered rate is
+0.01 packets/node/system-cycle. Since one system cycle spans two Ruby cycles,
+the equivalent offered network rate is 0.005 packets/node/Ruby-cycle, close to
+the measured reception rate.
+
+\section{Task 3: Configuration and Source-Code Analysis}
+
+\subsection{Input parameters and defaults}
+
+All accepted options can be displayed with:
+
+\begin{lstlisting}[language=bash]
+./build/NULL/gem5.opt configs/example/garnet_synth_traffic.py -h
+\end{lstlisting}
+
+The test-specific options are summarized below.
+
+\begin{longtable}{@{}>{\ttfamily\small}p{3.5cm}p{3.0cm}p{7.6cm}@{}}
+\caption{Synthetic traffic options.}\\
+\toprule
+\normalfont Option & \normalfont Default & \normalfont Purpose \\
+\midrule
+\endfirsthead
+\toprule
+\normalfont Option & \normalfont Default & \normalfont Purpose \\
+\midrule
+\endhead
+--synthetic & \normalfont uniform\_random & \normalfont Destination pattern: uniform random, tornado, bit complement, bit reverse, bit rotation, neighbor, shuffle, or transpose. \\
+--injectionrate & \normalfont 0.1 & \normalfont Packet-generation probability per node per traffic-generator cycle. \\
+--precision & \normalfont 3 & \normalfont Decimal precision used by the random injection test. \\
+--sim-cycles & \normalfont 1000 & \normalfont Simulation termination threshold; in this version it is compared directly with \code{curTick()}. \\
+--num-packets-max & \normalfont -1 & \normalfont Maximum packets generated by each sender; -1 disables the limit. \\
+--single-sender-id & \normalfont -1 & \normalfont Restrict injection to one sender; -1 enables every sender. \\
+--single-dest-id & \normalfont -1 & \normalfont Force one destination; -1 uses the selected traffic pattern. \\
+--inj-vnet & \normalfont -1 & \normalfont Select vnet 0, 1, or 2; -1 selects among them randomly. Vnets 0/1 use one-flit control packets and vnet 2 uses five-flit data packets. \\
+\bottomrule
+\end{longtable}
+
+These defaults are defined directly in
+\path{configs/example/garnet_synth_traffic.py}. General system and memory
+options such as \code{--num-cpus}, \code{--num-dirs}, \code{--sys-clock},
+memory type, cache geometry, and maximum tick come from
+\path{configs/common/Options.py}. Ruby defaults, including the 2\,GHz Ruby
+clock, come from \path{configs/ruby/Ruby.py}. Network defaults come from
+\path{configs/network/Network.py}: Crossbar topology, simple network,
+one-cycle router and link latency, 128-bit links, four VCs per vnet,
+weight-table routing, and a 50000-cycle deadlock threshold.
+
+For this experiment, \code{Mesh\_XY.py} assigns horizontal link weight 1 and
+vertical link weight 2. The default weight-based routing table therefore
+enforces dimension-ordered XY routing. Alternatively,
+\code{--routing-algorithm=1} selects the explicit XY implementation in
+\code{RoutingUnit.cc}.
+
+\subsection{Units of cycles, router latency, and link latency}
+
+A tick is the global, integer simulation time quantum. A cycle belongs to a
+specific clock domain. Their relationship is
+
+\begin{equation}
+\text{ticks per component cycle}
+=\frac{f_{\mathrm{global}}}{f_{\mathrm{component}}}.
+\end{equation}
+
+\code{router-latency} is a number of Ruby/router cycles and represents router
+pipeline stages. An arriving flit is held in its input VC for
+\code{router-latency - 1} cycles before switch allocation. Likewise,
+\code{link-latency} is a number of network-link cycles; the link marks the flit
+ready at \code{clockEdge(link\_latency)}.
+
+Although the command-line help describes \code{sim-cycles} as cycles,
+\path{GarnetSyntheticTraffic::tick()} compares \code{curTick()} directly with
+\code{simCycles}. Its strict implementation unit in v23.0.0.1 is therefore
+Tick. With both global and Ruby frequencies at 2\,GHz, one tick happens to equal
+one Ruby cycle.
+
+\subsection{Injection-rate unit}
+
+Each \code{GarnetSyntheticTraffic} object wakes once per system clock cycle. It
+draws a random integer and generates a request when the draw is below
+\code{injRate} times the precision range. Thus the injection-rate unit is
+packets/node/system-cycle. It is an offered probabilistic load, not a guarantee
+that exactly that many packets enter or leave the network.
+
+\subsection{Network interface and router definitions}
+
+The Python SimObject declarations and their C++ implementations are:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+SimObject & Python declaration & C++ implementation \\
+\midrule
+GarnetNetworkInterface & GarnetNetwork.py & NetworkInterface.hh/.cc \\
+GarnetRouter & GarnetNetwork.py & Router.hh/.cc \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The files reside under
+\path{src/mem/ruby/network/garnet/}. The configuration layer in
+\path{configs/network/Network.py} selects these classes when
+\code{--network=garnet} is used.
+
+\subsection{Packet generation, buffering, and downstream eligibility}
+
+\begin{center}
+\fbox{\begin{minipage}{0.92\textwidth}\centering
+GarnetSyntheticTraffic::generatePkt()
+$\rightarrow$ RubyPort/Sequencer
+$\rightarrow$ Garnet\_standalone cache MessageBuffer
+$\rightarrow$ NetworkInterface::flitisizeMessage()
+$\rightarrow$ source NI VCs
+$\rightarrow$ NetworkLink
+$\rightarrow$ Router InputUnit VC
+$\rightarrow$ SwitchAllocator/Crossbar
+$\rightarrow$ destination NI
+$\rightarrow$ directory MessageBuffer
+\end{minipage}}
+\end{center}
+
+The \code{generatePkt()} method in \code{GarnetSyntheticTraffic} chooses a destination and creates
+a Read, instruction-fetch, or Write request. RubyPort and Sequencer deliver it
+to the Garnet standalone cache controller. The controller maps requests to
+vnet 0, 1, or 2 and enqueues a protocol message. The source NetworkInterface
+allocates an output VC, converts the protocol message into flits, and increments
+the injected statistics.
+
+During transmission, flits may be stored in the protocol MessageBuffer, the
+source NI's \code{niOutVcs}, a \code{NetworkLink} buffer, a router
+\code{InputUnit}'s \code{VirtualChannel::inputBuffer}, a transient crossbar
+buffer, or the destination NI stall queue. Packets are represented as flits
+inside Garnet; the tail flit identifies packet completion.
+
+\code{RoutingUnit} chooses the output direction but does not decide whether
+the flit may advance. That decision is made primarily by
+\code{SwitchAllocator::send\_allowed()}. A head flit needs a free downstream
+output VC; a body or tail flit needs a positive credit, meaning an available
+slot in the downstream input VC. Ordered vnets must also preserve the arrival
+order of flits requesting the same output. \code{OutputUnit} and
+\code{OutVcState} maintain credit counts, while reverse \code{CreditLink}s
+return freed slots to the upstream router.
+
+At the destination, the NetworkInterface places the completed protocol message
+in the directory input buffer and records receive and latency statistics. The
+Garnet standalone directory then dequeues and discards it because this protocol
+is designed to measure network behavior rather than execute a complete cache
+coherence transaction.
+
+\section{Conclusion}
+
+The corrected simulation runs for 10000 Ruby cycles and produces packet counts
+consistent with the configured probabilistic load. The measured average hop
+count agrees with the theoretical $8\times8$ mesh distance, and 99.905\% of
+injected packets arrive before termination. Adding explicit units removes
+ambiguity from Garnet's statistics, while source inspection shows that
+credit-based flow control and switch allocation govern downstream movement.
+
+\end{document}

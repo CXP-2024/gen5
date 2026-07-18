@@ -1,0 +1,8 @@
+
+packets_injected = 3165                       (Count)
+packets_received = 3162                       (Count)
+average_packet_queueing_latency = 2                       ((Tick/Count))
+average_packet_network_latency = 13.557559                       ((Tick/Count))
+average_packet_latency = 15.557559                       ((Tick/Count))
+average_hops = 5.269450                       ((Count/Count))
+reception_rate = 0.004940625 packets/node/cycle
