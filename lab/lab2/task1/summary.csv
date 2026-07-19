@@ -1,0 +1,6 @@
+pattern,low_load_latency,measured_hops,theoretical_hops,peak_throughput,peak_throughput_injection_rate,efficiency_knee_rate,latency_2x_rate
+uniform_random,15.557559,5.26945,5.25,0.2489140625,0.5,nan,nan
+shuffle,13.025405,4.005716,4.0,0.2340734375,0.5,nan,0.46
+transpose,15.662433,5.323595,5.25,0.2024578125,0.5,0.41,0.3
+tornado,12.468889,3.726349,3.75,0.2487703125,0.5,nan,nan
+neighbor,8.531429,1.765714,1.75,0.24895625,0.5,nan,nan
