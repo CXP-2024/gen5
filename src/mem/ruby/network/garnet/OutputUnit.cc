@@ -106,13 +106,32 @@ OutputUnit::has_free_vc(int vnet)
     return false;
 }
 
+bool
+OutputUnit::has_credit_vc(int vnet)
+{
+    int vc_base = vnet*m_vc_per_vnet;
+    for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
+        if (outVcState[vc].has_credit())
+            return true;
+    }
+
+    return false;
+}
+
 // Assign a free output VC to the winner of Switch Allocation
 int
 OutputUnit::select_free_vc(int vnet)
 {
+    return select_vc(vnet, false);
+}
+
+int
+OutputUnit::select_vc(int vnet, bool allow_active)
+{
     int vc_base = vnet*m_vc_per_vnet;
     for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
-        if (is_vc_idle(vc, curTick())) {
+        bool idle = is_vc_idle(vc, curTick());
+        if (idle || (allow_active && outVcState[vc].has_credit())) {
             outVcState[vc].setState(ACTIVE_, curTick());
             return vc;
         }

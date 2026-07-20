@@ -88,6 +88,12 @@ def define_options(parser):
             inside garnet network.""",
     )
     parser.add_argument(
+        "--wormhole",
+        action="store_true",
+        default=False,
+        help="allow multiple single-flit control packets per VC",
+    )
+    parser.add_argument(
         "--routing-algorithm",
         action="store",
         type=int,
@@ -166,6 +172,9 @@ def init_network(options, network, InterfaceClass):
     if options.network == "garnet":
         network.num_rows = options.mesh_rows
         network.vcs_per_vnet = options.vcs_per_vnet
+        network.wormhole = options.wormhole
+        if options.wormhole:
+            network.buffers_per_ctrl_vc = 16
         network.ni_flit_size = options.link_width_bits / 8
         network.routing_algorithm = options.routing_algorithm
         network.garnet_deadlock_threshold = options.garnet_deadlock_threshold

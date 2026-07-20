@@ -1,0 +1,3 @@
+topology,low_load_latency,measured_hops,theoretical_hops,max_stable_throughput,max_stable_injection_rate,first_stalled_rate
+ring,13.158491,4.071698,4.0,0.23375625,0.47,0.46
+mesh,9.935849,2.465409,2.5,0.24833125,0.5,nan

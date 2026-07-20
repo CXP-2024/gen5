@@ -122,6 +122,12 @@ SwitchAllocator::arbitrate_inports()
                 // This flit is in SA stage
 
                 int outport = input_unit->get_outport(invc);
+                bool wormhole_control =
+                    m_router->get_net_ptr()->isWormhole() &&
+                    m_router->get_net_ptr()->get_vnet_type(
+                        get_vnet(invc)) == CTRL_VNET_;
+                if (wormhole_control)
+                    outport = input_unit->peekTopFlit(invc)->get_outport();
                 int outvc = input_unit->get_outvc(invc);
 
                 // check if the flit in this InputVC is allowed to be sent
@@ -223,16 +229,25 @@ SwitchAllocator::arbitrate_outports()
 
                 if ((t_flit->get_type() == TAIL_) ||
                     t_flit->get_type() == HEAD_TAIL_) {
+                    bool wormhole_control =
+                        m_router->get_net_ptr()->isWormhole() &&
+                        m_router->get_net_ptr()->get_vnet_type(
+                            get_vnet(invc)) == CTRL_VNET_;
+                    bool input_has_next = input_unit->isReady(invc, curTick());
 
-                    // This Input VC should now be empty
-                    assert(!(input_unit->isReady(invc, curTick())));
+                    if (!wormhole_control || !input_has_next)
+                        assert(!(input_unit->isReady(invc, curTick())));
 
-                    // Free this VC
-                    input_unit->set_vc_idle(invc, curTick());
-
-                    // Send a credit back
-                    // along with the information that this VC is now idle
-                    input_unit->increment_credit(invc, true, curTick());
+                    if (wormhole_control && input_has_next) {
+                        // Keep the input VC active while queued
+                        // HEAD_TAIL packets drain, but route the next flit
+                        // independently.
+                        input_unit->set_outvc(invc, -1);
+                        input_unit->increment_credit(invc, false, curTick());
+                    } else {
+                        input_unit->set_vc_idle(invc, curTick());
+                        input_unit->increment_credit(invc, true, curTick());
+                    }
                 } else {
                     // Send a credit back
                     // but do not indicate that the VC is idle
@@ -297,7 +312,10 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
         // needs outvc
         // this is only true for HEAD and HEAD_TAIL flits.
 
-        if (output_unit->has_free_vc(vnet)) {
+        bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
+            m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
+        if ((wormhole_control && output_unit->has_credit_vc(vnet)) ||
+            output_unit->has_free_vc(vnet)) {
 
             has_outvc = true;
 
@@ -326,8 +344,14 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
         int vc_base = vnet*m_vc_per_vnet;
         for (int vc_offset = 0; vc_offset < m_vc_per_vnet; vc_offset++) {
             int temp_vc = vc_base + vc_offset;
+            int temp_outport = input_unit->get_outport(temp_vc);
+            if (m_router->get_net_ptr()->isWormhole() &&
+                m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_ &&
+                input_unit->isReady(temp_vc, curTick())) {
+                temp_outport = input_unit->peekTopFlit(temp_vc)->get_outport();
+            }
             if (input_unit->need_stage(temp_vc, SA_, curTick()) &&
-               (input_unit->get_outport(temp_vc) == outport) &&
+               (temp_outport == outport) &&
                (input_unit->get_enqueue_time(temp_vc) < t_enqueue_time)) {
                 return false;
             }
@@ -342,8 +366,11 @@ int
 SwitchAllocator::vc_allocate(int outport, int inport, int invc)
 {
     // Select a free VC from the output port
-    int outvc =
-        m_router->getOutputUnit(outport)->select_free_vc(get_vnet(invc));
+    int vnet = get_vnet(invc);
+    bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
+        m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
+    int outvc = m_router->getOutputUnit(outport)->select_vc(
+        vnet, wormhole_control);
 
     // has to get a valid VC since it checked before performing SA
     assert(outvc != -1);

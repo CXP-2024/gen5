@@ -1,0 +1,4 @@
+mode,low_load_latency,max_stable_throughput,max_stable_rate,first_stalled_rate
+vc1_depth1,13.36478,0.0392875,0.08,0.09
+vc16_depth1,13.158491,0.2482375,0.5,nan
+vc1_depth16_wormhole,13.158491,0.24825,0.5,nan

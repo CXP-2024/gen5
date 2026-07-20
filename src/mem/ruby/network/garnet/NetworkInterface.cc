@@ -465,10 +465,14 @@ NetworkInterface::calculateVC(int vnet)
         if (m_vc_allocator[vnet] == m_vc_per_vnet)
             m_vc_allocator[vnet] = 0;
 
-        if (outVcState[(vnet*m_vc_per_vnet) + delta].isInState(
-                    IDLE_, curTick())) {
+        int vc = (vnet*m_vc_per_vnet) + delta;
+        bool idle = outVcState[vc].isInState(IDLE_, curTick());
+        bool reusable = m_net_ptr->isWormhole() &&
+            m_net_ptr->get_vnet_type(vnet) == CTRL_VNET_ &&
+            outVcState[vc].has_credit();
+        if (idle || reusable) {
             vc_busy_counter[vnet] = 0;
-            return ((vnet*m_vc_per_vnet) + delta);
+            return vc;
         }
     }
 

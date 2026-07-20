@@ -87,20 +87,29 @@ InputUnit::wakeup()
         int vc = t_flit->get_vc();
         t_flit->increment_hops(); // for stats
 
-        if ((t_flit->get_type() == HEAD_) ||
-            (t_flit->get_type() == HEAD_TAIL_)) {
+        int vnet = vc/m_vc_per_vnet;
+        bool is_head = (t_flit->get_type() == HEAD_) ||
+            (t_flit->get_type() == HEAD_TAIL_);
+        bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
+            m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
 
-            assert(virtualChannels[vc].get_state() == IDLE_);
-            set_vc_active(vc, curTick());
+        if (is_head) {
+            bool idle = virtualChannels[vc].get_state() == IDLE_;
+            assert(idle || wormhole_control);
+            if (idle)
+                set_vc_active(vc, curTick());
+            else
+                virtualChannels[vc].set_enqueue_time(curTick());
 
             // Route computation for this vc
             int outport = m_router->route_compute(t_flit->get_route(),
                 m_id, m_direction);
 
-            // Update output port in VC
-            // All flits in this packet will use this output port
-            // The output port field in the flit is updated after it wins SA
-            grant_outport(vc, outport);
+            if (wormhole_control)
+                t_flit->set_outport(outport);
+            else
+                // All flits in this packet use this output port.
+                grant_outport(vc, outport);
 
         } else {
             assert(virtualChannels[vc].get_state() == ACTIVE_);
@@ -110,7 +119,6 @@ InputUnit::wakeup()
         // Buffer the flit
         virtualChannels[vc].insertFlit(t_flit);
 
-        int vnet = vc/m_vc_per_vnet;
         // number of writes same as reads
         // any flit that is written will be read only once
         m_num_buffer_writes[vnet]++;

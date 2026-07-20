@@ -267,7 +267,30 @@ RoutingUnit::outportComputeCustom(RouteInfo route,
                                  int inport,
                                  PortDirection inport_dirn)
 {
-    panic("%s placeholder executed", __FUNCTION__);
+    const int num_routers = m_router->get_net_ptr()->getNumRouters();
+    const int current_id = m_router->get_id();
+    const int destination_id = route.dest_router;
+
+    assert(num_routers == 16);
+    assert(destination_id >= 0 && destination_id < num_routers);
+    assert(current_id != destination_id);
+
+    const int clockwise_hops =
+        (destination_id - current_id + num_routers) % num_routers;
+    const int counterclockwise_hops =
+        (current_id - destination_id + num_routers) % num_routers;
+
+    PortDirection outport_dirn;
+    if (clockwise_hops <= counterclockwise_hops) {
+        assert(inport_dirn == "Local" ||
+               inport_dirn == "CounterClockwise");
+        outport_dirn = "Clockwise";
+    } else {
+        assert(inport_dirn == "Local" || inport_dirn == "Clockwise");
+        outport_dirn = "CounterClockwise";
+    }
+
+    return m_outports_dirn2idx[outport_dirn];
 }
 
 } // namespace garnet
