@@ -1,0 +1,2 @@
+adaptive_vcs,escape_vcs,deadlock_free_guarantee,pattern,injection_rate,packets_injected,packets_received,injection_acceptance,delivery_ratio,throughput,packet_latency,average_hops,adaptive_hops,escape_hops,escape_transitions,escape_hop_fraction
+3,1,yes,torus3d_xopposite,1.0,3196776.0,3196520.0,0.9989925,0.9999199193187136,0.49945625,9.512732,2.000477,6388557.0,6327.0,4598.0,0.0009893846393460772
