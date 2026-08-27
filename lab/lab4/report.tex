@@ -17,7 +17,8 @@
 \newtheorem{lemma}{Lemma}
 \newtheorem{theorem}{Theorem}
 
-\title{Deadlock-Free Minimal Adaptive Routing for a 3D Torus in Garnet}
+\title{Deadlock-Free Adaptive Routing and Bubble Flow Control for a 3D Torus
+in Garnet}
 \author{Lab 4 Project Report}
 \date{\today}
 
@@ -34,17 +35,28 @@ one of four VCs as an escape path and keeps the other three adaptive. On the
 0.237455 for Torus DOR and 0.209570 for Mesh3D XYZ. A fixed-budget VC ablation
 shows that one escape VC retains the performance of the unsafe no-escape upper
 bound, while allocating more VCs to escape unnecessarily reduces throughput.
-The report separates topology benefit from routing benefit and gives the
-channel-dependency argument for progress.
+On the same substrate, the project adds optional Critical Bubble Scheme (CBS)
+flow control, which makes the otherwise unprotected Torus DOR mode
+constructively deadlock-free without reserving any VC and raises its maximum
+stable transpose throughput by about 15\% (from 0.224067 to 0.257509 under
+that sweep's coarser rate grid), with negligible performance cost on the
+other patterns (at most a 0.049-cycle full-load latency difference). The report separates
+topology benefit from routing benefit and gives the channel-dependency
+argument for adaptive progress and the buffer-occupancy argument for CBS.
 \end{abstract}
 
 \section{Goal and Scope}
 The goal is not to present the 3D Torus as a new topology. Instead, this work
-implements and evaluates congestion-aware minimal adaptive routing in Garnet,
-where unrestricted adaptivity over Torus wrap channels can introduce cyclic
-dependencies. The implementation uses a disjoint, connected 3D Mesh escape
-subnetwork. Once a packet selects that class, it follows non-wrap XYZ routing
-and never returns to an adaptive VC.
+implements and evaluates, on one Garnet substrate, two layers that address
+the cyclic dependencies that Torus wrap channels can introduce. The routing
+layer implements congestion-aware minimal adaptive routing over a disjoint,
+connected 3D Mesh escape subnetwork; once a packet selects that class, it
+follows non-wrap XYZ routing and never returns to an adaptive VC. The
+flow-control layer instead protects the deterministic Torus DOR mode with the
+Critical Bubble Scheme (CBS)~\cite{chen2011}: no VC is reserved, and safety
+comes from keeping at least one free buffer slot on every directed ring. The
+two layers are gated independently, share the topology, metrics, and sweep
+structure, and are compared against each other in the flow-control sections.
 
 The evaluation uses 64 routers arranged as 4x4x4. Each Garnet physical
 neighbour pair is represented by two directed internal links. The 3D Mesh has
@@ -70,6 +82,10 @@ ID & Topology & Routing policy \\
 \bottomrule
 \end{tabular}
 \end{center}
+
+ID 3 can additionally run under CBS flow control, gated by
+\texttt{--enable-cbs} and described in the flow-control sections below; with
+the gate closed, every mode behaves exactly as described here.
 
 Let $V$ be the number of VCs per vnet and $E$ the number of escape VCs. The
 adaptive range is $[0,V-E)$ and the escape range is $[V-E,V)$. The
@@ -248,6 +264,221 @@ no-escape throughput envelope. Reserving more escape VCs starves the adaptive
 class, causing much earlier queueing and saturation. The X-opposite result
 shows the same tradeoff, which makes 3A/1E the appropriate default.
 
+\section{Flow Control: Critical Bubble Scheme}
+The escape design above buys safety by partitioning channels: one of four VCs
+per vnet is reserved and, as measured, rarely used. The flow-control layer
+takes the complementary route for the unprotected Torus DOR mode (routing
+ID 3), whose completion of a finite run is otherwise no proof of deadlock
+freedom. The Critical Bubble Scheme (CBS)~\cite{chen2011} keeps all four VCs
+usable and instead maintains a buffer-occupancy invariant: every directed
+ring always retains at least one free buffer slot (a bubble). A ring that can
+never fill cannot close a circular wait. Classic bubble flow control imposes
+this locally, demanding two free downstream slots at every ring entry; CBS
+explicitly marks the one slot that must survive (the critical bubble) and
+lets the mark travel around the ring like a token, so only entries adjacent
+to the mark pay the two-slot condition and in-ring traffic is unrestricted.
+
+The implementation targets the single-flit control vnets
+(\texttt{buffers\_per\_ctrl\_vc=1}, so one slot is one VC). At
+initialization, every directed ring (six directions per vnet) receives one
+mark at the facing input port of its coordinate-0 router. The registry is a
+single source of truth in \texttt{GarnetNetwork},
+\texttt{m\_cbs\_mark[router][dirn][vnet]}, with direction indices
+E, W, N, S, U, D numbered 0--5. The switch allocator enforces two rules,
+keyed on whether the downstream input port of the requested output holds the
+mark:
+
+\begin{center}
+\begin{tabular}{cll}
+\toprule
+Rule & Transfer & Effect \\
+\midrule
+Entry & injection or dimension change & marked port admits only with $\ge 2$ free VCs \\
+Shift & straight through within a ring & filling the last slot moves the mark upstream \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The entry rule runs in the non-adaptive branch of \texttt{send\_allowed}: a
+transfer that enters a ring while the downstream input port holds the mark is
+granted only if that port still exposes at least two free VCs for the vnet;
+otherwise the request loses the cycle, counted as
+\texttt{cbs\_entry\_blocks}. An entry therefore never consumes the marked
+last free slot. The shift rule runs after \texttt{decrement\_credit}: when a
+straight-through in-ring transfer fills the last downstream slot, the mark
+moves to the slot the packet has just vacated, counted as
+\texttt{cbs\_mark\_moves}. In-ring traffic may eat the last slot, but the
+number of free slots on the ring is conserved; only their position changes.
+
+All changes are gated by \texttt{--enable-cbs}, default off; with the gate
+closed, every mode, including routing ID 4, is bit-identical to the pre-CBS
+implementation. The change set is \texttt{GarnetNetwork.py} and
+\texttt{Network.py} for the option, \texttt{GarnetNetwork.hh/.cc} for the
+mark registry, helper functions, statistics, and \texttt{fatal\_if}
+configuration checks, \texttt{OutputUnit.hh/.cc} for
+\texttt{count\_free\_vcs}, and \texttt{SwitchAllocator.hh/.cc} for the two
+rules. CBS requires routing ID 3, nonzero \texttt{--torus-x/y/z}, and at
+least two VCs per vnet (an entry point facing the mark could otherwise never
+see two free slots), and it rejects \texttt{--wormhole}; any violation is a
+fatal configuration error rather than silent misbehaviour.
+
+\section{CBS Correctness Argument}
+As with the escape argument, this is a claim about the allocation rules, not
+an inference from a finite simulation. Slots and VCs coincide on the control
+vnets, so the invariant is stated per directed ring and per vnet.
+
+\begin{definition}[Critical bubble invariant]
+For every directed ring and control vnet, the marked input port on that ring
+holds at least one free VC.
+\end{definition}
+
+\begin{lemma}[Preservation]
+Every switch-allocator grant preserves the critical bubble invariant.
+\end{lemma}
+\begin{proof}
+A grant consumes one VC at its downstream input port. If that port is
+unmarked, the marked port is untouched. If it is marked and the transfer is a
+ring entry, the entry rule required two free VCs, so one survives. If it is
+marked and the transfer is in-ring, the packet's departure frees exactly one
+VC at its previous input port on the same ring; when the grant fills the last
+marked slot, the shift rule moves the mark onto that freed slot, so the newly
+marked port holds a free VC. The rules test the local \texttt{OutputUnit}
+credit view, in which allocations are visible immediately and releases are
+delayed by credit return; this view can only underestimate downstream free
+VCs, so the check errs strictly toward blocking and no credit race weakens
+the invariant. Finally, one link delivers at most one packet per cycle to a
+given input port, so the mark's read-modify-write is unraced.
+\end{proof}
+
+\begin{lemma}[Ring progress]
+Under the invariant, no directed ring can sustain a circular wait among
+single-flit DOR packets.
+\end{lemma}
+\begin{proof}
+The invariant keeps at least one slot on the ring free. The packet
+immediately upstream of a free slot whose next hop is in-ring requests
+exactly that slot and is eventually granted by a fair arbiter; its advance
+moves the free slot one hop upstream. A packet whose next hop leaves the
+ring (a dimension change or ejection) does not wait on the ring at all.
+Circulating the free slot therefore eventually offers every ring packet its
+in-ring resource, so a wait cycle closed entirely on the ring is impossible.
+\end{proof}
+
+\begin{theorem}[Deadlock freedom for DOR under CBS]
+With CBS enabled, single-flit DOR control traffic is deadlock-free, assuming
+finite buffers, reliable credits, a fair switch arbiter, and consuming
+ejection.
+\end{theorem}
+\begin{proof}
+DOR corrects X, then Y, then Z, and never reverses direction inside a
+dimension, so every wait dependency either stays on one directed ring or
+advances in the dimension order; no dependency returns to an earlier
+dimension. A cyclic wait would therefore have to close inside a single
+directed ring, which the ring-progress lemma excludes. Inducting downward
+from Z, packets in the last dimension either eject or advance on a never-full
+ring; a packet blocked at a dimension change waits on a higher-dimension ring
+whose own progress eventually satisfies the entry rule. Hence no deadlock
+exists.
+\end{proof}
+
+Bare DOR with the gate closed remains labelled unsafe. Its finite runs,
+including the 200,000-cycle probe reported below, are evidence about those
+runs, not a guarantee; CBS converts that probabilistic observation into a
+constructive one.
+
+\section{CBS Evaluation}
+The CBS sweep reuses the 4x4x4 substrate, clocks, metrics, and stall
+definition of the methodology above. Three modes run over the four main
+patterns at twenty injection rates from 0.05 to 1.00, or 240 points:
+unprotected Torus DOR (\texttt{torus3d\_dor}), the same routing under CBS
+(\texttt{torus3d\_dor\_cbs}), and the adaptive/escape design
+(\texttt{torus3d\_adaptive\_escape}). Table~\ref{tab:cbs} reports the
+saturation summary for transpose, the only pattern where the three modes
+separate in saturation behaviour (on tornado they separate only in loaded
+latency, as noted below). The bare-DOR figures differ slightly from Table~\ref{tab:main}
+because this sweep uses a coarser 0.05 rate grid, so its last stable DOR
+point sits at rate 0.45 rather than 0.48.
+
+\begin{table}[H]
+\centering
+\caption{Transpose traffic under the CBS sweep, 4x4x4, four VCs per vnet.}
+\label{tab:cbs}
+\begin{tabular}{lrrr}
+\toprule
+Mode & Low-load latency & Max stable throughput & First stalled rate \\
+\midrule
+Torus3D DOR & 11.062 & 0.224067 & 0.50 \\
+Torus3D DOR + CBS & 11.062 & 0.257509 & 0.60 \\
+Torus3D adaptive/escape & 11.042 & 0.498859 & not observed \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+CBS raises DOR's maximum stable transpose throughput from 0.224067 to
+0.257509, a 14.9\% increase, and moves the stall point from rate 0.50 to
+0.60. The effect at the old stall point is large: at rate 0.5, average packet
+latency falls from 339.679 to 98.080 cycles and source acceptance rises from
+0.842 to 0.972. The mechanism is that the entry rule defers injection and
+dimension changes exactly when a ring is about to fill, which acts as
+admission control ahead of saturation and suppresses the growth of
+saturation trees, consistent with the bubble flow-control literature. On the
+other three patterns CBS is free in performance terms: neighbour and tornado
+record zero CBS events throughout; uniform random records nonzero counters
+(peaks of 16,176 entry blocks and 6,059 mark moves) yet identical stable
+throughput and a full-load latency difference of 0.049 cycles. Tornado also
+shows what CBS preserves: adaptive routing's latency rises to 13.156 at full
+load while DOR and DOR+CBS hold 11.0.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.91\linewidth]{topic2/latency_throughput_topic2.pdf}
+\caption{Latency versus offered load for the three modes over the four main
+traffic patterns. The CBS curve leaves bare DOR only on transpose, where it
+delays saturation.}
+\label{fig:cbs-latency}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.91\linewidth]{topic2/source_acceptance_topic2.pdf}
+\caption{Source acceptance under the CBS sweep. CBS moves the transpose
+stall point from rate 0.5 to 0.6 and matches bare DOR elsewhere.}
+\label{fig:cbs-acceptance}
+\end{figure}
+
+The CBS counters make the mechanism observable rather than inferred.
+\texttt{cbs\_entry\_blocks} grows steeply through transpose saturation and
+peaks at 282,418 at rate 0.95. \texttt{cbs\_mark\_moves} peaks at 4,380 at
+the saturation knee, rate 0.5, and then falls back (1,015 at 0.55, 974 at
+0.6): once rings stay persistently full, the fill-the-last-slot event that
+moves the mark becomes rare.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.91\linewidth]{topic2/cbs_activity.pdf}
+\caption{CBS event counters versus injection rate. Entry blocks track
+congestion depth; mark moves peak at the saturation knee and fall back.}
+\label{fig:cbs-activity}
+\end{figure}
+
+A separate 200,000-cycle probe ran transpose at rate 1.0 with two and with
+one VC per vnet. Bare DOR triggered gem5's 50,000-cycle deadlock detector in
+neither case; with one VC it was merely deeply congested, with mean latency
+near 77,000 cycles. This matches expectation: closing a dependency around a
+four-node ring under minimal routing is improbable but not impossible, so
+bare DOR's observed safety is probabilistic, and CBS makes it constructive.
+In this deep-congestion probe, CBS's entry throttling costs about 1.6\% of
+injected packets (2,382,420 versus 2,420,150); no stable operating point of
+the 10,000-cycle main sweep shows this cost.
+
+The comparison with the routing layer is a contrast of mechanisms, not a
+contest. Adaptive/escape still leads on transpose at 0.498859 because it
+changes the paths themselves; CBS never touches routing and only governs
+buffer occupancy, yet recovers part of the gap at zero VC cost and keeps
+DOR's best-case tornado latency. Escape VCs partition channels; CBS
+maintains an occupancy invariant with all four VCs usable. The two are
+orthogonal answers to the same wrap-ring deadlock problem on one substrate.
+
 \section{Additional Validation and Limitations}
 The default split completed a 100,000-cycle X-opposite run at injection rate
 1.0 with 0.998993 source acceptance, 0.999920 delivery ratio, 0.499456
@@ -259,8 +490,14 @@ The study uses synthetic traffic, one 4x4x4 size, deterministic simulator
 seeding, and does not include area or power modelling. The link-count analysis
 makes the Mesh/Torus resource difference explicit, but future work should add
 multiple seeds, larger dimensions, application traces, and a router/link cost
-model. The result is a functioning, reproducible Garnet implementation with a
-routing-level progress argument, not a claim of a new 3D-Torus architecture.
+model. For CBS, the scope is the single-flit control vnets, where one buffer
+slot equals one VC; multi-flit data vnets are neither implemented nor
+evaluated under CBS, and CBS is incompatible with the wormhole mode. Each
+directed ring carries exactly one mark, and the 200,000-cycle deadlock probe
+is a single run: the absence of a detector alarm for bare DOR is evidence
+about that run only. The result is a functioning, reproducible Garnet
+implementation with routing-level and flow-control-level progress arguments,
+not a claim of a new 3D-Torus architecture.
 
 \section{Reproduction}
 From the repository root:
@@ -270,16 +507,24 @@ From the repository root:
 ./.venv/bin/python lab/lab4/run_vc_ablation.py --force --jobs 3
 ./.venv/bin/python lab/lab4/plot_vc_ablation.py
 ./.venv/bin/python lab/lab4/draw_diagrams.py
+./.venv/bin/python lab/lab4/topic2/run_sweep_topic2.py
+./.venv/bin/python lab/lab4/topic2/plot_results_topic2.py
 cd lab/lab4 && pdflatex report.tex
 \end{verbatim}
-The CSV files, figures, and scripts are kept in \texttt{lab/lab4/}; raw logs
-are kept under the ignored \texttt{lab/lab4/artifacts/} directory.
+The CSV files, figures, and scripts are kept in \texttt{lab/lab4/}; the CBS
+sweep keeps its CSV files, figures, and design notes in
+\texttt{lab/lab4/topic2/}; raw logs are kept under the ignored
+\texttt{lab/lab4/artifacts/} directory.
 
-\begin{thebibliography}{1}
+\begin{thebibliography}{2}
 \bibitem{duato1995}
 J. Duato, ``A Necessary and Sufficient Condition for Deadlock-Free Adaptive
 Routing in Wormhole Networks,'' \emph{IEEE Transactions on Parallel and
 Distributed Systems}, vol. 6, no. 10, pp. 1055--1067, 1995.
+\bibitem{chen2011}
+L. Chen, R. Wang, and T. M. Pinkston, ``Critical Bubble Scheme: An Efficient
+Implementation of Globally-Aware Network Flow Control,'' in \emph{Proc. IEEE
+International Parallel \& Distributed Processing Symposium (IPDPS)}, 2011.
 \end{thebibliography}
 
 \end{document}

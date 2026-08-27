@@ -274,6 +274,32 @@ SwitchAllocator::arbitrate_outports()
                 // decrement credit in outvc
                 output_unit->decrement_credit(outvc);
 
+                // CBS: an in-ring transit packet may displace the critical
+                // bubble. When it fills the last free slot at the marked
+                // downstream inport, the mark moves upstream to the slot
+                // this packet vacates (freed below for single-flit ctrl
+                // packets).
+                {
+                    const int cbs_vnet = get_vnet(invc);
+                    if (cbs_governs(cbs_vnet, outport)) {
+                        auto *net = m_router->get_net_ptr();
+                        PortDirection outport_dirn =
+                            output_unit->get_direction();
+                        PortDirection down_inport =
+                            GarnetNetwork::cbsOppositeDirn(outport_dirn);
+                        int down_router = net->cbsDownstreamRouter(
+                            m_router->get_id(), outport_dirn);
+                        if (input_unit->get_direction() == down_inport &&
+                            net->cbsHasMark(down_router, down_inport,
+                                            cbs_vnet) &&
+                            output_unit->count_free_vcs(cbs_vnet) == 0) {
+                            net->cbsMoveMark(down_router, down_inport,
+                                m_router->get_id(),
+                                input_unit->get_direction(), cbs_vnet);
+                        }
+                    }
+                }
+
                 // flit ready for Switch Traversal
                 t_flit->advance_stage(ST_, curTick());
                 m_router->grant_switch(inport, t_flit);
@@ -333,6 +359,18 @@ SwitchAllocator::arbitrate_outports()
     }
 }
 
+// CBS applies to hops that stay inside the torus (non-Local outports) on
+// ctrl vnets, where every packet is a single flit and a buffer slot is
+// exactly one VC.
+bool
+SwitchAllocator::cbs_governs(int vnet, int outport)
+{
+    auto *net = m_router->get_net_ptr();
+    return net->isCBSEnabled() &&
+           net->get_vnet_type(vnet) == CTRL_VNET_ &&
+           m_router->getOutputUnit(outport)->get_direction() != "Local";
+}
+
 /*
  * A flit can be sent only if
  * (1) there is at least one free output VC at the
@@ -382,6 +420,29 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc,
             output_available =
                 (wormhole_control && output_unit->has_credit_vc(vnet)) ||
                 output_unit->has_free_vc(vnet);
+
+            // CBS: a packet entering a torus ring (injection or dimension
+            // change) may not consume the critical bubble. When the
+            // downstream inport hosts the mark, ring entry needs one extra
+            // free slot so the marked slot stays free.
+            if (output_available && cbs_governs(vnet, outport)) {
+                auto *net = m_router->get_net_ptr();
+                PortDirection outport_dirn = output_unit->get_direction();
+                PortDirection down_inport =
+                    GarnetNetwork::cbsOppositeDirn(outport_dirn);
+                PortDirection inport_dirn =
+                    m_router->getInputUnit(inport)->get_direction();
+                if (inport_dirn != down_inport) {
+                    // ring entry, not in-ring transit
+                    int down_router = net->cbsDownstreamRouter(
+                        m_router->get_id(), outport_dirn);
+                    if (net->cbsHasMark(down_router, down_inport, vnet) &&
+                        output_unit->count_free_vcs(vnet) < 2) {
+                        output_available = false;
+                        net->increment_cbs_entry_block();
+                    }
+                }
+            }
         }
         if (output_available) {
 

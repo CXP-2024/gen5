@@ -123,6 +123,21 @@ OutputUnit::free_vc_credit_count(int vnet, int first_offset, int count)
     return credits;
 }
 
+// Number of idle (free) VCs of this vnet at the downstream input port.
+// Used by the Critical Bubble Scheme to reserve the critical slot.
+int
+OutputUnit::count_free_vcs(int vnet)
+{
+    int free_vcs = 0;
+    const int vc_base = vnet * m_vc_per_vnet;
+    for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
+        if (is_vc_idle(vc, curTick()))
+            free_vcs++;
+    }
+
+    return free_vcs;
+}
+
 bool
 OutputUnit::has_credit_vc(int vnet)
 {

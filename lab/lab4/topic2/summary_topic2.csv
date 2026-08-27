@@ -1,0 +1,13 @@
+mode,pattern,low_load_latency,max_stable_throughput,max_stable_rate,first_stalled_rate,max_cbs_entry_blocks,max_cbs_mark_moves
+torus3d_dor,uniform_random,11.033022,0.4988265625,1.0,nan,0.0,0.0
+torus3d_dor_cbs,uniform_random,11.033022,0.4988265625,1.0,nan,16176.0,6059.0
+torus3d_adaptive_escape,uniform_random,11.039852,0.498834375,1.0,nan,0.0,0.0
+torus3d_dor,torus3d_neighbor,7.0,0.4990796875,1.0,nan,0.0,0.0
+torus3d_dor_cbs,torus3d_neighbor,7.0,0.4990796875,1.0,nan,0.0,0.0
+torus3d_adaptive_escape,torus3d_neighbor,7.0,0.4990796875,1.0,nan,0.0,0.0
+torus3d_dor,torus3d_tornado,11.0,0.4988796875,1.0,nan,0.0,0.0
+torus3d_dor_cbs,torus3d_tornado,11.0,0.4988796875,1.0,nan,0.0,0.0
+torus3d_adaptive_escape,torus3d_tornado,11.04157,0.4987984375,1.0,nan,0.0,0.0
+torus3d_dor,torus3d_transpose,11.062386,0.2240671875,0.45,0.5,0.0,0.0
+torus3d_dor_cbs,torus3d_transpose,11.062449,0.257509375,0.55,0.6,282418.0,4380.0
+torus3d_adaptive_escape,torus3d_transpose,11.042072,0.498859375,1.0,nan,0.0,0.0

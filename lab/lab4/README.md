@@ -1,8 +1,9 @@
-# Lab 4: Deadlock-Free Adaptive Routing on a 3D Torus
+# Lab 4: Deadlock-Free Adaptive Routing and Bubble Flow Control on a 3D Torus
 
-This project implements a 4x4x4 3D Torus and congestion-aware minimal
-adaptive routing. By default, the last VC in each vnet is reserved as an escape
-channel. After entering the escape class, packets use non-wrap XYZ routing over
+This project implements a 4x4x4 3D Torus, congestion-aware minimal adaptive
+routing (Topic 1), and Critical Bubble Scheme flow control for the unprotected
+DOR mode (Topic 2, under `topic2/`). By default, the last VC in each vnet is
+reserved as an escape channel. After entering the escape class, packets use non-wrap XYZ routing over
 a connected 3D Mesh subnetwork and cannot return to adaptive VCs. The
 `--escape-vcs` option can reserve a different number of final VCs for the
 fixed-total-VC ablation.
@@ -68,6 +69,26 @@ Run the 100,000-cycle X-opposite progress validation for the default split:
   --sim-cycles 100000 --jobs 1 --results lab/lab4/progress_validation.csv \
   --force
 ```
+
+## Topic 2: Critical Bubble Scheme flow control
+
+`topic2/` implements the Critical Bubble Scheme (Chen, Wang & Pinkston,
+IPDPS 2011) for the unprotected `torus3d_dor` mode, gated by `--enable-cbs`.
+It keeps all four VCs usable and maintains one marked free buffer slot (the
+critical bubble) on every directed ring, which makes DOR constructively
+deadlock-free and raises its maximum stable transpose throughput from
+0.224067 to 0.257509 (about 15%), with negligible performance cost on the
+other patterns (at most a 0.049-cycle full-load latency difference).
+
+Run the 240-point CBS sweep and regenerate its figures:
+
+```bash
+./.venv/bin/python lab/lab4/topic2/run_sweep_topic2.py
+./.venv/bin/python lab/lab4/topic2/plot_results_topic2.py
+```
+
+Results are `topic2/results_topic2.csv` and `topic2/summary_topic2.csv`;
+design and correctness notes are in `topic2/cbs_design.md`.
 
 ## Report
 

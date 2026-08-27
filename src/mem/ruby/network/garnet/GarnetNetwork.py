@@ -54,6 +54,10 @@ class GarnetNetwork(RubyNetwork):
     wormhole = Param.Bool(
         False, "allow multiple single-flit packets per virtual channel"
     )
+    enable_cbs = Param.Bool(
+        False,
+        "critical bubble scheme flow control on Torus3D rings (ctrl vnets)",
+    )
     routing_algorithm = Param.Int(
         0,
         "0: Table, 1: XY, 2: Custom, 3: Torus3D DOR, "

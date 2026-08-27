@@ -2,8 +2,9 @@
 
 ## Scope and contribution
 
-This project adds parameterized 3D Mesh and 3D Torus topologies to Garnet, plus
-three route algorithms:
+This project adds parameterized 3D Mesh and 3D Torus topologies to Garnet,
+three route algorithms, and optional Critical Bubble Scheme (CBS) flow control
+for algorithm 3 (gated by `--enable-cbs`, implemented under `topic2/`):
 
 | ID | Topology | Route algorithm |
 |---:|---|---|
@@ -14,7 +15,10 @@ three route algorithms:
 The contribution is not the claim that a 3D Torus is a new topology. It is a
 Garnet implementation of congestion-aware minimal adaptive routing on that
 topology, paired with a one-way, non-wrap 3D Mesh escape subnet that supplies
-the progress argument.
+the progress argument, together with a flow-control counterpart: CBS protects
+the otherwise unprotected DOR mode through a ring bubble invariant instead of
+a reserved VC class. CBS design and correctness notes are in
+`topic2/cbs_design.md`.
 
 ## Topology and cost boundary
 

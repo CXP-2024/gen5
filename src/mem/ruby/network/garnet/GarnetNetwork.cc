@@ -74,6 +74,7 @@ GarnetNetwork::GarnetNetwork(const Params &p)
     m_buffers_per_data_vc = p.buffers_per_data_vc;
     m_buffers_per_ctrl_vc = p.buffers_per_ctrl_vc;
     m_wormhole = p.wormhole;
+    m_enable_cbs = p.enable_cbs;
     m_routing_algorithm = p.routing_algorithm;
     m_next_packet_id = 0;
 
@@ -143,6 +144,18 @@ GarnetNetwork::init()
         "vnet; --escape-vcs must be smaller than --vcs-per-vnet");
     fatal_if(isTorus3DAdaptive() && isWormhole(),
         "Torus3D adaptive routing cannot be combined with --wormhole");
+    fatal_if(m_enable_cbs && m_routing_algorithm != TORUS_3D_DOR_,
+        "--enable-cbs requires Torus3D DOR routing "
+        "(--routing-algorithm=3)");
+    fatal_if(m_enable_cbs && torus_routers == 0,
+        "--enable-cbs requires nonzero --torus-x/y/z");
+    fatal_if(m_enable_cbs && isWormhole(),
+        "--enable-cbs cannot be combined with --wormhole");
+    fatal_if(m_enable_cbs && m_max_vcs_per_vnet < 2,
+        "--enable-cbs requires at least 2 VCs per vnet: ring entry next "
+        "to the critical bubble needs two free slots to ever proceed");
+    if (m_enable_cbs)
+        cbsInit();
 
     // Initialize topology specific parameters
     if (getNumRows() > 0) {
@@ -173,6 +186,124 @@ GarnetNetwork::init()
             router->printFaultVector(std::cout);
         }
     }
+}
+
+/*
+ * Critical Bubble Scheme (CBS) support. One buffer slot per directed torus
+ * ring per vnet is marked "critical"; packets entering a ring may never
+ * consume it, packets travelling along the ring may displace it upstream.
+ * On ctrl vnets (single-flit packets, one buffer per VC) a slot is exactly
+ * one VC, so the mark is tracked per (router, inport direction, vnet).
+ */
+
+int
+GarnetNetwork::cbsDirnIndex(const PortDirection &dirn)
+{
+    if (dirn == "East") return 0;
+    if (dirn == "West") return 1;
+    if (dirn == "North") return 2;
+    if (dirn == "South") return 3;
+    if (dirn == "Up") return 4;
+    if (dirn == "Down") return 5;
+    return -1; // "Local" and unknown directions host no CBS mark
+}
+
+PortDirection
+GarnetNetwork::cbsOppositeDirn(const PortDirection &dirn)
+{
+    if (dirn == "East") return "West";
+    if (dirn == "West") return "East";
+    if (dirn == "North") return "South";
+    if (dirn == "South") return "North";
+    if (dirn == "Up") return "Down";
+    if (dirn == "Down") return "Up";
+    panic("CBS: no opposite for port direction %s", dirn);
+}
+
+int
+GarnetNetwork::cbsDownstreamRouter(int router_id,
+                                   const PortDirection &outport_dirn) const
+{
+    const int X = m_torus_x;
+    const int Y = m_torus_y;
+    const int Z = m_torus_z;
+    int x = router_id % X;
+    int y = (router_id / X) % Y;
+    int z = router_id / (X * Y);
+
+    if (outport_dirn == "East") x = (x + 1) % X;
+    else if (outport_dirn == "West") x = (x - 1 + X) % X;
+    else if (outport_dirn == "North") y = (y + 1) % Y;
+    else if (outport_dirn == "South") y = (y - 1 + Y) % Y;
+    else if (outport_dirn == "Up") z = (z + 1) % Z;
+    else if (outport_dirn == "Down") z = (z - 1 + Z) % Z;
+    else panic("CBS: no downstream router across port %s", outport_dirn);
+
+    return z * X * Y + y * X + x;
+}
+
+void
+GarnetNetwork::cbsInit()
+{
+    const int X = m_torus_x;
+    const int Y = m_torus_y;
+    const int Z = m_torus_z;
+
+    m_cbs_mark.assign(m_routers.size(),
+        std::vector<std::vector<bool>>(6,
+            std::vector<bool>(m_virtual_networks, false)));
+
+    // Place one critical bubble per directed ring per vnet, at the ring's
+    // coordinate-0 router. A packet moving in direction D arrives at the
+    // downstream inport facing opposite(D).
+    for (int vnet = 0; vnet < m_virtual_networks; vnet++) {
+        for (int z = 0; z < Z; z++) {
+            for (int y = 0; y < Y; y++) {
+                int r = z * X * Y + y * X; // x = 0
+                m_cbs_mark[r][cbsDirnIndex("West")][vnet] = true; // +X ring
+                m_cbs_mark[r][cbsDirnIndex("East")][vnet] = true; // -X ring
+            }
+        }
+        for (int z = 0; z < Z; z++) {
+            for (int x = 0; x < X; x++) {
+                int r = z * X * Y + x; // y = 0
+                m_cbs_mark[r][cbsDirnIndex("South")][vnet] = true; // +Y ring
+                m_cbs_mark[r][cbsDirnIndex("North")][vnet] = true; // -Y ring
+            }
+        }
+        for (int y = 0; y < Y; y++) {
+            for (int x = 0; x < X; x++) {
+                int r = y * X + x; // z = 0
+                m_cbs_mark[r][cbsDirnIndex("Down")][vnet] = true; // +Z ring
+                m_cbs_mark[r][cbsDirnIndex("Up")][vnet] = true; // -Z ring
+            }
+        }
+    }
+}
+
+bool
+GarnetNetwork::cbsHasMark(int router_id, const PortDirection &inport_dirn,
+                          int vnet) const
+{
+    int d = cbsDirnIndex(inport_dirn);
+    if (d < 0)
+        return false;
+    return m_cbs_mark[router_id][d][vnet];
+}
+
+void
+GarnetNetwork::cbsMoveMark(int from_router, const PortDirection &from_inport,
+                           int to_router, const PortDirection &to_inport,
+                           int vnet)
+{
+    int from_d = cbsDirnIndex(from_inport);
+    int to_d = cbsDirnIndex(to_inport);
+    assert(from_d >= 0 && to_d >= 0);
+    assert(m_cbs_mark[from_router][from_d][vnet]);
+    assert(!m_cbs_mark[to_router][to_d][vnet]);
+    m_cbs_mark[from_router][from_d][vnet] = false;
+    m_cbs_mark[to_router][to_d][vnet] = true;
+    m_cbs_mark_moves++;
 }
 
 /*
@@ -572,6 +703,12 @@ GarnetNetwork::regStats()
         .unit(count);
     m_escape_transitions
         .name(name() + ".escape_transitions")
+        .unit(count);
+    m_cbs_entry_blocks
+        .name(name() + ".cbs_entry_blocks")
+        .unit(count);
+    m_cbs_mark_moves
+        .name(name() + ".cbs_mark_moves")
         .unit(count);
 
     // Links

@@ -85,6 +85,7 @@ class GarnetNetwork : public Network
     uint32_t getBuffersPerCtrlVC() { return m_buffers_per_ctrl_vc; }
     int getRoutingAlgorithm() const { return m_routing_algorithm; }
     bool isWormhole() const { return m_wormhole; }
+    bool isCBSEnabled() const { return m_enable_cbs; }
     bool
     isTorus3DAdaptive() const
     {
@@ -168,6 +169,20 @@ class GarnetNetwork : public Network
     void increment_escape_hop() { m_escape_hops++; }
     void increment_escape_transition() { m_escape_transitions++; }
 
+    // Critical Bubble Scheme (CBS): one critical bubble per directed torus
+    // ring per vnet, tracked at the input port that hosts it. Hardware
+    // would piggyback the mark on credits; the simulator keeps a global
+    // registry indexed by (router, inport direction, vnet).
+    bool cbsHasMark(int router_id, const PortDirection &inport_dirn,
+                    int vnet) const;
+    void cbsMoveMark(int from_router, const PortDirection &from_inport,
+                     int to_router, const PortDirection &to_inport,
+                     int vnet);
+    int cbsDownstreamRouter(int router_id,
+                            const PortDirection &outport_dirn) const;
+    static PortDirection cbsOppositeDirn(const PortDirection &dirn);
+    void increment_cbs_entry_block() { m_cbs_entry_blocks++; }
+
     void update_traffic_distribution(RouteInfo route);
     int getNextPacketID() { return m_next_packet_id++; }
 
@@ -183,9 +198,17 @@ class GarnetNetwork : public Network
     uint32_t m_escape_vcs;
     uint32_t m_buffers_per_ctrl_vc;
     bool m_wormhole;
+    bool m_enable_cbs;
     uint32_t m_buffers_per_data_vc;
     int m_routing_algorithm;
     bool m_enable_fault_model;
+
+    // CBS critical bubble registry: m_cbs_mark[router][dirn][vnet] is true
+    // when the input port of `router` facing direction `dirn` hosts the
+    // critical bubble of its directed ring.
+    std::vector<std::vector<std::vector<bool>>> m_cbs_mark;
+    void cbsInit();
+    static int cbsDirnIndex(const PortDirection &dirn);
 
     // Statistical variables
     statistics::Vector m_packets_received;
@@ -221,6 +244,8 @@ class GarnetNetwork : public Network
     statistics::Scalar m_adaptive_hops;
     statistics::Scalar m_escape_hops;
     statistics::Scalar m_escape_transitions;
+    statistics::Scalar m_cbs_entry_blocks;
+    statistics::Scalar m_cbs_mark_moves;
 
     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;

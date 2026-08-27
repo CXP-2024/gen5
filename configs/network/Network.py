@@ -121,6 +121,13 @@ def define_options(parser):
         help="allow multiple single-flit control packets per VC",
     )
     parser.add_argument(
+        "--enable-cbs",
+        action="store_true",
+        default=False,
+        help="""enable Critical Bubble Scheme flow control on Torus3D
+            rings; requires --routing-algorithm=3 and no --wormhole""",
+    )
+    parser.add_argument(
         "--routing-algorithm",
         action="store",
         type=int,
@@ -207,6 +214,7 @@ def init_network(options, network, InterfaceClass):
         network.vcs_per_vnet = options.vcs_per_vnet
         network.escape_vcs = options.escape_vcs
         network.wormhole = options.wormhole
+        network.enable_cbs = options.enable_cbs
         if options.wormhole:
             network.buffers_per_ctrl_vc = 16
         network.ni_flit_size = options.link_width_bits / 8

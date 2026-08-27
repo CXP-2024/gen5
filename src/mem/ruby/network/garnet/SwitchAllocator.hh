@@ -82,6 +82,8 @@ class SwitchAllocator : public Consumer
     void resetStats();
 
   private:
+    bool cbs_governs(int vnet, int outport);
+
     int m_num_inports, m_num_outports;
     int m_num_vcs, m_vc_per_vnet;
 
