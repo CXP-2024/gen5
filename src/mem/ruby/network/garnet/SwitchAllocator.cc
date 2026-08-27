@@ -66,11 +66,13 @@ SwitchAllocator::init()
     m_round_robin_invc.resize(m_num_inports);
     m_port_requests.resize(m_num_inports);
     m_vc_winners.resize(m_num_inports);
+    m_escape_requests.resize(m_num_inports);
 
     for (int i = 0; i < m_num_inports; i++) {
         m_round_robin_invc[i] = 0;
         m_port_requests[i] = -1;
         m_vc_winners[i] = -1;
+        m_escape_requests[i] = false;
     }
 
     for (int i = 0; i < m_num_outports; i++) {
@@ -129,16 +131,41 @@ SwitchAllocator::arbitrate_inports()
                 if (wormhole_control)
                     outport = input_unit->peekTopFlit(invc)->get_outport();
                 int outvc = input_unit->get_outvc(invc);
+                bool route_available = true;
+                bool escape_request = false;
+
+                if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
+                    if (outvc == -1) {
+                        AdaptiveRouteDecision decision =
+                            m_router->route_compute_3d_adaptive(
+                                input_unit->peekTopFlit(invc)->get_route(),
+                                invc, true);
+                        route_available = decision.outport != -1;
+                        if (route_available) {
+                            outport = decision.outport;
+                            escape_request = decision.escape;
+                            input_unit->grant_outport(invc, outport);
+                        }
+                    } else {
+                        const int escape_vcs =
+                            m_router->get_net_ptr()->getEscapeVCs();
+                        escape_request = escape_vcs > 0 &&
+                            outvc % m_vc_per_vnet >=
+                            m_vc_per_vnet - escape_vcs;
+                    }
+                }
 
                 // check if the flit in this InputVC is allowed to be sent
                 // send_allowed conditions described in that function.
-                bool make_request =
-                    send_allowed(inport, invc, outport, outvc);
+                bool make_request = route_available &&
+                    send_allowed(inport, invc, outport, outvc,
+                                 escape_request);
 
                 if (make_request) {
                     m_input_arbiter_activity++;
                     m_port_requests[inport] = outport;
                     m_vc_winners[inport] = invc;
+                    m_escape_requests[inport] = escape_request;
 
                     break; // got one vc winner for this port
                 }
@@ -188,7 +215,8 @@ SwitchAllocator::arbitrate_outports()
                 int outvc = input_unit->get_outvc(invc);
                 if (outvc == -1) {
                     // VC Allocation - select any free VC from outport
-                    outvc = vc_allocate(outport, inport, invc);
+                    outvc = vc_allocate(
+                        outport, inport, invc, m_escape_requests[inport]);
                 }
 
                 // remove flit from Input VC
@@ -218,6 +246,30 @@ SwitchAllocator::arbitrate_outports()
                 // set outvc (i.e., invc for next hop) in flit
                 // (This was updated in VC by vc_allocate, but not in flit)
                 t_flit->set_vc(outvc);
+
+                if (m_router->get_net_ptr()->isTorus3DAdaptive() &&
+                    output_unit->get_direction() != "Local") {
+                    const int escape_vcs =
+                        m_router->get_net_ptr()->getEscapeVCs();
+                    const int adaptive_vcs = m_vc_per_vnet - escape_vcs;
+                    const bool output_escape =
+                        escape_vcs > 0 &&
+                        outvc % m_vc_per_vnet >= adaptive_vcs;
+                    const bool input_escape =
+                        escape_vcs > 0 &&
+                        invc % m_vc_per_vnet >= adaptive_vcs;
+                    if (output_escape)
+                        m_router->get_net_ptr()->increment_escape_hop();
+                    else
+                        m_router->get_net_ptr()->increment_adaptive_hop();
+                    const bool packet_head =
+                        t_flit->get_type() == HEAD_ ||
+                        t_flit->get_type() == HEAD_TAIL_;
+                    if (output_escape && !input_escape && packet_head) {
+                        m_router->get_net_ptr()->
+                            increment_escape_transition();
+                    }
+                }
 
                 // decrement credit in outvc
                 output_unit->decrement_credit(outvc);
@@ -296,7 +348,8 @@ SwitchAllocator::arbitrate_outports()
  */
 
 bool
-SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
+SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc,
+                              bool escape_request)
 {
     // Check if outvc needed
     // Check if credit needed (for multi-flit packet)
@@ -312,10 +365,25 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
         // needs outvc
         // this is only true for HEAD and HEAD_TAIL flits.
 
-        bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
-            m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
-        if ((wormhole_control && output_unit->has_credit_vc(vnet)) ||
-            output_unit->has_free_vc(vnet)) {
+        bool output_available = false;
+        if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
+            const int escape_vcs =
+                m_router->get_net_ptr()->getEscapeVCs();
+            const int adaptive_vcs = m_vc_per_vnet - escape_vcs;
+            const int first_offset = escape_request ?
+                adaptive_vcs : 0;
+            const int count = escape_request ? escape_vcs : adaptive_vcs;
+            output_available = output_unit->has_free_vc(
+                vnet, first_offset, count);
+        } else {
+            bool wormhole_control =
+                m_router->get_net_ptr()->isWormhole() &&
+                m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
+            output_available =
+                (wormhole_control && output_unit->has_credit_vc(vnet)) ||
+                output_unit->has_free_vc(vnet);
+        }
+        if (output_available) {
 
             has_outvc = true;
 
@@ -363,14 +431,25 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
 
 // Assign a free VC to the winner of the output port.
 int
-SwitchAllocator::vc_allocate(int outport, int inport, int invc)
+SwitchAllocator::vc_allocate(int outport, int inport, int invc,
+                             bool escape_request)
 {
     // Select a free VC from the output port
     int vnet = get_vnet(invc);
-    bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
-        m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
-    int outvc = m_router->getOutputUnit(outport)->select_vc(
-        vnet, wormhole_control);
+    int outvc = -1;
+    if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
+        const int escape_vcs = m_router->get_net_ptr()->getEscapeVCs();
+        const int adaptive_vcs = m_vc_per_vnet - escape_vcs;
+        const int first_offset = escape_request ? adaptive_vcs : 0;
+        const int count = escape_request ? escape_vcs : adaptive_vcs;
+        outvc = m_router->getOutputUnit(outport)->select_free_vc(
+            vnet, first_offset, count);
+    } else {
+        bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
+            m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
+        outvc = m_router->getOutputUnit(outport)->select_vc(
+            vnet, wormhole_control);
+    }
 
     // has to get a valid VC since it checked before performing SA
     assert(outvc != -1);
@@ -414,6 +493,7 @@ void
 SwitchAllocator::clear_request_vector()
 {
     std::fill(m_port_requests.begin(), m_port_requests.end(), -1);
+    std::fill(m_escape_requests.begin(), m_escape_requests.end(), false);
 }
 
 void

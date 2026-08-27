@@ -159,9 +159,18 @@ Router::getInportDirection(int inport)
 }
 
 int
-Router::route_compute(RouteInfo route, int inport, PortDirection inport_dirn)
+Router::route_compute(RouteInfo route, int inport, PortDirection inport_dirn,
+                      int invc)
 {
-    return routingUnit.outportCompute(route, inport, inport_dirn);
+    return routingUnit.outportCompute(route, inport, inport_dirn, invc);
+}
+
+AdaptiveRouteDecision
+Router::route_compute_3d_adaptive(RouteInfo route, int invc,
+                                  bool require_available)
+{
+    return routingUnit.outportCompute3DAdaptive(
+        route, invc, require_available);
 }
 
 void

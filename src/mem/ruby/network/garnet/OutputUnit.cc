@@ -97,13 +97,30 @@ OutputUnit::has_credit(int out_vc)
 bool
 OutputUnit::has_free_vc(int vnet)
 {
-    int vc_base = vnet*m_vc_per_vnet;
-    for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
+    return has_free_vc(vnet, 0, m_vc_per_vnet);
+}
+
+bool
+OutputUnit::has_free_vc(int vnet, int first_offset, int count)
+{
+    return free_vc_credit_count(vnet, first_offset, count) > 0;
+}
+
+int
+OutputUnit::free_vc_credit_count(int vnet, int first_offset, int count)
+{
+    assert(first_offset >= 0 && count > 0);
+    assert(first_offset + count <= m_vc_per_vnet);
+
+    int credits = 0;
+    const int vc_base = vnet * m_vc_per_vnet;
+    for (int offset = first_offset; offset < first_offset + count; offset++) {
+        const int vc = vc_base + offset;
         if (is_vc_idle(vc, curTick()))
-            return true;
+            credits += outVcState[vc].get_credit_count();
     }
 
-    return false;
+    return credits;
 }
 
 bool
@@ -122,7 +139,25 @@ OutputUnit::has_credit_vc(int vnet)
 int
 OutputUnit::select_free_vc(int vnet)
 {
-    return select_vc(vnet, false);
+    return select_free_vc(vnet, 0, m_vc_per_vnet);
+}
+
+int
+OutputUnit::select_free_vc(int vnet, int first_offset, int count)
+{
+    assert(first_offset >= 0 && count > 0);
+    assert(first_offset + count <= m_vc_per_vnet);
+
+    const int vc_base = vnet * m_vc_per_vnet;
+    for (int offset = first_offset; offset < first_offset + count; offset++) {
+        const int vc = vc_base + offset;
+        if (is_vc_idle(vc, curTick())) {
+            outVcState[vc].setState(ACTIVE_, curTick());
+            return vc;
+        }
+    }
+
+    return -1;
 }
 
 int

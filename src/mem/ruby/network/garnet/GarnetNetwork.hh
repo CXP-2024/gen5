@@ -74,6 +74,10 @@ class GarnetNetwork : public Network
     // for 2D topology
     int getNumRows() const { return m_num_rows; }
     int getNumCols() { return m_num_cols; }
+    uint32_t getTorusX() const { return m_torus_x; }
+    uint32_t getTorusY() const { return m_torus_y; }
+    uint32_t getTorusZ() const { return m_torus_z; }
+    uint32_t getEscapeVCs() const { return m_escape_vcs; }
 
     // for network
     uint32_t getNiFlitSize() const { return m_ni_flit_size; }
@@ -81,6 +85,11 @@ class GarnetNetwork : public Network
     uint32_t getBuffersPerCtrlVC() { return m_buffers_per_ctrl_vc; }
     int getRoutingAlgorithm() const { return m_routing_algorithm; }
     bool isWormhole() const { return m_wormhole; }
+    bool
+    isTorus3DAdaptive() const
+    {
+        return m_routing_algorithm == TORUS_3D_ADAPTIVE_;
+    }
 
     bool isFaultModelEnabled() const { return m_enable_fault_model; }
     FaultModel* fault_model;
@@ -155,6 +164,10 @@ class GarnetNetwork : public Network
         m_total_hops += hops;
     }
 
+    void increment_adaptive_hop() { m_adaptive_hops++; }
+    void increment_escape_hop() { m_escape_hops++; }
+    void increment_escape_transition() { m_escape_transitions++; }
+
     void update_traffic_distribution(RouteInfo route);
     int getNextPacketID() { return m_next_packet_id++; }
 
@@ -162,8 +175,12 @@ class GarnetNetwork : public Network
     // Configuration
     int m_num_rows;
     int m_num_cols;
+    uint32_t m_torus_x;
+    uint32_t m_torus_y;
+    uint32_t m_torus_z;
     uint32_t m_ni_flit_size;
     uint32_t m_max_vcs_per_vnet;
+    uint32_t m_escape_vcs;
     uint32_t m_buffers_per_ctrl_vc;
     bool m_wormhole;
     uint32_t m_buffers_per_data_vc;
@@ -201,6 +218,9 @@ class GarnetNetwork : public Network
 
     statistics::Scalar  m_total_hops;
     statistics::Formula m_avg_hops;
+    statistics::Scalar m_adaptive_hops;
+    statistics::Scalar m_escape_hops;
+    statistics::Scalar m_escape_transitions;
 
     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;

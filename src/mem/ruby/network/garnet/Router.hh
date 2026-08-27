@@ -116,7 +116,10 @@ class Router : public BasicRouter, public Consumer
     PortDirection getOutportDirection(int outport);
     PortDirection getInportDirection(int inport);
 
-    int route_compute(RouteInfo route, int inport, PortDirection direction);
+    int route_compute(RouteInfo route, int inport, PortDirection direction,
+                      int invc);
+    AdaptiveRouteDecision route_compute_3d_adaptive(
+        RouteInfo route, int invc, bool require_available);
     void grant_switch(int inport, flit *t_flit);
     void schedule_wakeup(Cycles time);
 

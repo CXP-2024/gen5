@@ -38,6 +38,9 @@ class GarnetSyntheticTraffic(ClockedObject):
 
     block_offset = Param.Int(6, "block offset in bits")
     num_dest = Param.Int(1, "Number of Destinations")
+    torus_x = Param.UInt32(0, "routers in the X dimension of a 3D torus")
+    torus_y = Param.UInt32(0, "routers in the Y dimension of a 3D torus")
+    torus_z = Param.UInt32(0, "routers in the Z dimension of a 3D torus")
     memory_size = Param.Int(65536, "memory size")
     sim_cycles = Param.Int(1000, "Number of simulation cycles")
     num_packets_max = Param.Int(

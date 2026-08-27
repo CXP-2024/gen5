@@ -57,6 +57,10 @@ parser.add_argument(
         "neighbor",
         "shuffle",
         "transpose",
+        "torus3d_neighbor",
+        "torus3d_tornado",
+        "torus3d_transpose",
+        "torus3d_xopposite",
     ],
 )
 
@@ -135,6 +139,9 @@ cpus = [
         inj_vnet=args.inj_vnet,
         precision=args.precision,
         num_dest=args.num_dirs,
+        torus_x=args.torus_x,
+        torus_y=args.torus_y,
+        torus_z=args.torus_z,
     )
     for i in range(args.num_cpus)
 ]

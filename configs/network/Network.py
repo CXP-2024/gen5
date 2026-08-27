@@ -48,6 +48,24 @@ def define_options(parser):
         help="the number of rows in the mesh topology",
     )
     parser.add_argument(
+        "--torus-x",
+        type=int,
+        default=0,
+        help="number of routers in the X dimension of a 3D torus",
+    )
+    parser.add_argument(
+        "--torus-y",
+        type=int,
+        default=0,
+        help="number of routers in the Y dimension of a 3D torus",
+    )
+    parser.add_argument(
+        "--torus-z",
+        type=int,
+        default=0,
+        help="number of routers in the Z dimension of a 3D torus",
+    )
+    parser.add_argument(
         "--network",
         default="simple",
         choices=["simple", "garnet"],
@@ -88,6 +106,15 @@ def define_options(parser):
             inside garnet network.""",
     )
     parser.add_argument(
+        "--escape-vcs",
+        action="store",
+        type=int,
+        default=1,
+        help="""number of VCs per vnet reserved for the non-wrap Mesh3D
+            escape path used by routing-algorithm 4. Set to 0 only for an
+            unsafe no-escape comparison experiment.""",
+    )
+    parser.add_argument(
         "--wormhole",
         action="store_true",
         default=False,
@@ -101,7 +128,10 @@ def define_options(parser):
         help="""routing algorithm in network.
             0: weight-based table
             1: XY (for Mesh. see garnet/RoutingUnit.cc)
-            2: Custom (see garnet/RoutingUnit.cc""",
+            2: Custom (see garnet/RoutingUnit.cc)
+            3: deterministic minimal XYZ for Torus3D
+            4: adaptive minimal Torus3D with configurable mesh escape VCs
+            5: deterministic XYZ for Mesh3D""",
     )
     parser.add_argument(
         "--network-fault-model",
@@ -171,7 +201,11 @@ def init_network(options, network, InterfaceClass):
 
     if options.network == "garnet":
         network.num_rows = options.mesh_rows
+        network.torus_x = options.torus_x
+        network.torus_y = options.torus_y
+        network.torus_z = options.torus_z
         network.vcs_per_vnet = options.vcs_per_vnet
+        network.escape_vcs = options.escape_vcs
         network.wormhole = options.wormhole
         if options.wormhole:
             network.buffers_per_ctrl_vc = 16

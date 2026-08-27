@@ -81,6 +81,9 @@ GarnetSyntheticTraffic::GarnetSyntheticTraffic(const Params &p)
       size(p.memory_size),
       blockSizeBits(p.block_offset),
       numDestinations(p.num_dest),
+      torusX(p.torus_x),
+      torusY(p.torus_y),
+      torusZ(p.torus_z),
       simCycles(p.sim_cycles),
       numPacketsMax(p.num_packets_max),
       numPacketsSent(0),
@@ -102,6 +105,14 @@ GarnetSyntheticTraffic::GarnetSyntheticTraffic(const Params &p)
         fatal("Unknown Traffic Type: %s!\n", traffic);
     }
     traffic = trafficStringToEnum[trafficType];
+
+    if (traffic == TORUS_3D_NEIGHBOR_ ||
+        traffic == TORUS_3D_TORNADO_ ||
+        traffic == TORUS_3D_TRANSPOSE_ ||
+        traffic == TORUS_3D_XOPPOSITE_) {
+        fatal_if(torusX * torusY * torusZ != numDestinations,
+            "3D traffic dimensions do not match the destination count");
+    }
 
     id = TESTER_NETWORK++;
     DPRINTF(GarnetSyntheticTraffic,"Config Created: Name = %s , and id = %d\n",
@@ -236,6 +247,39 @@ GarnetSyntheticTraffic::generatePkt()
         dest_x = (src_x + (int) ceil(radix/2) - 1) % radix;
         dest_y = src_y;
         destination = dest_y*radix + dest_x;
+    } else if (traffic == TORUS_3D_NEIGHBOR_ ||
+               traffic == TORUS_3D_TORNADO_ ||
+               traffic == TORUS_3D_TRANSPOSE_ ||
+               traffic == TORUS_3D_XOPPOSITE_) {
+        const int src_3d_x = source % torusX;
+        const int src_3d_y = (source / torusX) % torusY;
+        const int src_3d_z = source / (torusX * torusY);
+        int dest_3d_x = src_3d_x;
+        int dest_3d_y = src_3d_y;
+        int dest_3d_z = src_3d_z;
+
+        if (traffic == TORUS_3D_NEIGHBOR_) {
+            dest_3d_x = (src_3d_x + 1) % torusX;
+        } else if (traffic == TORUS_3D_XOPPOSITE_) {
+            fatal_if(torusX % 2 != 0,
+                "torus3d_xopposite requires an even X dimension");
+            dest_3d_x = (src_3d_x + torusX / 2) % torusX;
+        } else if (traffic == TORUS_3D_TORNADO_) {
+            dest_3d_x =
+                (src_3d_x + (int)ceil(torusX / 2.0) - 1) % torusX;
+            dest_3d_y =
+                (src_3d_y + (int)ceil(torusY / 2.0) - 1) % torusY;
+            dest_3d_z =
+                (src_3d_z + (int)ceil(torusZ / 2.0) - 1) % torusZ;
+        } else {
+            fatal_if(torusX != torusY || torusY != torusZ,
+                "torus3d_transpose requires equal dimensions");
+            dest_3d_x = src_3d_z;
+            dest_3d_y = src_3d_x;
+            dest_3d_z = src_3d_y;
+        }
+        destination =
+            dest_3d_z * torusX * torusY + dest_3d_y * torusX + dest_3d_x;
     }
     else {
         fatal("Unknown Traffic Type: %s!\n", traffic);
@@ -334,6 +378,10 @@ GarnetSyntheticTraffic::initTrafficType()
     trafficStringToEnum["tornado"] = TORNADO_;
     trafficStringToEnum["transpose"] = TRANSPOSE_;
     trafficStringToEnum["uniform_random"] = UNIFORM_RANDOM_;
+    trafficStringToEnum["torus3d_neighbor"] = TORUS_3D_NEIGHBOR_;
+    trafficStringToEnum["torus3d_tornado"] = TORUS_3D_TORNADO_;
+    trafficStringToEnum["torus3d_transpose"] = TORUS_3D_TRANSPOSE_;
+    trafficStringToEnum["torus3d_xopposite"] = TORUS_3D_XOPPOSITE_;
 }
 
 void

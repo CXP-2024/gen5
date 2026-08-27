@@ -65,8 +65,12 @@ GarnetNetwork::GarnetNetwork(const Params &p)
     : Network(p)
 {
     m_num_rows = p.num_rows;
+    m_torus_x = p.torus_x;
+    m_torus_y = p.torus_y;
+    m_torus_z = p.torus_z;
     m_ni_flit_size = p.ni_flit_size;
     m_max_vcs_per_vnet = 0;
+    m_escape_vcs = p.escape_vcs;
     m_buffers_per_data_vc = p.buffers_per_data_vc;
     m_buffers_per_ctrl_vc = p.buffers_per_ctrl_vc;
     m_wormhole = p.wormhole;
@@ -121,6 +125,24 @@ GarnetNetwork::init()
     // parent network constructor
     assert(m_topology_ptr != NULL);
     m_topology_ptr->createLinks(this);
+
+    const uint64_t torus_routers =
+        static_cast<uint64_t>(m_torus_x) * m_torus_y * m_torus_z;
+    if (torus_routers > 0) {
+        fatal_if(m_torus_x < 2 || m_torus_y < 2 || m_torus_z < 2,
+            "All Torus3D dimensions must contain at least two routers");
+        fatal_if(torus_routers != m_routers.size(),
+            "Torus3D dimensions describe %llu routers, but the network "
+            "contains %d", torus_routers, m_routers.size());
+    }
+    fatal_if(isTorus3DAdaptive() && torus_routers == 0,
+        "Torus3D adaptive routing requires nonzero --torus-x/y/z");
+    fatal_if(isTorus3DAdaptive() &&
+             m_escape_vcs >= m_max_vcs_per_vnet,
+        "Torus3D adaptive routing requires at least one adaptive VC per "
+        "vnet; --escape-vcs must be smaller than --vcs-per-vnet");
+    fatal_if(isTorus3DAdaptive() && isWormhole(),
+        "Torus3D adaptive routing cannot be combined with --wormhole");
 
     // Initialize topology specific parameters
     if (getNumRows() > 0) {
@@ -541,6 +563,16 @@ GarnetNetwork::regStats()
         .name(name() + ".average_hops")
         .unit(count_per_count);
     m_avg_hops = m_total_hops / sum(m_flits_received);
+
+    m_adaptive_hops
+        .name(name() + ".adaptive_hops")
+        .unit(count);
+    m_escape_hops
+        .name(name() + ".escape_hops")
+        .unit(count);
+    m_escape_transitions
+        .name(name() + ".escape_transitions")
+        .unit(count);
 
     // Links
     m_total_ext_in_link_utilization

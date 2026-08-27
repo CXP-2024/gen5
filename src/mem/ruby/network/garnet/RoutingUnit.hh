@@ -31,6 +31,7 @@
 #ifndef __MEM_RUBY_NETWORK_GARNET_0_ROUTINGUNIT_HH__
 #define __MEM_RUBY_NETWORK_GARNET_0_ROUTINGUNIT_HH__
 
+#include "base/random.hh"
 #include "mem/ruby/common/Consumer.hh"
 #include "mem/ruby/common/NetDest.hh"
 #include "mem/ruby/network/garnet/CommonTypes.hh"
@@ -54,8 +55,9 @@ class RoutingUnit
   public:
     RoutingUnit(Router *router);
     int outportCompute(RouteInfo route,
-                      int inport,
-                      PortDirection inport_dirn);
+                       int inport,
+                       PortDirection inport_dirn,
+                       int invc);
 
     // Topology-agnostic Routing Table based routing (default)
     void addRoute(std::vector<NetDest>& routing_table_entry);
@@ -78,6 +80,14 @@ class RoutingUnit
                              int inport,
                              PortDirection inport_dirn);
 
+    int outportCompute3DDOR(RouteInfo route,
+                            int inport,
+                            PortDirection inport_dirn);
+    int outportCompute3DXYZ(RouteInfo route);
+
+    AdaptiveRouteDecision outportCompute3DAdaptive(
+        RouteInfo route, int invc, bool require_available);
+
     // Returns true if vnet is present in the vector
     // of vnets or if the vector supports all vnets.
     bool supportsVnet(int vnet, std::vector<int> sVnets);
@@ -85,6 +95,7 @@ class RoutingUnit
 
   private:
     Router *m_router;
+    Random m_random;
 
     // Routing Table
     std::vector<std::vector<NetDest>> m_routing_table;

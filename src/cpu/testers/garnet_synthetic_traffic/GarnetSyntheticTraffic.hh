@@ -51,6 +51,10 @@ enum TrafficType {BIT_COMPLEMENT_ = 0,
                   TORNADO_ = 5,
                   TRANSPOSE_ = 6,
                   UNIFORM_RANDOM_ = 7,
+                  TORUS_3D_NEIGHBOR_ = 8,
+                  TORUS_3D_TORNADO_ = 9,
+                  TORUS_3D_TRANSPOSE_ = 10,
+                  TORUS_3D_XOPPOSITE_ = 11,
                   NUM_TRAFFIC_PATTERNS_};
 
 class Packet;
@@ -119,6 +123,9 @@ class GarnetSyntheticTraffic : public ClockedObject
     Tick noResponseCycles;
 
     int numDestinations;
+    int torusX;
+    int torusY;
+    int torusZ;
     Tick simCycles;
     int numPacketsMax;
     int numPacketsSent;

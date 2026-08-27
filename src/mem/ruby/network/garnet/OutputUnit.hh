@@ -71,6 +71,9 @@ class OutputUnit : public Consumer
     int select_free_vc(int vnet);
     bool has_credit_vc(int vnet);
     int select_vc(int vnet, bool allow_active);
+    bool has_free_vc(int vnet, int first_offset, int count);
+    int select_free_vc(int vnet, int first_offset, int count);
+    int free_vc_credit_count(int vnet, int first_offset, int count);
 
     inline PortDirection get_direction() { return m_direction; }
 

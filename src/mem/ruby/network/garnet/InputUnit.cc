@@ -103,7 +103,7 @@ InputUnit::wakeup()
 
             // Route computation for this vc
             int outport = m_router->route_compute(t_flit->get_route(),
-                m_id, m_direction);
+                m_id, m_direction, vc);
 
             if (wormhole_control)
                 t_flit->set_outport(outport);

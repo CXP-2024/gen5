@@ -41,14 +41,24 @@ class GarnetNetwork(RubyNetwork):
     cxx_class = "gem5::ruby::garnet::GarnetNetwork"
 
     num_rows = Param.Int(0, "number of rows if 2D (mesh/torus/..) topology")
+    torus_x = Param.UInt32(0, "routers in the X dimension of a 3D torus")
+    torus_y = Param.UInt32(0, "routers in the Y dimension of a 3D torus")
+    torus_z = Param.UInt32(0, "routers in the Z dimension of a 3D torus")
     ni_flit_size = Param.UInt32(16, "network interface flit size in bytes")
     vcs_per_vnet = Param.UInt32(4, "virtual channels per virtual network")
+    escape_vcs = Param.UInt32(
+        1, "VCs per vnet reserved for Torus3D adaptive escape routing"
+    )
     buffers_per_data_vc = Param.UInt32(4, "buffers per data virtual channel")
     buffers_per_ctrl_vc = Param.UInt32(1, "buffers per ctrl virtual channel")
     wormhole = Param.Bool(
         False, "allow multiple single-flit packets per virtual channel"
     )
-    routing_algorithm = Param.Int(0, "0: Weight-based Table, 1: XY, 2: Custom")
+    routing_algorithm = Param.Int(
+        0,
+        "0: Table, 1: XY, 2: Custom, 3: Torus3D DOR, "
+        "4: Torus3D adaptive routing with Mesh3D escape VCs, 5: Mesh3D XYZ",
+    )
     enable_fault_model = Param.Bool(False, "enable network fault model")
     fault_model = Param.FaultModel(NULL, "network fault model")
     garnet_deadlock_threshold = Param.UInt32(

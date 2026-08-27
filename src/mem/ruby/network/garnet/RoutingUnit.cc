@@ -34,6 +34,7 @@
 #include "base/compiler.hh"
 #include "debug/RubyNetwork.hh"
 #include "mem/ruby/network/garnet/InputUnit.hh"
+#include "mem/ruby/network/garnet/OutputUnit.hh"
 #include "mem/ruby/network/garnet/Router.hh"
 #include "mem/ruby/slicc_interface/Message.hh"
 
@@ -47,8 +48,8 @@ namespace garnet
 {
 
 RoutingUnit::RoutingUnit(Router *router)
+    : m_router(router), m_random(0x5eed0000U + router->get_id())
 {
-    m_router = router;
     m_routing_table.clear();
     m_weight_table.clear();
 }
@@ -167,7 +168,7 @@ RoutingUnit::addOutDirection(PortDirection outport_dirn, int outport_idx)
 
 int
 RoutingUnit::outportCompute(RouteInfo route, int inport,
-                            PortDirection inport_dirn)
+                            PortDirection inport_dirn, int invc)
 {
     int outport = -1;
 
@@ -193,6 +194,12 @@ RoutingUnit::outportCompute(RouteInfo route, int inport,
         // any custom algorithm
         case CUSTOM_: outport =
             outportComputeCustom(route, inport, inport_dirn); break;
+        case TORUS_3D_DOR_: outport =
+            outportCompute3DDOR(route, inport, inport_dirn); break;
+        case TORUS_3D_ADAPTIVE_: outport =
+            outportCompute3DAdaptive(route, invc, false).outport; break;
+        case MESH_3D_XYZ_: outport =
+            outportCompute3DXYZ(route); break;
         default: outport =
             lookupRoutingTable(route.vnet, route.net_dest); break;
     }
@@ -291,6 +298,201 @@ RoutingUnit::outportComputeCustom(RouteInfo route,
     }
 
     return m_outports_dirn2idx[outport_dirn];
+}
+
+int
+RoutingUnit::outportCompute3DDOR(RouteInfo route,
+                                 int inport,
+                                 PortDirection inport_dirn)
+{
+    const int size_x = m_router->get_net_ptr()->getTorusX();
+    const int size_y = m_router->get_net_ptr()->getTorusY();
+    const int size_z = m_router->get_net_ptr()->getTorusZ();
+    const int num_routers = m_router->get_net_ptr()->getNumRouters();
+    assert(size_x * size_y * size_z == num_routers);
+
+    const int current_id = m_router->get_id();
+    const int destination_id = route.dest_router;
+    const int current_x = current_id % size_x;
+    const int current_y = (current_id / size_x) % size_y;
+    const int current_z = current_id / (size_x * size_y);
+    const int destination_x = destination_id % size_x;
+    const int destination_y = (destination_id / size_x) % size_y;
+    const int destination_z = destination_id / (size_x * size_y);
+
+    PortDirection outport_dirn = "Unknown";
+    auto shortestDirection = [](int current, int destination, int size,
+                                PortDirection positive,
+                                PortDirection negative) {
+        const int positive_hops =
+            (destination - current + size) % size;
+        const int negative_hops =
+            (current - destination + size) % size;
+        return positive_hops <= negative_hops ? positive : negative;
+    };
+
+    if (current_x != destination_x) {
+        outport_dirn = shortestDirection(
+            current_x, destination_x, size_x, "East", "West");
+    } else if (current_y != destination_y) {
+        outport_dirn = shortestDirection(
+            current_y, destination_y, size_y, "North", "South");
+    } else if (current_z != destination_z) {
+        outport_dirn = shortestDirection(
+            current_z, destination_z, size_z, "Up", "Down");
+    } else {
+        panic("Torus3D routing called at the destination router");
+    }
+
+    return m_outports_dirn2idx[outport_dirn];
+}
+
+int
+RoutingUnit::outportCompute3DXYZ(RouteInfo route)
+{
+    const int size_x = m_router->get_net_ptr()->getTorusX();
+    const int size_y = m_router->get_net_ptr()->getTorusY();
+    const int size_z = m_router->get_net_ptr()->getTorusZ();
+    assert(size_x * size_y * size_z ==
+           m_router->get_net_ptr()->getNumRouters());
+
+    const int current_id = m_router->get_id();
+    const int destination_id = route.dest_router;
+    const int current_x = current_id % size_x;
+    const int current_y = (current_id / size_x) % size_y;
+    const int current_z = current_id / (size_x * size_y);
+    const int destination_x = destination_id % size_x;
+    const int destination_y = (destination_id / size_x) % size_y;
+    const int destination_z = destination_id / (size_x * size_y);
+
+    PortDirection outport_dirn = "Unknown";
+    if (current_x != destination_x)
+        outport_dirn = destination_x > current_x ? "East" : "West";
+    else if (current_y != destination_y)
+        outport_dirn = destination_y > current_y ? "North" : "South";
+    else if (current_z != destination_z)
+        outport_dirn = destination_z > current_z ? "Up" : "Down";
+    else
+        panic("Mesh3D routing called at the destination router");
+
+    return m_outports_dirn2idx.at(outport_dirn);
+}
+
+AdaptiveRouteDecision
+RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
+                                      bool require_available)
+{
+    const int size_x = m_router->get_net_ptr()->getTorusX();
+    const int size_y = m_router->get_net_ptr()->getTorusY();
+    const int size_z = m_router->get_net_ptr()->getTorusZ();
+    const int vcs_per_vnet = m_router->get_vc_per_vnet();
+    const int vnet = invc / vcs_per_vnet;
+    const int escape_vcs = m_router->get_net_ptr()->getEscapeVCs();
+    const int adaptive_vcs = vcs_per_vnet - escape_vcs;
+    const bool input_escape = escape_vcs > 0 &&
+        invc % vcs_per_vnet >= adaptive_vcs;
+
+    const int current_id = m_router->get_id();
+    const int destination_id = route.dest_router;
+    const int current_x = current_id % size_x;
+    const int current_y = (current_id / size_x) % size_y;
+    const int current_z = current_id / (size_x * size_y);
+    const int destination_x = destination_id % size_x;
+    const int destination_y = (destination_id / size_x) % size_y;
+    const int destination_z = destination_id / (size_x * size_y);
+
+    auto outportForDirection = [this](PortDirection direction) {
+        return m_outports_dirn2idx.at(direction);
+    };
+    auto escapeOutport = [&]() {
+        if (current_x != destination_x) {
+            return outportForDirection(
+                destination_x > current_x ? "East" : "West");
+        }
+        if (current_y != destination_y) {
+            return outportForDirection(
+                destination_y > current_y ? "North" : "South");
+        }
+        if (current_z != destination_z) {
+            return outportForDirection(
+                destination_z > current_z ? "Up" : "Down");
+        }
+        return lookupRoutingTable(route.vnet, route.net_dest);
+    };
+    auto hasClassVC = [&](int outport, bool escape) {
+        const int first_offset = escape ? adaptive_vcs : 0;
+        const int count = escape ? escape_vcs : adaptive_vcs;
+        return m_router->getOutputUnit(outport)->has_free_vc(
+            vnet, first_offset, count);
+    };
+
+    if (input_escape) {
+        const int outport = escapeOutport();
+        if (require_available && !hasClassVC(outport, true))
+            return AdaptiveRouteDecision();
+        return AdaptiveRouteDecision(outport, true);
+    }
+
+    if (current_id == destination_id) {
+        const int outport = escapeOutport();
+        if (!require_available || hasClassVC(outport, false))
+            return AdaptiveRouteDecision(outport, false);
+        if (escape_vcs > 0 && hasClassVC(outport, true))
+            return AdaptiveRouteDecision(outport, true);
+        return AdaptiveRouteDecision();
+    }
+
+    std::vector<int> candidates;
+    auto addMinimalDirections = [&](int current, int destination, int size,
+                                    PortDirection positive,
+                                    PortDirection negative) {
+        if (current == destination)
+            return;
+        const int positive_hops =
+            (destination - current + size) % size;
+        const int negative_hops =
+            (current - destination + size) % size;
+        if (positive_hops <= negative_hops)
+            candidates.push_back(outportForDirection(positive));
+        if (negative_hops <= positive_hops)
+            candidates.push_back(outportForDirection(negative));
+    };
+
+    addMinimalDirections(
+        current_x, destination_x, size_x, "East", "West");
+    addMinimalDirections(
+        current_y, destination_y, size_y, "North", "South");
+    addMinimalDirections(
+        current_z, destination_z, size_z, "Up", "Down");
+    assert(!candidates.empty());
+
+    int best_credits = -1;
+    std::vector<int> best_outports;
+    for (const int outport : candidates) {
+        const int credits = m_router->getOutputUnit(outport)->
+            free_vc_credit_count(vnet, 0, adaptive_vcs);
+        if (require_available && credits == 0)
+            continue;
+        if (credits > best_credits) {
+            best_credits = credits;
+            best_outports.clear();
+        }
+        if (credits == best_credits)
+            best_outports.push_back(outport);
+    }
+
+    if (!best_outports.empty()) {
+        const unsigned choice = m_random.random<unsigned>(
+            0, best_outports.size() - 1);
+        return AdaptiveRouteDecision(best_outports[choice], false);
+    }
+
+    if (escape_vcs > 0) {
+        const int outport = escapeOutport();
+        if (hasClassVC(outport, true))
+            return AdaptiveRouteDecision(outport, true);
+    }
+    return AdaptiveRouteDecision();
 }
 
 } // namespace garnet
