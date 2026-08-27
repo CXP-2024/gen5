@@ -183,6 +183,35 @@ class GarnetNetwork : public Network
     static PortDirection cbsOppositeDirn(const PortDirection &dirn);
     void increment_cbs_entry_block() { m_cbs_entry_blocks++; }
 
+    // Dimension Pool (DP): the two opposing inports of one dimension at a
+    // router share their pooled VCs under a joint occupancy cap. The pool
+    // is a pure admission policy (packets never relocate); deadlock
+    // freedom comes from a substrate that ignores pool state entirely
+    // (the CBS-run dedicated VCs on algorithm 3, the escape VCs on
+    // algorithm 4). Hardware would distribute the cap as shared-credit
+    // tokens piggybacked on the existing credit path; the simulator keeps
+    // a registry of pooled-VC occupancy indexed like the CBS marks.
+    bool isDPEnabled() const { return m_enable_dp; }
+    uint32_t getDPReserve() const { return m_dp_reserve; }
+    uint32_t getDPSharedCap() const { return m_dp_shared_cap; }
+    // DP applies where CBS does: ctrl vnets, non-Local torus ports.
+    bool dpGoverns(int vnet) { return m_enable_dp &&
+        get_vnet_type(vnet) == CTRL_VNET_; }
+    // Whether a VC offset within its vnet belongs to the pooled window:
+    // [dp_reserve, V) on algorithm 3, the adaptive class on algorithm 4.
+    bool dpPooledOffset(int vc_offset) const;
+    // Occupied pooled VCs summed over both inports of the dimension pair
+    // that inport_dirn belongs to, at router_id.
+    int dpSharedUsed(int router_id, const PortDirection &inport_dirn,
+                     int vnet) const;
+    bool dpPoolFull(int router_id, const PortDirection &inport_dirn,
+                    int vnet) const;
+    void dpNoteAlloc(int router_id, const PortDirection &inport_dirn,
+                     int vnet, int vc_offset);
+    void dpNoteFree(int router_id, const PortDirection &inport_dirn,
+                    int vnet, int vc_offset);
+    void increment_dp_pool_block() { m_dp_pool_blocks++; }
+
     void update_traffic_distribution(RouteInfo route);
     int getNextPacketID() { return m_next_packet_id++; }
 
@@ -199,6 +228,9 @@ class GarnetNetwork : public Network
     uint32_t m_buffers_per_ctrl_vc;
     bool m_wormhole;
     bool m_enable_cbs;
+    bool m_enable_dp;
+    uint32_t m_dp_reserve;
+    uint32_t m_dp_shared_cap;
     uint32_t m_buffers_per_data_vc;
     int m_routing_algorithm;
     bool m_enable_fault_model;
@@ -209,6 +241,13 @@ class GarnetNetwork : public Network
     std::vector<std::vector<std::vector<bool>>> m_cbs_mark;
     void cbsInit();
     static int cbsDirnIndex(const PortDirection &dirn);
+
+    // DP pooled-occupancy registry: m_dp_shared_occ[router][dirn][vnet]
+    // counts pooled VCs currently reserved or occupied at the input port
+    // of `router` facing direction `dirn`. The pair total for dimension
+    // pool checks is occ[d] + occ[d ^ 1] (E/W, N/S, U/D are adjacent).
+    std::vector<std::vector<std::vector<int>>> m_dp_shared_occ;
+    void dpInit();
 
     // Statistical variables
     statistics::Vector m_packets_received;
@@ -246,6 +285,8 @@ class GarnetNetwork : public Network
     statistics::Scalar m_escape_transitions;
     statistics::Scalar m_cbs_entry_blocks;
     statistics::Scalar m_cbs_mark_moves;
+    statistics::Scalar m_dp_pool_blocks;
+    statistics::Scalar m_dp_shared_grants;
 
     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;

@@ -1,0 +1,7 @@
+config,pattern,sim_cycles,injection_rate,exit_code,deadlock,packets_received
+A2_dpcbs_v4_s2,torus3d_transpose,200000,1.00,0,0,3790857
+A2_dpcbs_v4_s2,torus3d_xopposite,200000,1.00,0,0,3200912
+A4_dpcbs_v6_s4,torus3d_transpose,200000,1.00,0,0,4493374
+A4_dpcbs_v6_s4,torus3d_xopposite,200000,1.00,0,0,4267328
+B2_dpesc_v3_s2,torus3d_transpose,200000,1.00,0,0,4704488
+B2_dpesc_v3_s2,torus3d_xopposite,200000,1.00,0,0,2964906

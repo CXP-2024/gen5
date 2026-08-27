@@ -58,6 +58,17 @@ class GarnetNetwork(RubyNetwork):
         False,
         "critical bubble scheme flow control on Torus3D rings (ctrl vnets)",
     )
+    enable_dp = Param.Bool(
+        False,
+        "dimension pool flow control: opposing inports of one dimension "
+        "share their pooled VCs under a joint occupancy cap (ctrl vnets)",
+    )
+    dp_reserve = Param.UInt32(
+        2, "dedicated (non-pooled) VCs per inport for the CBS substrate"
+    )
+    dp_shared_cap = Param.UInt32(
+        0, "joint cap on occupied pooled VCs across one dimension pair"
+    )
     routing_algorithm = Param.Int(
         0,
         "0: Table, 1: XY, 2: Custom, 3: Torus3D DOR, "

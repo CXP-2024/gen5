@@ -128,6 +128,31 @@ def define_options(parser):
             rings; requires --routing-algorithm=3 and no --wormhole""",
     )
     parser.add_argument(
+        "--enable-dp",
+        action="store_true",
+        default=False,
+        help="""enable Dimension Pool flow control: the two opposing
+            inports of each dimension share their pooled VCs under a
+            joint occupancy cap; requires --routing-algorithm=3 with
+            --enable-cbs, or --routing-algorithm=4""",
+    )
+    parser.add_argument(
+        "--dp-reserve",
+        action="store",
+        type=int,
+        default=2,
+        help="""dedicated (non-pooled) VCs per inport reserved for the
+            CBS substrate when --enable-dp runs on routing-algorithm 3""",
+    )
+    parser.add_argument(
+        "--dp-shared-cap",
+        action="store",
+        type=int,
+        default=0,
+        help="""joint cap on occupied pooled VCs across one dimension
+            pair when --enable-dp is set""",
+    )
+    parser.add_argument(
         "--routing-algorithm",
         action="store",
         type=int,
@@ -215,6 +240,9 @@ def init_network(options, network, InterfaceClass):
         network.escape_vcs = options.escape_vcs
         network.wormhole = options.wormhole
         network.enable_cbs = options.enable_cbs
+        network.enable_dp = options.enable_dp
+        network.dp_reserve = options.dp_reserve
+        network.dp_shared_cap = options.dp_shared_cap
         if options.wormhole:
             network.buffers_per_ctrl_vc = 16
         network.ni_flit_size = options.link_width_bits / 8

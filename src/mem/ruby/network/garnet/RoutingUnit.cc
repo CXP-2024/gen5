@@ -443,6 +443,7 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
     }
 
     std::vector<int> candidates;
+    std::vector<PortDirection> candidate_dirns;
     auto addMinimalDirections = [&](int current, int destination, int size,
                                     PortDirection positive,
                                     PortDirection negative) {
@@ -452,10 +453,14 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
             (destination - current + size) % size;
         const int negative_hops =
             (current - destination + size) % size;
-        if (positive_hops <= negative_hops)
+        if (positive_hops <= negative_hops) {
             candidates.push_back(outportForDirection(positive));
-        if (negative_hops <= positive_hops)
+            candidate_dirns.push_back(positive);
+        }
+        if (negative_hops <= positive_hops) {
             candidates.push_back(outportForDirection(negative));
+            candidate_dirns.push_back(negative);
+        }
     };
 
     addMinimalDirections(
@@ -468,10 +473,22 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
 
     int best_credits = -1;
     std::vector<int> best_outports;
-    for (const int outport : candidates) {
+    auto *net = m_router->get_net_ptr();
+    for (size_t i = 0; i < candidates.size(); i++) {
+        const int outport = candidates[i];
         const int credits = m_router->getOutputUnit(outport)->
             free_vc_credit_count(vnet, 0, adaptive_vcs);
         if (require_available && credits == 0)
+            continue;
+        // DP: skip outports whose downstream dimension pair is at its
+        // pool cap so the packet falls through to the escape path;
+        // waiting on a capped adaptive window would sidestep the escape
+        // premise of Duato's protocol.
+        if (require_available && net->dpGoverns(vnet) &&
+            net->dpPoolFull(
+                net->cbsDownstreamRouter(current_id, candidate_dirns[i]),
+                GarnetNetwork::cbsOppositeDirn(candidate_dirns[i]),
+                vnet))
             continue;
         if (credits > best_credits) {
             best_credits = credits;

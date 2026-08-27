@@ -83,6 +83,10 @@ class SwitchAllocator : public Consumer
 
   private:
     bool cbs_governs(int vnet, int outport);
+    bool dp_governs(int vnet, int outport);
+    void dp_cbs_admission(int vnet, int inport, int invc, int outport,
+                          bool &shared_ok, bool &dedicated_ok,
+                          bool record_stats);
 
     int m_num_inports, m_num_outports;
     int m_num_vcs, m_vc_per_vnet;

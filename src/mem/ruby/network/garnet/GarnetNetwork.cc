@@ -75,6 +75,9 @@ GarnetNetwork::GarnetNetwork(const Params &p)
     m_buffers_per_ctrl_vc = p.buffers_per_ctrl_vc;
     m_wormhole = p.wormhole;
     m_enable_cbs = p.enable_cbs;
+    m_enable_dp = p.enable_dp;
+    m_dp_reserve = p.dp_reserve;
+    m_dp_shared_cap = p.dp_shared_cap;
     m_routing_algorithm = p.routing_algorithm;
     m_next_packet_id = 0;
 
@@ -156,6 +159,48 @@ GarnetNetwork::init()
         "to the critical bubble needs two free slots to ever proceed");
     if (m_enable_cbs)
         cbsInit();
+
+    if (m_enable_dp) {
+        fatal_if(torus_routers == 0,
+            "--enable-dp requires nonzero --torus-x/y/z");
+        fatal_if(m_torus_x < 3 || m_torus_y < 3 || m_torus_z < 3,
+            "--enable-dp requires torus dimensions >= 3: in a dimension "
+            "of size 2 both outports of a router lead to the same "
+            "downstream pool, and same-cycle grants could overrun the "
+            "cap");
+        fatal_if(isWormhole(),
+            "--enable-dp cannot be combined with --wormhole");
+        fatal_if(m_routing_algorithm != TORUS_3D_DOR_ &&
+                 m_routing_algorithm != TORUS_3D_ADAPTIVE_,
+            "--enable-dp requires Torus3D routing (--routing-algorithm=3 "
+            "with --enable-cbs, or --routing-algorithm=4)");
+        if (m_routing_algorithm == TORUS_3D_DOR_) {
+            fatal_if(!m_enable_cbs,
+                "--enable-dp on routing-algorithm 3 requires --enable-cbs: "
+                "the dedicated VCs run CBS as the deadlock-free substrate");
+            fatal_if(m_dp_reserve < 2,
+                "--enable-dp requires --dp-reserve >= 2: the dedicated "
+                "sub-ring runs CBS, which needs two slots per inport");
+            fatal_if(m_max_vcs_per_vnet <= m_dp_reserve,
+                "--enable-dp requires --vcs-per-vnet > --dp-reserve so at "
+                "least one pooled VC exists per inport");
+        } else {
+            fatal_if(m_escape_vcs < 1,
+                "--enable-dp on routing-algorithm 4 requires "
+                "--escape-vcs >= 1: the Mesh3D escape VCs are the "
+                "deadlock-free substrate and stay exempt from the pool");
+        }
+        const uint32_t pooled_per_inport =
+            (m_routing_algorithm == TORUS_3D_DOR_) ?
+                m_max_vcs_per_vnet - m_dp_reserve :
+                m_max_vcs_per_vnet - m_escape_vcs;
+        fatal_if(m_dp_shared_cap < 1 ||
+                 m_dp_shared_cap > 2 * pooled_per_inport,
+            "--dp-shared-cap must lie in [1, %u] (twice the pooled VCs "
+            "per inport); a cap of %u pools nothing or exceeds storage",
+            2 * pooled_per_inport, m_dp_shared_cap);
+        dpInit();
+    }
 
     // Initialize topology specific parameters
     if (getNumRows() > 0) {
@@ -304,6 +349,77 @@ GarnetNetwork::cbsMoveMark(int from_router, const PortDirection &from_inport,
     m_cbs_mark[from_router][from_d][vnet] = false;
     m_cbs_mark[to_router][to_d][vnet] = true;
     m_cbs_mark_moves++;
+}
+
+/*
+ * Dimension Pool (DP) support. The pooled VCs of the two opposing inports
+ * of one dimension form a joint pool capped at dp_shared_cap occupants;
+ * admission into a pooled VC is denied when the pair is at its cap.
+ * Deadlock freedom never depends on the pool: the dedicated window
+ * [0, dp_reserve) runs CBS on algorithm 3, the escape window on
+ * algorithm 4 stays exempt. Occupancy is counted at allocation grant
+ * (upstream reserves the slot) and released on the VC's free credit.
+ */
+
+bool
+GarnetNetwork::dpPooledOffset(int vc_offset) const
+{
+    if (m_routing_algorithm == TORUS_3D_DOR_)
+        return vc_offset >= static_cast<int>(m_dp_reserve);
+    // Adaptive routing: the adaptive class [0, V - escape_vcs) is pooled,
+    // the trailing escape VCs are exempt.
+    return vc_offset <
+        static_cast<int>(m_max_vcs_per_vnet - m_escape_vcs);
+}
+
+int
+GarnetNetwork::dpSharedUsed(int router_id, const PortDirection &inport_dirn,
+                            int vnet) const
+{
+    int d = cbsDirnIndex(inport_dirn);
+    assert(d >= 0);
+    return m_dp_shared_occ[router_id][d][vnet] +
+           m_dp_shared_occ[router_id][d ^ 1][vnet];
+}
+
+bool
+GarnetNetwork::dpPoolFull(int router_id, const PortDirection &inport_dirn,
+                          int vnet) const
+{
+    if (cbsDirnIndex(inport_dirn) < 0)
+        return false; // Local ports are not pooled
+    return dpSharedUsed(router_id, inport_dirn, vnet) >=
+        static_cast<int>(m_dp_shared_cap);
+}
+
+void
+GarnetNetwork::dpNoteAlloc(int router_id, const PortDirection &inport_dirn,
+                           int vnet, int vc_offset)
+{
+    int d = cbsDirnIndex(inport_dirn);
+    if (d < 0 || !dpGoverns(vnet) || !dpPooledOffset(vc_offset))
+        return;
+    m_dp_shared_occ[router_id][d][vnet]++;
+    m_dp_shared_grants++;
+}
+
+void
+GarnetNetwork::dpNoteFree(int router_id, const PortDirection &inport_dirn,
+                          int vnet, int vc_offset)
+{
+    int d = cbsDirnIndex(inport_dirn);
+    if (d < 0 || !dpGoverns(vnet) || !dpPooledOffset(vc_offset))
+        return;
+    assert(m_dp_shared_occ[router_id][d][vnet] > 0);
+    m_dp_shared_occ[router_id][d][vnet]--;
+}
+
+void
+GarnetNetwork::dpInit()
+{
+    m_dp_shared_occ.assign(m_routers.size(),
+        std::vector<std::vector<int>>(6,
+            std::vector<int>(m_virtual_networks, 0)));
 }
 
 /*
@@ -709,6 +825,12 @@ GarnetNetwork::regStats()
         .unit(count);
     m_cbs_mark_moves
         .name(name() + ".cbs_mark_moves")
+        .unit(count);
+    m_dp_pool_blocks
+        .name(name() + ".dp_pool_blocks")
+        .unit(count);
+    m_dp_shared_grants
+        .name(name() + ".dp_shared_grants")
         .unit(count);
 
     // Links
