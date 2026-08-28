@@ -18,7 +18,7 @@ Not citable as gains (recorded in batch 2 README): B C=4 +95–103% (starved bas
 
 | ID | Experiment | Status |
 |---|---|---|
-| P1 | Scale sweep: 128 (4×4×8) and 256 (4×8×8) nodes, headline configs (B1/B2/B3 + A2/A3), uniform + tornado + xopposite | capacity limits mapped (see `batch6_scale_probe/README.md`): max feasible = **256 nodes**; needs pow2 dirs, `--mem-size=8GB`, `NUMBER_BITS_PER_SET=256` rebuild. Rebuild + probe running. |
+| P1 | Scale sweep: 128 (4×4×8) and 256 (4×8×8) nodes, headline configs (B1/B2/B3 + A2/A3), uniform + tornado + xopposite | **ready to run** (≈1.5 h). Capacity probe passed (batch 6): max feasible = **256 nodes** (pow2 dirs + `--mem-size=8GB` + `NUMBER_BITS_PER_SET=256` rebuild, done); DP verified working at 256 nodes. |
 | P2 | Staleness ablation: charge the pool check a k-cycle-old shadow of `m_dp_shared_occ` (k=1,2) | proposed, ~1 h impl + short sweep |
 | P3 | Non-cubic torus | merged into P1 (128/256 are non-cubic; transpose pattern unavailable there, other 4 patterns fine) |
 

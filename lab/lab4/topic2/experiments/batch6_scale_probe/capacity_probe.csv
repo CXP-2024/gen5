@@ -1,0 +1,7 @@
+name,nodes,dims,config,pattern,injection_rate,exit,wall_s,maxrss_kb,avg_packet_latency,packets_received
+n64_check,64,4x4x4,dpesc_v3_s2,torus3d_tornado,0.20,0,13.67,1294600,11.232559,63730
+n128_r05,128,4x4x8,esc_v3,uniform_random,0.05,0,29.20,1549352,13.071382,31969
+n128_r30,128,4x4x8,esc_v3,uniform_random,0.30,0,35.70,1552184,13.592759,191528
+n256_r05,256,4x8x8,esc_v3,uniform_random,0.05,0,135.60,2297860,15.071718,63987
+n256_r30,256,4x8x8,esc_v3,uniform_random,0.30,0,157.57,2295148,15.786354,383392
+n256_dp_r05,256,4x8x8,dpesc_v3_s2,torus3d_tornado,0.05,0,135.04,2296900,19.296169,64004

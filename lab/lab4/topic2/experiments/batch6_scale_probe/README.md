@@ -17,8 +17,22 @@ intermediate point.** Both are non-cubic, so `torus3d_transpose` is
 unavailable there (needs equal dims); the other four patterns work
 (xopposite needs even X — satisfied).
 
-## Probe runs
+## Probe runs (all exit 0, `capacity_probe.csv`)
 
-`capacity_probe.csv` — wall time, peak RSS, latency/received sanity
-values for 128/256 nodes at rates 0.05/0.30, plus a DP smoke test
-(`--enable-dp` at 256 nodes) confirming the DP registry scales.
+Binary rebuilt with `NUMBER_BITS_PER_SET=256` (18 min); all runs use
+`--mem-size=8GB`, 10 000 cycles, algo 4, vcs=3.
+
+| Nodes | Dims | Wall time | Peak RSS | Sanity |
+|---|---|---|---|---|
+| 64 | 4×4×4 | 14 s | 1.3 GB | DP tornado on new binary, healthy |
+| 128 | 4×4×8 | 29–36 s | 1.5 GB | received = expected, latency ~13 |
+| 256 | 4×8×8 | 135–158 s | 2.3 GB | received = expected, latency ~15–16; **DP run works** |
+
+Received counts match nodes × 5000 × rate at both rates → ~100%
+injection acceptance, networks healthy well below saturation.
+
+**Planning numbers for the P1 scale sweep:** RAM (15 GB) limits
+parallelism to ~5 concurrent 256-node runs; a 5-mode × 3-pattern ×
+10-rate sweep at both sizes is ≈ 1.5 h wall.
+
+**Validity: VALID** (capacity facts; not performance claims).
