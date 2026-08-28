@@ -7,6 +7,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Polygon
 
 
@@ -16,6 +17,9 @@ ESCAPE = "#d8f0dc"
 DECISION = "#fce7bd"
 INK = "#24313d"
 RED = "#c63d3d"
+CHINESE_FONT = FontProperties(
+    fname="/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"
+)
 
 
 def add_box(axis, x, y, width, height, label, color, edge=INK, fontsize=9):
@@ -254,6 +258,187 @@ def draw_cdg():
     save(figure, "escape_cdg")
 
 
+def draw_cbs_bubble():
+    figure, axis = plt.subplots(figsize=(10.8, 3.65))
+    axis.set_xlim(0, 10.8)
+    axis.set_ylim(0, 3.65)
+    axis.axis("off")
+
+    axis.text(
+        0.3,
+        3.3,
+        "Critical Bubble Scheme: preserve one movable empty slot",
+        fontsize=12,
+        weight="bold",
+        color=INK,
+    )
+    axis.text(
+        0.3,
+        3.02,
+        "A marked free VC is protected at ring entry and relocates after in-ring transit.",
+        fontsize=9,
+        color="#4a5a66",
+    )
+
+    add_box(axis, 0.3, 0.72, 4.72, 1.9, "", "#f8fbfd", edge="#7a8a96")
+    axis.text(
+        0.56,
+        2.32,
+        "1. External entry at the marked port",
+        fontsize=10,
+        weight="bold",
+        color=INK,
+    )
+    axis.text(
+        0.56,
+        2.05,
+        "One free VC remains: block the new packet.",
+        fontsize=8.5,
+        color="#4a5a66",
+    )
+    add_box(
+        axis,
+        0.65,
+        1.08,
+        1.3,
+        0.55,
+        "incoming\npacket",
+        "#fde0df",
+        edge=RED,
+        fontsize=8,
+    )
+    axis.text(
+        2.15, 1.34, "blocked", fontsize=8, color=RED, ha="center", va="center"
+    )
+    arrow(axis, (1.95, 1.35), (2.5, 1.35), color=RED, style="--")
+    axis.text(
+        3.63,
+        1.67,
+        "downstream input",
+        fontsize=8,
+        color="#4a5a66",
+        ha="center",
+    )
+    for x, color, label, edge in (
+        (2.62, "#cfe8f7", "busy", INK),
+        (3.17, "#cfe8f7", "busy", INK),
+        (3.72, "#cfe8f7", "busy", INK),
+        (4.27, "#fff1c9", "free\nmark", RED),
+    ):
+        add_box(axis, x, 1.06, 0.46, 0.52, label, color, edge=edge, fontsize=7)
+    axis.text(
+        2.66,
+        0.84,
+        "Entry needs >= 2 free VCs.\nThe marked bubble survives.",
+        fontsize=7.1,
+        color=RED,
+        ha="center",
+        va="center",
+    )
+
+    add_box(axis, 5.48, 0.72, 5.02, 1.9, "", "#f8fbfd", edge="#7a8a96")
+    axis.text(
+        5.74,
+        2.32,
+        "2. In-ring transit across the marked port",
+        fontsize=10,
+        weight="bold",
+        color=INK,
+    )
+    axis.text(
+        5.74,
+        2.05,
+        "A packet advances; its vacated upstream slot becomes the new mark.",
+        fontsize=8.5,
+        color="#4a5a66",
+    )
+    axis.text(6.2, 1.72, "upstream", fontsize=8, color="#4a5a66", ha="center")
+    add_box(axis, 5.72, 1.08, 0.72, 0.52, "busy", ADAPTIVE, fontsize=7)
+    arrow(axis, (6.51, 1.34), (7.48, 1.34), color="#367a44")
+    axis.text(7.0, 1.58, "transit", fontsize=8, color="#367a44", ha="center")
+    axis.text(
+        8.88, 1.72, "downstream", fontsize=8, color="#4a5a66", ha="center"
+    )
+    add_box(axis, 8.0, 1.08, 0.72, 0.52, "busy", ADAPTIVE, fontsize=7)
+    add_box(
+        axis,
+        8.77,
+        1.08,
+        0.72,
+        0.52,
+        "free\nmark",
+        "#fff1c9",
+        edge=RED,
+        fontsize=7,
+    )
+    arrow(axis, (9.13, 0.98), (6.08, 0.98), color=RED, style="--")
+    axis.text(
+        7.0,
+        0.84,
+        "mark moves upstream",
+        fontsize=7.1,
+        color=RED,
+        ha="center",
+        va="center",
+    )
+    axis.text(
+        9.0,
+        0.84,
+        "Free slots conserved;\nonly mark moves.",
+        fontsize=6.9,
+        color="#367a44",
+        ha="center",
+        va="center",
+    )
+    save(figure, "cbs_bubble")
+
+
+def draw_member_names():
+    figure, axis = plt.subplots(figsize=(5.8, 0.38))
+    axis.axis("off")
+    axis.text(
+        0.12,
+        0.5,
+        "潘长浔",
+        ha="center",
+        va="center",
+        fontsize=11,
+        color=INK,
+        fontproperties=CHINESE_FONT,
+    )
+    axis.text(
+        0.35,
+        0.5,
+        "2024011323",
+        ha="center",
+        va="center",
+        fontsize=9,
+        color=INK,
+    )
+    axis.text(
+        0.64,
+        0.5,
+        "王立明",
+        ha="center",
+        va="center",
+        fontsize=11,
+        color=INK,
+        fontproperties=CHINESE_FONT,
+    )
+    axis.text(
+        0.87,
+        0.5,
+        "2024011338",
+        ha="center",
+        va="center",
+        fontsize=9,
+        color=INK,
+    )
+    save(figure, "member_names")
+
+
 if __name__ == "__main__":
     draw_architecture()
     draw_cdg()
+    draw_cbs_bubble()
+    draw_member_names()
