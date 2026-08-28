@@ -1,5 +1,12 @@
 # Dimension Pool (DP): Experimental Results
 
+> **Note (2026-08-28):** superseded by `dp_report.md` after an adversarial
+> audit. The equal-storage headline framing in §3 (finding 1), §4, and §6
+> overstates attribution — the C=4 “doubling” is measured against a
+> credit-RTT-starved baseline, and on one-sided patterns the DP run is
+> bit-identical to the next-larger plain baseline. See `dp_report.md` §3–4
+> for the corrected claims. The tables and raw numbers below remain valid.
+
 Companion to `dp_design.md` (mechanism and safety) and `dp_plan.md`
 (planning notes). Raw data: `results_dp.csv` (1000 points),
 `summary_dp.csv`, `gains_dp.csv`, `deadlock_probes_dp.csv`.
