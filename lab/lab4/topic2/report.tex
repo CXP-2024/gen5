@@ -31,7 +31,7 @@ Inports on a 3D Torus\\
 Classical virtual-channel (VC) allocation statically splits each router's
 buffers per inport, so when traffic through a dimension is momentarily
 one-sided --- the common case on a torus --- the cold direction's VCs sit
-idle while the hot direction head-blocks. This report presents
+idle while the hot direction head-blocks. This paper presents
 \emph{Dimension Pool} (DP), a flow-control mechanism in which the two
 opposing inports of each dimension ($E{+}W$, $N{+}S$, $U{+}D$) share their
 pooled VCs under a joint occupancy cap $S$, letting a hot direction borrow
@@ -94,44 +94,77 @@ substrate that is never pooled. Highlights:
     neutral (uniform random), alongside the +21--31\% headline gains.
 \end{itemize}
 
-This report covers Topic 2 (flow control). The Torus3D topology, the
-adaptive routing algorithm with Mesh3D-routed escape VCs, and the plain
-CBS implementation that DP builds on are covered in the companion Topic 1
-report; here they serve as \emph{baselines}.
+The rest of this paper is organized as follows.
+Section~\ref{sec:background} reviews the platform and the two
+deadlock-avoidance disciplines DP builds on --- the Critical Bubble
+Scheme and escape-VC adaptive routing --- which double as the
+evaluation baselines. Section~\ref{sec:design} presents the design and
+its safety argument, Section~\ref{sec:impl} the implementation,
+Section~\ref{sec:experiments} the experiments, and
+Section~\ref{sec:analysis} the analysis of why and when pooling pays.
 
-\section{Substrate and Baselines}
-\label{sec:baselines}
+\section{Background}
+\label{sec:background}
 
-\subsection{Common substrate}
+\subsection{Platform}
 
-All experiments run on gem5 Garnet (standalone), 4$\times$4$\times$4
-Torus3D (64 nodes), synthetic traffic on control vnet~0 with single-flit
+All work targets gem5 Garnet (standalone), 4$\times$4$\times$4 Torus3D
+(64 nodes), synthetic traffic on control vnet~0 with single-flit
 packets. Control VCs hold one packet each
 (\texttt{buffers\_per\_ctrl\_vc}~=~1), so a buffer \emph{slot}, a VC, and
-a packet-in-flight coincide; DP bookkeeping is pure counting.
+a packet-in-flight coincide, and all flow-control bookkeeping in this
+paper is pure counting. The harness injects at most 0.5
+packets/node/network-cycle, which acts as an offered-load ceiling in the
+experiments.
 
-\subsection{Baseline family A: DOR + Critical Bubble Scheme}
+\subsection{Deadlock avoidance on torus rings}
 
-Deterministic dimension-order routing (DOR) on a torus deadlocks on the
-wrap-around rings. The Critical Bubble Scheme (CBS)~\cite{chen2011}
-restores safety without reserving VC classes: one buffer slot per
-directed ring is marked \emph{critical} and may only be consumed by
-in-transit packets, never by injection, so every ring always retains a
-bubble and can drain. Family A baselines (A1, A3 in
-Table~\ref{tab:configs}) run DOR + CBS with 3 and 4 VCs per inport.
+The wrap-around links that give a torus its low diameter also close a
+cyclic channel dependency on every ring, so dimension-order routing
+(DOR), safe on a mesh, deadlocks on a torus~\cite{dallytowles}. Two
+classical disciplines restore safety; both are implemented and validated
+on this platform, and they double as the two baseline families of the
+evaluation (\S\ref{sec:experiments}).
 
-\subsection{Baseline family B: minimal adaptive routing + escape VCs}
+\textbf{Critical Bubble Scheme (family A).} Bubble flow
+control~\cite{dallytowles} keeps DOR and instead constrains buffer
+occupancy: as long as every directed ring retains one free slot (a
+\emph{bubble}), some packet on the ring can always advance. The Critical
+Bubble Scheme (CBS)~\cite{chen2011} implements this at one-slot cost:
+a single slot per directed ring is marked \emph{critical} and may only
+be consumed by in-transit packets, never by injection, so the ring can
+always drain. Our CBS implementation is itself a flow-control result:
+on transpose it lifts peak stable throughput from 0.224 to 0.258
+(+15\%) over unprotected DOR --- the injection-side entry rule throttles
+the sources just before saturation trees form --- and it is
+zero-overhead on the other patterns, where its curves coincide with
+plain DOR. Family A baselines (A1, A3 in Table~\ref{tab:configs}) run
+DOR + CBS with 3 and 4 VCs per inport.
 
-Family B uses the Topic 1 adaptive router: minimal-quadrant adaptive
-routing over the torus wrap links, with the last VC of each inport
-reserved as an escape channel routed by deadlock-free (acyclic-CDG)
-Mesh3D XYZ routing. By Duato's theorem~\cite{duato1993}, a packet blocked
-on adaptive VCs can always eventually take the escape path, so the
-adaptive tranche may be arbitrarily congested. Baselines B1, B3, B5 run
-this design with 2, 3, 4 VCs per inport.
+\textbf{Minimal adaptive routing + escape VCs (family B).} The
+alternative discipline gives up deterministic routing: minimal-quadrant
+adaptive routing over the torus wrap links, with the last VC of each
+inport reserved as an escape channel routed by deadlock-free
+(acyclic-CDG) Mesh3D XYZ routing. By Duato's
+theorem~\cite{dally1987,duato1993}, a packet blocked on adaptive VCs can
+always eventually take the escape path, so the adaptive tranche may be
+arbitrarily congested. On this platform the adaptive router reaches the
+0.5 offered-load ceiling on all five synthetic patterns. Baselines B1,
+B3, B5 run this design with 2, 3, 4 VCs per inport.
+
+Both disciplines, like classical VC flow control
+itself~\cite{dally1992}, leave one structural decision untouched: every
+buffer slot is statically owned by one inport, i.e.\ by one direction of
+one dimension. That static split is the inefficiency DP removes.
 
 \section{Design: the Dimension Pool}
 \label{sec:design}
+
+The mechanism is deliberately small --- one counter per dimension pair
+and one admission inequality; no new arbiter, table, or pipeline stage.
+The substance of the design lies in where the check sits
+(\S\ref{sec:retry}) and in why the composition with the background
+substrates stays deadlock-free (\S\ref{sec:safety}).
 
 \subsection{Pool, cap, and tranches}
 
@@ -173,6 +206,7 @@ networks; the reserve guarantees progress, the pool provides the
 flexibility.)
 
 \subsection{Admission and retry semantics}
+\label{sec:retry}
 
 The pool check is a \emph{pre-flight} credit-style test: a packet that
 fails admission never leaves its upstream VC; there is no NACK, drop, or
