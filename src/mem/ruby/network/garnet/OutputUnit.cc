@@ -205,8 +205,21 @@ OutputUnit::wakeup()
         Credit *t_credit = (Credit*) m_credit_link->consumeLink();
         increment_credit(t_credit->get_vc());
 
-        if (t_credit->is_free_signal())
+        if (t_credit->is_free_signal()) {
             set_vc_state(IDLE_, t_credit->get_vc(), curTick());
+
+            // DP: the freed VC is an input VC at the downstream router;
+            // release its pooled-occupancy reservation if it was pooled.
+            GarnetNetwork *net = m_router->get_net_ptr();
+            if (net->isDPEnabled() && m_direction != "Local") {
+                const int vc = t_credit->get_vc();
+                net->dpNoteFree(
+                    net->cbsDownstreamRouter(m_router->get_id(),
+                                             m_direction),
+                    GarnetNetwork::cbsOppositeDirn(m_direction),
+                    vc / m_vc_per_vnet, vc % m_vc_per_vnet);
+            }
+        }
 
         delete t_credit;
 

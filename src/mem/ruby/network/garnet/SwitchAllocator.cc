@@ -289,10 +289,23 @@ SwitchAllocator::arbitrate_outports()
                             GarnetNetwork::cbsOppositeDirn(outport_dirn);
                         int down_router = net->cbsDownstreamRouter(
                             m_router->get_id(), outport_dirn);
+                        // Under DP the bubble lives in the dedicated
+                        // window: displacement fires when the consumed
+                        // slot and the vacated slot are both dedicated
+                        // and no dedicated slot stays free downstream.
+                        const bool dp = net->isDPEnabled();
+                        const int dp_r =
+                            dp ? (int)net->getDPReserve() : 0;
+                        const bool bubble_consumed = dp ?
+                            (outvc % m_vc_per_vnet < dp_r &&
+                             invc % m_vc_per_vnet < dp_r &&
+                             output_unit->free_vc_credit_count(
+                                 cbs_vnet, 0, dp_r) == 0) :
+                            output_unit->count_free_vcs(cbs_vnet) == 0;
                         if (input_unit->get_direction() == down_inport &&
                             net->cbsHasMark(down_router, down_inport,
                                             cbs_vnet) &&
-                            output_unit->count_free_vcs(cbs_vnet) == 0) {
+                            bubble_consumed) {
                             net->cbsMoveMark(down_router, down_inport,
                                 m_router->get_id(),
                                 input_unit->get_direction(), cbs_vnet);
@@ -371,6 +384,63 @@ SwitchAllocator::cbs_governs(int vnet, int outport)
            m_router->getOutputUnit(outport)->get_direction() != "Local";
 }
 
+// DP applies to the same hops as CBS: non-Local outports on ctrl vnets.
+bool
+SwitchAllocator::dp_governs(int vnet, int outport)
+{
+    auto *net = m_router->get_net_ptr();
+    return net->isDPEnabled() &&
+           net->get_vnet_type(vnet) == CTRL_VNET_ &&
+           m_router->getOutputUnit(outport)->get_direction() != "Local";
+}
+
+// DP on Torus3D DOR: decide which windows at `outport` may admit the flit
+// waiting in (inport, invc). The pooled window [dp_reserve, V) is open when
+// it has a free VC and the downstream dimension pair is under its cap. The
+// dedicated window [0, dp_reserve) runs CBS: ring entry next to the
+// critical bubble needs two free dedicated slots, and in-ring transit may
+// fill the last dedicated slot at a marked inport only when the mover
+// itself sits in a dedicated VC, so the mark lands on the dedicated slot
+// it vacates.
+void
+SwitchAllocator::dp_cbs_admission(int vnet, int inport, int invc, int outport,
+                                  bool &shared_ok, bool &dedicated_ok,
+                                  bool record_stats)
+{
+    auto *net = m_router->get_net_ptr();
+    auto output_unit = m_router->getOutputUnit(outport);
+    const int r = net->getDPReserve();
+    const int pooled = m_vc_per_vnet - r;
+
+    const PortDirection outport_dirn = output_unit->get_direction();
+    const PortDirection down_inport =
+        GarnetNetwork::cbsOppositeDirn(outport_dirn);
+    const int down_router =
+        net->cbsDownstreamRouter(m_router->get_id(), outport_dirn);
+    const bool marked = net->cbsHasMark(down_router, down_inport, vnet);
+    const bool ring_entry =
+        m_router->getInputUnit(inport)->get_direction() != down_inport;
+
+    const bool pool_full = net->dpPoolFull(down_router, down_inport, vnet);
+    const bool shared_free = output_unit->has_free_vc(vnet, r, pooled);
+    shared_ok = shared_free && !pool_full;
+
+    const int ded_free = output_unit->free_vc_credit_count(vnet, 0, r);
+    if (ring_entry) {
+        dedicated_ok = ded_free >= (marked ? 2 : 1);
+    } else {
+        dedicated_ok = ded_free >= 2 ||
+            (ded_free == 1 && (!marked || invc % m_vc_per_vnet < r));
+    }
+
+    if (record_stats && !shared_ok && !dedicated_ok) {
+        if (shared_free && pool_full)
+            net->increment_dp_pool_block();
+        if (ring_entry && marked && ded_free == 1)
+            net->increment_cbs_entry_block();
+    }
+}
+
 /*
  * A flit can be sent only if
  * (1) there is at least one free output VC at the
@@ -413,6 +483,32 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc,
             const int count = escape_request ? escape_vcs : adaptive_vcs;
             output_available = output_unit->has_free_vc(
                 vnet, first_offset, count);
+
+            // DP: adaptive-class admission also respects the downstream
+            // dimension-pair pool; escape VCs stay exempt. Routing already
+            // skips pool-full outports, so this is a belt check.
+            if (output_available && !escape_request &&
+                dp_governs(vnet, outport)) {
+                auto *net = m_router->get_net_ptr();
+                const PortDirection outport_dirn =
+                    output_unit->get_direction();
+                if (net->dpPoolFull(
+                        net->cbsDownstreamRouter(m_router->get_id(),
+                                                 outport_dirn),
+                        GarnetNetwork::cbsOppositeDirn(outport_dirn),
+                        vnet)) {
+                    output_available = false;
+                    net->increment_dp_pool_block();
+                }
+            }
+        } else if (dp_governs(vnet, outport)) {
+            // DP on DOR: the flit may take a pooled VC (pair under its
+            // cap) or a dedicated VC (per CBS rules on the dedicated
+            // window); see dp_cbs_admission.
+            bool shared_ok, dedicated_ok;
+            dp_cbs_admission(vnet, inport, invc, outport,
+                             shared_ok, dedicated_ok, true);
+            output_available = shared_ok || dedicated_ok;
         } else {
             bool wormhole_control =
                 m_router->get_net_ptr()->isWormhole() &&
@@ -505,6 +601,18 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc,
         const int count = escape_request ? escape_vcs : adaptive_vcs;
         outvc = m_router->getOutputUnit(outport)->select_free_vc(
             vnet, first_offset, count);
+    } else if (dp_governs(vnet, outport)) {
+        // Shared-first: spend pool headroom before the dedicated reserve
+        // so the CBS bubbles keep their mobility.
+        auto output_unit = m_router->getOutputUnit(outport);
+        const int r = m_router->get_net_ptr()->getDPReserve();
+        bool shared_ok, dedicated_ok;
+        dp_cbs_admission(vnet, inport, invc, outport,
+                         shared_ok, dedicated_ok, false);
+        if (shared_ok)
+            outvc = output_unit->select_free_vc(vnet, r, m_vc_per_vnet - r);
+        if (outvc == -1 && dedicated_ok)
+            outvc = output_unit->select_free_vc(vnet, 0, r);
     } else {
         bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
             m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
@@ -514,6 +622,21 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc,
 
     // has to get a valid VC since it checked before performing SA
     assert(outvc != -1);
+
+    // DP: count the granted VC against its downstream dimension pool
+    // (dpNoteAlloc ignores non-pooled offsets, vnets, and directions).
+    auto *net = m_router->get_net_ptr();
+    if (net->isDPEnabled()) {
+        const PortDirection outport_dirn =
+            m_router->getOutputUnit(outport)->get_direction();
+        if (outport_dirn != "Local") {
+            net->dpNoteAlloc(
+                net->cbsDownstreamRouter(m_router->get_id(), outport_dirn),
+                GarnetNetwork::cbsOppositeDirn(outport_dirn),
+                vnet, outvc % m_vc_per_vnet);
+        }
+    }
+
     m_router->getInputUnit(inport)->grant_outvc(invc, outvc);
     return outvc;
 }
