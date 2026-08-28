@@ -90,13 +90,16 @@ Run the 240-point CBS sweep and regenerate its figures:
 Results are `topic2/results_topic2.csv` and `topic2/summary_topic2.csv`;
 design and correctness notes are in `topic2/cbs_design.md`.
 
-## Report
+## Report and presentation
 
-The accompanying report is `report.pdf`. Rebuild it after changing data or
-figures with:
+The accompanying report is `report.pdf`; the 8-minute presentation is
+`slides.pdf`. Rebuild them after changing data or figures with:
 
 ```bash
 cd lab/lab4
 ../../.venv/bin/python draw_diagrams.py
 pdflatex report.tex
+pdflatex report.tex
+pdflatex slides.tex
+pdflatex slides.tex
 ```

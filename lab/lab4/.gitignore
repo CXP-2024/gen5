@@ -4,3 +4,10 @@ report.aux
 report.log
 report.out
 report.synctex.gz
+slides.aux
+slides.log
+slides.nav
+slides.out
+slides.snm
+slides.synctex.gz
+slides.toc

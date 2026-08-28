@@ -19,11 +19,14 @@
 
 \title{Deadlock-Free Adaptive Routing and Bubble Flow Control for a 3D Torus
 in Garnet}
-\author{Lab 4 Project Report}
-\date{\today}
+\author{Changxun Pan \and Liming Wang}
+\date{August 2026}
 
 \begin{document}
 \maketitle
+\begin{center}
+\includegraphics[width=0.58\linewidth]{member_names.pdf}
+\end{center}
 
 \begin{abstract}
 This project adds parameterized 3D Mesh and 3D Torus topologies to gem5
@@ -310,6 +313,15 @@ moves to the slot the packet has just vacated, counted as
 \texttt{cbs\_mark\_moves}. In-ring traffic may eat the last slot, but the
 number of free slots on the ring is conserved; only their position changes.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.94\linewidth]{cbs_bubble.pdf}
+\caption{CBS handles an external ring entry and an in-ring transit
+differently. The former must preserve the marked bubble; the latter may
+consume it only while relocating the mark to the newly freed upstream slot.}
+\label{fig:cbs-bubble}
+\end{figure}
+
 All changes are gated by \texttt{--enable-cbs}, default off; with the gate
 closed, every mode, including routing ID 4, is bit-identical to the pre-CBS
 implementation. The change set is \texttt{GarnetNetwork.py} and
@@ -321,6 +333,23 @@ rules. CBS requires routing ID 3, nonzero \texttt{--torus-x/y/z}, and at
 least two VCs per vnet (an entry point facing the mark could otherwise never
 see two free slots), and it rejects \texttt{--wormhole}; any violation is a
 fatal configuration error rather than silent misbehaviour.
+
+\begin{table}[H]
+\centering
+\small
+\caption{The two deadlock-control mechanisms operate at different layers.}
+\label{tab:mechanism-contrast}
+\begin{tabular}{p{0.19\linewidth}p{0.21\linewidth}p{0.23\linewidth}p{0.25\linewidth}}
+\toprule
+Mechanism & Protected mode & Resource cost & Safety rule \\
+\midrule
+Escape VC & Adaptive Torus routing (ID 4) & Reserve $E\ge1$ VC per vnet &
+Packets may enter non-wrap XYZ Escape channels but never return from E to A. \\
+CBS & Torus DOR (ID 3) on control vnets & No reserved VC; one marked free slot per directed ring &
+Ring entry preserves the bubble; in-ring transit relocates its mark. \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{CBS Correctness Argument}
 As with the escape argument, this is a claim about the allocation rules, not
