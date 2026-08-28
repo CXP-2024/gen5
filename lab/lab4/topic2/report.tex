@@ -160,13 +160,24 @@ one dimension. That static split is the inefficiency DP removes.
 \section{Design: the Dimension Pool}
 \label{sec:design}
 
-The mechanism is deliberately small --- one counter per dimension pair
-and one admission inequality; no new arbiter, table, or pipeline stage.
-The substance of the design lies in where the check sits
-(\S\ref{sec:retry}) and in why the composition with the background
-substrates stays deadlock-free (\S\ref{sec:safety}).
+DP's entire mechanism is one counter per dimension pair and one
+admission inequality --- no new arbiter, no table, no pipeline stage, no
+datapath change. This minimality is not an accident of scope but the
+central design property: every alternative that buys the same
+flexibility (DAMQ-style shared physical buffers, dynamic VC
+reassignment) does so with multi-ported storage or packet relocation,
+and those are precisely the structures a deadlock argument must then
+re-examine. Keeping the mechanism to a counter is what keeps the safety
+argument (\S\ref{sec:safety}) a clean composition with an untouched
+substrate, and what makes the hardware cost (\S\ref{sec:cost}) a
+sideband wire rather than an SRAM redesign. This section develops the
+design in full: the pool structure (\S\ref{sec:pool}), the admission
+and retry semantics with the placement of the check
+(\S\ref{sec:retry}), the deadlock-safety composition
+(\S\ref{sec:safety}), and the hardware cost (\S\ref{sec:cost}).
 
 \subsection{Pool, cap, and tranches}
+\label{sec:pool}
 
 For each router, dimension $d$, and control vnet, define
 \begin{equation}
@@ -183,6 +194,28 @@ There is no ``enable event'' and no slot transfer: borrowing is emergent.
 When one side is idle it contributes $\approx 0$ to $\poolocc$, so the hot
 side can occupy up to all $S$ units of the pair budget; under two-sided
 load the two inports compete for the same budget.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.88\textwidth]{dp_concept}
+  \caption{The Dimension Pool at one router, dimension $X$. Each inport
+  keeps its private per-VC FIFOs; only the \emph{accounting} of the blue
+  pooled slots is joined under the single budget
+  $\mathit{occ}(E)+\mathit{occ}(W)<S$. Gray dedicated slots (DP-CBS) and
+  the green escape VC (DP-ESC) are outside the pool.}
+  \label{fig:concept}
+\end{figure}
+
+Figure~\ref{fig:concept} illustrates the structure, and a worked example
+shows the borrowing. Under xopposite traffic every packet at this router
+crosses in $+x$, so the $-x$ inport holds no pooled slot and $\poolocc$
+reduces to the hot inport's own occupancy. The hot inport may therefore
+hold its dedicated tranche \emph{plus the entire pair budget} --- at
+$r{=}2$, $S{=}2$ that is $2+2=4$ usable lanes, where the static
+equal-storage design ($C{=}6$, i.e.\ 3 VCs per inport) caps it at 3. Nothing was signalled or moved to
+enable this; and when the pattern reverses, the hot side's occupancy
+drains within a credit round trip and the same budget is simply
+available to the other side.
 
 VCs are partitioned into tranches that are \emph{ID-pegged} (fixed at
 configuration time, a property of the VC id --- count-based accounting
@@ -212,7 +245,7 @@ The pool check is a \emph{pre-flight} credit-style test: a packet that
 fails admission never leaves its upstream VC; there is no NACK, drop, or
 retransmission. Switch allocation re-arbitrates every cycle, so a denied
 packet simply retries. The two variants differ in where the primary
-check sits:
+check sits (Figure~\ref{fig:checks}):
 
 \begin{itemize}
   \item \textbf{DP-ESC}: the primary check is a candidate filter inside
@@ -228,6 +261,17 @@ check sits:
     switch allocator's admission rule; on failure the packet waits for,
     or falls back to, the dedicated tranche under normal CBS entry rules.
 \end{itemize}
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\textwidth]{dp_check_placement}
+  \caption{Where DP acts in the router pipeline. DP-ESC filters route
+  candidates at route computation (with a belt check at switch
+  allocation for the intervening race); DP-CBS checks admission in the
+  switch allocator. The occupancy window spans allocation grant to
+  credit return.}
+  \label{fig:checks}
+\end{figure}
 
 \subsection{Deadlock safety}
 \label{sec:safety}
@@ -258,6 +302,18 @@ dedicated (escape) layer at every hop.
 the escape network's acyclic channel-dependency graph is untouched and
 Duato's theorem applies unchanged.
 
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\textwidth]{dp_safety}
+  \caption{The two safety compositions. In both, the pooled tranche may
+  congest arbitrarily because every packet in it remains eligible at
+  every hop for an unpooled resource that keeps its own invariant: the
+  private CBS sub-ring (left --- Duato's construction transplanted from
+  VC class to buffer depth) or the exempt escape VC (right --- Duato's
+  theorem verbatim).}
+  \label{fig:safety}
+\end{figure}
+
 \textbf{Conservative accounting.} $\poolocc$ is incremented at
 switch-allocation grant (a reservation, before the flit moves) and
 decremented when the freeing credit returns, so occupancy spans
@@ -270,6 +326,7 @@ size-2 dimension would let both outports of one router feed the same
 downstream pool in one cycle).
 
 \subsection{Hardware cost}
+\label{sec:cost}
 
 DP's state is three $\lceil \log_2(S{+}1) \rceil$-bit counters per router
 per control vnet (one per dimension pair) plus an adder and comparator in
@@ -353,7 +410,11 @@ B (adaptive + escape) & B1: vcs=2 & B2: vcs=3 & $S{=}2$ & 4 \\
 \bottomrule
 \end{tabular}
 \caption{Equal-usable-storage pairs. $C = 2\cdot\text{dedicated} + S$
-usable slots per dimension pair.}
+usable slots per dimension pair. The B $C{=}4$ and B $C{=}8$ pairs are
+swept but excluded from headline gains --- \S\ref{sec:results} explains
+why they are uninformative; they return as attribution and
+regime-boundary evidence (\S\ref{sec:validation},
+\S\ref{sec:analysis}).}
 \label{tab:configs}
 \end{table}
 
@@ -364,6 +425,7 @@ point is \emph{stable} when $\ge 90\%$ of offered load is accepted; the
 offered-load ceiling of the harness is 0.5 packets/node/cycle.
 
 \subsection{Results}
+\label{sec:results}
 
 \begin{table}[H]
 \centering
@@ -374,58 +436,59 @@ Pair & xopposite & tornado & transpose & neighbor & uniform \\
 \midrule
 A, $C{=}6$ & \textbf{+20.9\%} & ceil & +1.4\% & ceil & $\ge$+2.6\% \\
 A, $C{=}8$ & $-2.7\%$ & ceil & +1.3\% & ceil & ceil \\
-B, $C{=}4$ & +37.1\% & +95.0\%$^{\dagger}$ & +87.5\%$^{\dagger}$ &
-  +103.0\%$^{\dagger}$ & +95.7\%$^{\dagger}$ \\
 B, $C{=}6$ & \textbf{+21.3\%} & $\ge$+31.0\% & $\ge$+29.2\% &
   $\ge$+24.9\% & $\ge$+28.5\% \\
-B, $C{=}8$ & ceil & ceil & ceil & ceil & ceil \\
 \bottomrule
 \end{tabular}
 \caption{Peak stable throughput gain of DP over its equal-storage
-baseline. ``ceil'': both sides saturate the 0.5 injection ceiling (no
-information). ``$\ge$'': the DP side is at the ceiling, so the gain is a
-lower bound. $^{\dagger}$~budget-efficiency result, not a flow-control
-gain --- see reading~2 below.}
+baseline, informative pairs only. ``ceil'': both sides saturate the 0.5
+injection ceiling (no information). ``$\ge$'': the DP side is at the
+ceiling, so the gain is a lower bound.}
 \label{tab:gains}
 \end{table}
 
+Two sweep rows are omitted from Table~\ref{tab:gains} as uninformative
+rather than unfavorable. At B $C{=}4$ the baseline B1 is
+credit-round-trip starved: with a single usable adaptive lane per
+inport and a $\sim$5-cycle VC turnaround it saturates near 0.195 on
+\emph{all five} patterns, so the raw +95--103\% of B2 over it measures
+baseline starvation, not pooling. (The honest content of that row is
+budget efficiency: on one-sided patterns B2 is \emph{bit-identical} to
+the $C{=}6$ baseline B3 at every rate --- a 4-slot pair budget doing
+the work of a 6-slot static design --- and B2 returns as attribution
+evidence in \S\ref{sec:validation}.) At B $C{=}8$ every configuration
+saturates the harness's 0.5 offered-load ceiling on every pattern, so
+no relative statement survives.
+
 \begin{figure}[tbp]
   \centering
-  \includegraphics[width=0.82\textwidth]{latency_throughput_dp_b}
-  \caption{Family B (adaptive + escape): latency--throughput curves per
-  pattern. Solid/dashed lines are stable points; $\times$ markers are
-  unstable points pinned to the top edge. DP curves extend the stable
-  region to higher throughput at equal usable storage.}
-  \label{fig:ltb}
+  \includegraphics[width=\textwidth]{fig_lt_headline}
+  \caption{Latency--throughput curves for the two headline cells
+  (xopposite, $C{=}6$; stable points only, dotted verticals mark peak
+  stable throughput). Left: DP-ESC, +21.3\%. Right: DP-CBS, +20.9\%. In
+  both, DP holds flat latency past the baseline's collapse point at
+  equal usable storage.}
+  \label{fig:ltheadline}
 \end{figure}
 
 \begin{figure}[tbp]
   \centering
-  \includegraphics[width=0.82\textwidth]{latency_throughput_dp_a}
-  \caption{Family A (DOR + CBS): latency--throughput curves per pattern.
-  The xopposite panel shows the +20.9\% stable-region extension of A2
-  over A1; at $C{=}8$ (A4 vs.\ A3) the ordering reverses.}
-  \label{fig:lta}
+  \includegraphics[width=\textwidth]{fig_gains_bar}
+  \caption{Table~\ref{tab:gains}, drawn. Left: DP-ESC at $C{=}6$ across
+  all five patterns; hatched bars are lower bounds (the DP side is at
+  the 0.5 ceiling). Right: the informative DP-CBS cells, including the
+  honest negative at $C{=}8$.}
+  \label{fig:gains}
 \end{figure}
 
-Four readings, in decreasing order of strength:
+Figure~\ref{fig:ltheadline} shows the two headline latency--throughput
+cells and Figure~\ref{fig:gains} draws the gains. Three readings, in
+decreasing order of strength:
 
 \begin{enumerate}
   \item \textbf{DP-ESC at $C{=}6$: +21--31\% on every pattern} (mostly
     lower bounds), including uniform random and including the one cell
     (xopposite) with no ceiling excuse. This is the headline claim.
-  \item \textbf{DP-ESC at $C{=}4$ is budget efficiency, not a $2\times$
-    gain.} On one-sided patterns B2 is \emph{bit-identical} to plain
-    vcs=3 (B3) at every rate: with $S$ equal to the pooled VCs per inport
-    and one-sided traffic, the cap is provably redundant, so pooling lets
-    a 4-slot pair budget do the work of a 6-slot design. The raw
-    +95--103\% over B1 overstates the mechanism because B1 is
-    credit-round-trip-starved: with one usable adaptive lane per inport
-    and a $\sim$5-cycle VC turnaround it saturates near 0.195 on
-    \emph{all five} patterns. Family-B peaks track
-    $\approx 0.2 \times$ (usable hot-inport lanes), capped at the 0.5
-    ceiling --- B1 $\to$ 0.195 (1 lane), B2/B3 $\to \approx$0.40
-    (2 lanes), B5 $\to$ ceiling (3 lanes).
   \item \textbf{DP-CBS: one clean win, honestly bounded.} +20.9\% on
     xopposite at $C{=}6$; $\ge$+2.6\% at zero cost on uniform; and
     \textbf{$-2.7\%$} at $C{=}8$ on xopposite --- once buffers are
@@ -486,10 +549,16 @@ counters that are populated).
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{dp_activity}
-  \caption{Pool activity vs.\ injection rate for the DP modes:
-  \texttt{dp\_shared\_grants} (top row) and \texttt{dp\_pool\_blocks}
-  (bottom row) per pattern.}
+  \includegraphics[width=\textwidth]{fig_activity}
+  \caption{Pool activity vs.\ injection rate. Left: DP-CBS (A2) on
+  two-sided transpose --- the pool is heavily exercised
+  (\texttt{dp\_shared\_grants}) and cap denials
+  (\texttt{dp\_pool\_blocks}) surge once the two directions start
+  competing past saturation, confirming the counter works. On one-sided
+  patterns the same counter is exactly zero: a denial requires the
+  opposite side to hold budget. Right: DP-ESC (B4) on tornado ---
+  \texttt{dp\_pool\_blocks} is identically zero \emph{by construction},
+  since pool pressure is absorbed by the route-time filter.}
   \label{fig:activity}
 \end{figure}
 
@@ -513,8 +582,9 @@ Three layers explain the gains:
     DP raises the number of lanes the hot direction may \emph{occupy}
     (dedicated + whole cap instead of dedicated + half the storage), a
     latency-hiding effect analogous to adding MSHRs to a cache. The
-    family-B peak progression (reading 2, \S\ref{sec:experiments})
-    matches this model quantitatively.
+    family-B peak progression matches this model quantitatively: B1
+    saturates near 0.195 with one usable adaptive lane per inport,
+    B2/B3 near 0.40 with two, and B5 at the 0.5 ceiling with three.
   \item \textbf{Separation of safety and performance resources.} What
     makes the first two layers \emph{safe to exploit} is that the pooled
     tranche carries no deadlock-freedom obligation: the substrate (CBS
@@ -549,9 +619,11 @@ toward zero.
 \textbf{Substrate specificity.} With one-flit control VCs, every extra
 usable hot-side slot is worth a full $1/\text{RTT}$ of throughput; deeper
 VCs would shrink the magnitudes (the direction of the effect stands).
-Half of Table~\ref{tab:gains} (15/25 cells) sits at the injection ceiling
-and says nothing about relative headroom; single-seed cells at $\pm$1--3\%
-are reported as zero-cost bounds, not gains.
+Five of the fifteen cells in Table~\ref{tab:gains} sit at the injection
+ceiling on both sides and say nothing about relative headroom, and the
+``$\ge$'' cells are truncated by the same ceiling on the DP side;
+single-seed cells at $\pm$1--3\% are reported as zero-cost bounds, not
+gains.
 
 \section{Conclusion}
 
