@@ -507,15 +507,13 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
         """    const auto adaptive = m_router->get_net_ptr()->adaptiveWindow();
     int best_credits = -1;
     std::vector<int> best_outports;
-    for (size_t i = 0; i < candidates.size(); i++) {
-        const int outport = candidates[i];
+    for (const int outport : candidates) {
         const int credits = m_router->getOutputUnit(outport)->
             free_vc_credit_count(vnet, adaptive.first, adaptive.second);
 """,
         """    int best_credits = -1;
     std::vector<int> best_outports;
-    for (size_t i = 0; i < candidates.size(); i++) {
-        const int outport = candidates[i];
+    for (const int outport : candidates) {
         const int credits = m_router->getOutputUnit(outport)->
             free_vc_credit_count_class(vnet, false);
 """,

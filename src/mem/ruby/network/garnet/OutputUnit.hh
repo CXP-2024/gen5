@@ -75,6 +75,9 @@ class OutputUnit : public Consumer
     int select_free_vc(int vnet, int first_offset, int count);
     int free_vc_credit_count(int vnet, int first_offset, int count);
     int count_free_vcs(int vnet);
+    bool has_free_vc_class(int vnet, bool escape);
+    int select_free_vc_class(int vnet, bool escape);
+    int free_vc_credit_count_class(int vnet, bool escape);
 
     inline PortDirection get_direction() { return m_direction; }
 
@@ -114,6 +117,8 @@ class OutputUnit : public Consumer
     uint32_t functionalWrite(Packet *pkt);
 
   private:
+    std::vector<int> dpphys_offsets(bool escape);
+
     Router *m_router;
     GEM5_CLASS_VAR_USED int m_id;
     PortDirection m_direction;

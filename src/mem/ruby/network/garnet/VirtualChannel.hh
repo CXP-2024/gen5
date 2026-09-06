@@ -62,21 +62,7 @@ class VirtualChannel
 
     inline Tick get_enqueue_time()          { return m_enqueue_time; }
     inline void set_enqueue_time(Tick time) { m_enqueue_time = time; }
-    inline VC_state_type get_state() const  { return m_vc_state.first; }
-
-    void
-    set_ingress_metadata(int credit_inport, int upstream_vc,
-                         const PortDirection &true_direction)
-    {
-        m_credit_inport = credit_inport;
-        m_upstream_vc = upstream_vc;
-        m_true_direction = true_direction;
-    }
-
-    int get_credit_inport() const { return m_credit_inport; }
-    int get_upstream_vc() const { return m_upstream_vc; }
-    const PortDirection &get_true_direction() const
-    { return m_true_direction; }
+    inline VC_state_type get_state()        { return m_vc_state.first; }
 
     inline bool
     isReady(Tick curTime)
@@ -118,12 +104,6 @@ class VirtualChannel
     int m_output_port;
     Tick m_enqueue_time;
     int m_output_vc;
-    // DP-Phys may land a flit in the opposing InputUnit. These fields retain
-    // the link it actually arrived on so routing and credit return do not
-    // accidentally follow the physical storage location.
-    int m_credit_inport;
-    int m_upstream_vc;
-    PortDirection m_true_direction;
 };
 
 } // namespace garnet

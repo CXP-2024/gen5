@@ -460,7 +460,7 @@ int
 NetworkInterface::calculateVC(int vnet)
 {
     const int allocatable_vcs = m_net_ptr->isTorus3DAdaptive() ?
-        m_vc_per_vnet - m_net_ptr->getEscapeVCs() : m_vc_per_vnet;
+        m_net_ptr->injectionVCs() : m_vc_per_vnet;
     for (int i = 0; i < allocatable_vcs; i++) {
         int delta = m_vc_allocator[vnet];
         m_vc_allocator[vnet]++;

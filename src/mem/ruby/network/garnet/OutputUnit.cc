@@ -34,6 +34,7 @@
 #include "debug/RubyNetwork.hh"
 #include "mem/ruby/network/garnet/Credit.hh"
 #include "mem/ruby/network/garnet/CreditLink.hh"
+#include "mem/ruby/network/garnet/GarnetNetwork.hh"
 #include "mem/ruby/network/garnet/Router.hh"
 #include "mem/ruby/network/garnet/flitBuffer.hh"
 
@@ -123,6 +124,68 @@ OutputUnit::free_vc_credit_count(int vnet, int first_offset, int count)
     return credits;
 }
 
+// DP-Phys: the VC ids this port may use for one class, in
+// availability order (own reserve first, then the side's pool half).
+std::vector<int>
+OutputUnit::dpphys_offsets(bool escape)
+{
+    auto *net = m_router->get_net_ptr();
+    const bool local = m_direction == "Local";
+    const int side = local ? 0 :
+        GarnetNetwork::dpphysSideOfOutportDirn(m_direction);
+    return net->dpphysOrderedOffsets(escape, side, local);
+}
+
+// Class-based selectors: resolve this port's VC layout (baseline
+// contiguous windows, or the DP-Phys pair-global id space) and visit
+// the class members in availability order.
+bool
+OutputUnit::has_free_vc_class(int vnet, bool escape)
+{
+    return free_vc_credit_count_class(vnet, escape) > 0;
+}
+
+int
+OutputUnit::free_vc_credit_count_class(int vnet, bool escape)
+{
+    auto *net = m_router->get_net_ptr();
+    if (!net->isDPPhys()) {
+        const auto window = escape ? net->escapeWindow()
+                                   : net->adaptiveWindow();
+        return free_vc_credit_count(vnet, window.first, window.second);
+    }
+
+    int credits = 0;
+    const int vc_base = vnet * m_vc_per_vnet;
+    for (const int offset : dpphys_offsets(escape)) {
+        const int vc = vc_base + offset;
+        if (is_vc_idle(vc, curTick()))
+            credits += outVcState[vc].get_credit_count();
+    }
+    return credits;
+}
+
+int
+OutputUnit::select_free_vc_class(int vnet, bool escape)
+{
+    auto *net = m_router->get_net_ptr();
+    if (!net->isDPPhys()) {
+        const auto window = escape ? net->escapeWindow()
+                                   : net->adaptiveWindow();
+        return select_free_vc(vnet, window.first, window.second);
+    }
+
+    const int vc_base = vnet * m_vc_per_vnet;
+    for (const int offset : dpphys_offsets(escape)) {
+        const int vc = vc_base + offset;
+        if (is_vc_idle(vc, curTick())) {
+            outVcState[vc].setState(ACTIVE_, curTick());
+            return vc;
+        }
+    }
+    return -1;
+}
+
 // Number of idle (free) VCs of this vnet at the downstream input port.
 // Used by the Critical Bubble Scheme to reserve the critical slot.
 int
@@ -205,21 +268,8 @@ OutputUnit::wakeup()
         Credit *t_credit = (Credit*) m_credit_link->consumeLink();
         increment_credit(t_credit->get_vc());
 
-        if (t_credit->is_free_signal()) {
+        if (t_credit->is_free_signal())
             set_vc_state(IDLE_, t_credit->get_vc(), curTick());
-
-            // DP: the freed VC is an input VC at the downstream router;
-            // release its pooled-occupancy reservation if it was pooled.
-            GarnetNetwork *net = m_router->get_net_ptr();
-            if (net->isDPEnabled() && m_direction != "Local") {
-                const int vc = t_credit->get_vc();
-                net->dpNoteFree(
-                    net->cbsDownstreamRouter(m_router->get_id(),
-                                             m_direction),
-                    GarnetNetwork::cbsOppositeDirn(m_direction),
-                    vc / m_vc_per_vnet, vc % m_vc_per_vnet);
-            }
-        }
 
         delete t_credit;
 

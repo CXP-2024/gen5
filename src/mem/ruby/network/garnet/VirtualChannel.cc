@@ -42,8 +42,7 @@ namespace garnet
 
 VirtualChannel::VirtualChannel()
   : inputBuffer(), m_vc_state(IDLE_, Tick(0)), m_output_port(-1),
-    m_enqueue_time(INFINITE_), m_output_vc(-1), m_credit_inport(-1),
-    m_upstream_vc(-1), m_true_direction("Unknown")
+    m_enqueue_time(INFINITE_), m_output_vc(-1)
 {
 }
 
