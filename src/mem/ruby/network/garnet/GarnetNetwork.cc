@@ -867,7 +867,8 @@ GarnetNetwork::regStats()
         .name(name() + ".dpphys_grant_queue_depth")
         .desc("DP-Phys grants already queued when a new grant arrives")
         .unit(count)
-        .flags(statistics::pdf | statistics::oneline);
+        .flags(statistics::pdf | statistics::oneline |
+               statistics::nozero);
 
     // Links
     m_total_ext_in_link_utilization
