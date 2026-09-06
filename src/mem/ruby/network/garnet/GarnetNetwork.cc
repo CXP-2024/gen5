@@ -313,9 +313,10 @@ GarnetNetwork::init()
         fatal_if(m_dpphys_policy != "static" &&
                  m_dpphys_policy != "rr" &&
                  m_dpphys_policy != "forced" &&
-                 m_dpphys_policy != "starve",
+                 m_dpphys_policy != "starve" &&
+                 m_dpphys_policy != "pressure",
             "unimplemented --dpphys-policy '%s' "
-            "(available: static, rr, starve, forced)",
+            "(available: static, rr, starve, pressure, forced)",
             m_dpphys_policy);
         fatal_if(m_escape_vcs != 1,
             "DP-Phys requires --escape-vcs=1: each side's reserve holds "

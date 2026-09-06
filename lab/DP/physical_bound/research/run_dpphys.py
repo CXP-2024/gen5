@@ -40,6 +40,7 @@ class Mode:
     policy: str | None = None
     reserve: int | None = None
     pool: int = 0
+    cap: int | None = None
 
 
 # The five preregistered modes have eight physical slots per direction pair.
@@ -51,6 +52,7 @@ MODES = {
     "STV-a": Mode(vcs=8, policy="starve", reserve=2, pool=4),
     "RR-b": Mode(vcs=8, policy="rr", reserve=1, pool=6),
     "STV-b": Mode(vcs=8, policy="starve", reserve=1, pool=6),
+    "PRESS-a": Mode(vcs=8, policy="pressure", reserve=2, pool=4, cap=3),
     "PRIV-v3": Mode(vcs=3),
     "STV-r1p4": Mode(vcs=6, policy="starve", reserve=1, pool=4),
     "PRIV-v2": Mode(vcs=2),
@@ -63,6 +65,8 @@ PATTERNS = [
     "torus3d_transpose",
     "torus3d_neighbor",
     "uniform_random",
+    "torus3d_xbiased",
+    "torus3d_x_reversal",
 ]
 DIRECTIONS = ["east", "west", "north", "south", "up", "down"]
 DEFAULT_RATES = [i / 20 for i in range(1, 21)]
@@ -256,7 +260,7 @@ def gem5_command(
             [
                 f"--dpphys-policy={mode.policy}",
                 f"--dpphys-r={mode.reserve}",
-                f"--dpphys-cap={mode.pool}",
+                f"--dpphys-cap={mode.cap or mode.pool}",
                 f"--dpphys-return-base={args.return_base}",
                 f"--dpphys-return-t1={args.return_t1}",
             ]

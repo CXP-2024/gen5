@@ -287,7 +287,9 @@ OutputUnit::wakeup()
     if (m_credit_link->isReady(curTick())) {
         Credit *t_credit = (Credit*) m_credit_link->consumeLink();
         if (t_credit->is_return()) {
-            assert(m_router->get_net_ptr()->dpphysPolicy() == "starve");
+            const auto &policy =
+                m_router->get_net_ptr()->dpphysPolicy();
+            assert(policy == "starve" || policy == "pressure");
             m_router->handleDpphysReturn(
                 m_direction, t_credit->get_vc());
         } else {
@@ -309,7 +311,9 @@ bool
 OutputUnit::tryDpphysReturn()
 {
     auto *net = m_router->get_net_ptr();
-    if (net->dpphysPolicy() != "starve" || m_direction == "Local")
+    const auto &policy = net->dpphysPolicy();
+    if ((policy != "starve" && policy != "pressure") ||
+        m_direction == "Local")
         return false;
 
     bool needs_wakeup = false;

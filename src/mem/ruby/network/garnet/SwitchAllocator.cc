@@ -399,7 +399,8 @@ SwitchAllocator::handleDpphysReturn(
     const PortDirection &owner_direction, int vc)
 {
     auto *net = m_router->get_net_ptr();
-    assert(net->dpphysPolicy() == "starve");
+    assert(net->dpphysPolicy() == "starve" ||
+           net->dpphysPolicy() == "pressure");
     assert(net->dpphysIsPoolOffset(vc % m_vc_per_vnet));
     InputUnit *owner =
         m_router->getInputUnitByDirection(owner_direction);
@@ -445,7 +446,8 @@ SwitchAllocator::grantPoolCredit(int owner_inport, int vc)
         target_side = 1 - owner_side;
     } else if (net->dpphysPolicy() == "rr") {
         target_side = m_router->dpphysTakeRrSide(pair, vnet);
-    } else if (net->dpphysPolicy() == "starve") {
+    } else if (net->dpphysPolicy() == "starve" ||
+               net->dpphysPolicy() == "pressure") {
         InputUnit *side_units[2];
         side_units[owner_side] = target;
         side_units[1 - owner_side] =
@@ -479,7 +481,28 @@ SwitchAllocator::grantPoolCredit(int owner_inport, int vc)
             }
         }
 
-        if (free_slots[0] == 0 && free_slots[1] > 0) {
+        if (net->dpphysPolicy() == "pressure") {
+            int reserve_busy[2] = {0, 0};
+            for (int side = 0; side < 2; ++side) {
+                for (int reserve_slot = 0;
+                     reserve_slot < reserve; ++reserve_slot) {
+                    const int candidate =
+                        vc_base + side * reserve + reserve_slot;
+                    if (!side_units[side]->is_vc_idle(candidate))
+                        reserve_busy[side]++;
+                }
+            }
+
+            const int peer_side = 1 - owner_side;
+            // A blocked peer overrides stickiness.  Otherwise move the
+            // credit only toward strictly greater reserved pressure; ties
+            // keep the last owner to avoid ownership ping-pong.
+            if ((free_slots[peer_side] == 0 &&
+                 free_slots[owner_side] > 0) ||
+                reserve_busy[peer_side] > reserve_busy[owner_side]) {
+                target_side = peer_side;
+            }
+        } else if (free_slots[0] == 0 && free_slots[1] > 0) {
             target_side = 0;
         } else if (free_slots[1] == 0 && free_slots[0] > 0) {
             target_side = 1;

@@ -133,7 +133,7 @@ def define_options(parser):
         type=str,
         default="",
         help="""DP-Phys pooled-VC policy for routing-algorithm 4;
-            empty string disables (static, rr, starve, forced)""",
+            empty string disables (static, rr, starve, pressure, forced)""",
     )
     parser.add_argument(
         "--dpphys-r",

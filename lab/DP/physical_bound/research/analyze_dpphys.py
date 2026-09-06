@@ -16,6 +16,7 @@ MODE_ORDER = [
     "STV-a",
     "RR-b",
     "STV-b",
+    "PRESS-a",
     "PRIV-v3",
     "STV-r1p4",
     "PRIV-v2",
