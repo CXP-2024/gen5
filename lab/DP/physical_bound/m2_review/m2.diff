@@ -1,0 +1,590 @@
+diff --git a/configs/network/Network.py b/configs/network/Network.py
+index a1e554d..8b866ca 100644
+--- a/configs/network/Network.py
++++ b/configs/network/Network.py
+@@ -127,6 +127,22 @@ def define_options(parser):
+         help="""enable Critical Bubble Scheme flow control on Torus3D
+             rings; requires --routing-algorithm=3 and no --wormhole""",
+     )
++    parser.add_argument(
++        "--dpphys-policy",
++        action="store",
++        type=str,
++        default="",
++        help="""DP-Phys pooled-VC policy for routing-algorithm 4;
++            empty string disables (implemented: static)""",
++    )
++    parser.add_argument(
++        "--dpphys-r",
++        action="store",
++        type=int,
++        default=2,
++        help="""DP-Phys reserved VCs per side, escape VC included;
++            the shared pool is vcs-per-vnet - 2*r""",
++    )
+     parser.add_argument(
+         "--routing-algorithm",
+         action="store",
+@@ -215,6 +231,8 @@ def init_network(options, network, InterfaceClass):
+         network.escape_vcs = options.escape_vcs
+         network.wormhole = options.wormhole
+         network.enable_cbs = options.enable_cbs
++        network.dpphys_policy = options.dpphys_policy
++        network.dpphys_r = options.dpphys_r
+         if options.wormhole:
+             network.buffers_per_ctrl_vc = 16
+         network.ni_flit_size = options.link_width_bits / 8
+diff --git a/src/mem/ruby/network/garnet/GarnetNetwork.cc b/src/mem/ruby/network/garnet/GarnetNetwork.cc
+index de7bcaa..c0e29f2 100644
+--- a/src/mem/ruby/network/garnet/GarnetNetwork.cc
++++ b/src/mem/ruby/network/garnet/GarnetNetwork.cc
+@@ -76,6 +76,8 @@ GarnetNetwork::GarnetNetwork(const Params &p)
+     m_wormhole = p.wormhole;
+     m_enable_cbs = p.enable_cbs;
+     m_routing_algorithm = p.routing_algorithm;
++    m_dpphys_policy = p.dpphys_policy;
++    m_dpphys_r = p.dpphys_r;
+     m_next_packet_id = 0;
+ 
+     m_enable_fault_model = p.enable_fault_model;
+@@ -113,6 +115,102 @@ GarnetNetwork::GarnetNetwork(const Params &p)
+     inform("Garnet version %s\n", garnetVersion);
+ }
+ 
++int
++GarnetNetwork::dpphysSideOfInportDirn(const PortDirection &dirn)
++{
++    if (dirn == "East" || dirn == "North" || dirn == "Up")
++        return 0;
++    if (dirn == "West" || dirn == "South" || dirn == "Down")
++        return 1;
++    return -1;
++}
++
++int
++GarnetNetwork::dpphysSideOfOutportDirn(const PortDirection &dirn)
++{
++    // An outport feeds the opposite-direction inport of the downstream
++    // router (East-out arrives at West-in).
++    if (dirn == "West" || dirn == "South" || dirn == "Down")
++        return 0;
++    if (dirn == "East" || dirn == "North" || dirn == "Up")
++        return 1;
++    return -1;
++}
++
++// Port-aware escape classification. DP-Phys re-numbers inter-router
++// links pair-globally (escape ids r-1 and 2r-1); Local links keep the
++// baseline layout with the top id of the per-side budget as escape.
++bool
++GarnetNetwork::isEscapeVCAt(int vc, bool local_port) const
++{
++    if (!isDPPhys())
++        return isEscapeVC(vc);
++    const int offset = vc % (int)m_max_vcs_per_vnet;
++    if (local_port)
++        return offset == dpphysSideBudget() - 1;
++    const int r = (int)m_dpphys_r;
++    return offset == r - 1 || offset == 2 * r - 1;
++}
++
++// The VC ids a port may use for one class, in availability order: own
++// reserve first, then the side's home pool half, ascending -- mirrors
++// the baseline availability order under the static policy.
++std::vector<int>
++GarnetNetwork::dpphysOrderedOffsets(bool escape, int side, bool local) const
++{
++    assert(isDPPhys());
++    const int r = (int)m_dpphys_r;
++    const int half = dpphysP() / 2;
++    std::vector<int> offsets;
++    if (local) {
++        const int budget = dpphysSideBudget();
++        if (escape) {
++            offsets.push_back(budget - 1);
++        } else {
++            for (int i = 0; i < budget - 1; i++)
++                offsets.push_back(i);
++        }
++        return offsets;
++    }
++    assert(side == 0 || side == 1);
++    if (escape) {
++        offsets.push_back(side * r + r - 1);
++        return offsets;
++    }
++    for (int i = 0; i < r - 1; i++)
++        offsets.push_back(side * r + i);
++    for (int i = 0; i < half; i++)
++        offsets.push_back(2 * r + side * half + i);
++    return offsets;
++}
++
++// Which pair-global ids may physically arrive at an input unit of
++// `side`. Static policy: own reserve plus the side's home pool half.
++// Pool-ownership migration (M3+) widens this to the full pool range
++// via the cross-IU deposit path.
++bool
++GarnetNetwork::dpphysOffsetAllowedAt(int offset, int side) const
++{
++    assert(isDPPhys());
++    assert(side == 0 || side == 1);
++    const int r = (int)m_dpphys_r;
++    const int half = dpphysP() / 2;
++    if (offset >= side * r && offset < (side + 1) * r)
++        return true;
++    const int pool_base = 2 * r + side * half;
++    return offset >= pool_base && offset < pool_base + half;
++}
++
++// VCs an NI may inject into per vnet: the adaptive class of the Local
++// link (DP-Phys pins Local links to the baseline per-side budget).
++int
++GarnetNetwork::injectionVCs() const
++{
++    if (isDPPhys())
++        return dpphysSideBudget() - (int)m_escape_vcs;
++    return adaptiveWindow().second;
++}
++
+ void
+ GarnetNetwork::init()
+ {
+@@ -157,6 +255,26 @@ GarnetNetwork::init()
+     if (m_enable_cbs)
+         cbsInit();
+ 
++    if (isDPPhys()) {
++        fatal_if(!isTorus3DAdaptive(),
++            "--dpphys-policy requires Torus3D adaptive routing "
++            "(--routing-algorithm=4)");
++        fatal_if(m_dpphys_policy != "static",
++            "unimplemented --dpphys-policy '%s' (available: static)",
++            m_dpphys_policy);
++        fatal_if(m_escape_vcs != 1,
++            "DP-Phys requires --escape-vcs=1: each side's reserve holds "
++            "exactly one escape VC");
++        fatal_if(m_dpphys_r < 2,
++            "DP-Phys requires --dpphys-r >= 2: a side's reserve must "
++            "hold one adaptive and one escape VC");
++        const int pool = (int)m_max_vcs_per_vnet - 2 * (int)m_dpphys_r;
++        fatal_if(pool < 2 || pool % 2 != 0,
++            "DP-Phys requires --vcs-per-vnet == 2*dpphys-r + P with an "
++            "even shared pool P >= 2 (got vcs=%d, r=%d)",
++            m_max_vcs_per_vnet, m_dpphys_r);
++    }
++
+ 
+     // Initialize topology specific parameters
+     if (getNumRows() > 0) {
+diff --git a/src/mem/ruby/network/garnet/GarnetNetwork.hh b/src/mem/ruby/network/garnet/GarnetNetwork.hh
+index fff9c8f..4cde55a 100644
+--- a/src/mem/ruby/network/garnet/GarnetNetwork.hh
++++ b/src/mem/ruby/network/garnet/GarnetNetwork.hh
+@@ -33,6 +33,7 @@
+ #define __MEM_RUBY_NETWORK_GARNET_0_GARNETNETWORK_HH__
+ 
+ #include <iostream>
++#include <string>
+ #include <utility>
+ #include <vector>
+ 
+@@ -116,6 +117,37 @@ class GarnetNetwork : public Network
+         return {vcs - (int)m_escape_vcs, (int)m_escape_vcs};
+     }
+ 
++    // DP-Phys (Variant A): the opposing input ports of a dimension
++    // share one pair-global VC id space of 2r + P slots per vnet.
++    // Side s owns reserve ids [s*r, (s+1)*r), whose top id is its
++    // escape VC, and is home to pool half [2r + s*P/2, 2r + (s+1)*P/2).
++    // Local links keep the baseline layout, pinned to the per-side
++    // budget r + P/2 with its top id as the escape VC, so injection
++    // buffering matches the PRIV baseline.
++    bool isDPPhys() const { return !m_dpphys_policy.empty(); }
++    const std::string &dpphysPolicy() const { return m_dpphys_policy; }
++    int dpphysR() const { return m_dpphys_r; }
++
++    int
++    dpphysP() const
++    {
++        return (int)m_max_vcs_per_vnet - 2 * (int)m_dpphys_r;
++    }
++
++    int
++    dpphysSideBudget() const
++    {
++        return (int)m_dpphys_r + dpphysP() / 2;
++    }
++
++    static int dpphysSideOfInportDirn(const PortDirection &dirn);
++    static int dpphysSideOfOutportDirn(const PortDirection &dirn);
++    bool isEscapeVCAt(int vc, bool local_port) const;
++    std::vector<int> dpphysOrderedOffsets(bool escape, int side,
++                                          bool local) const;
++    bool dpphysOffsetAllowedAt(int offset, int side) const;
++    int injectionVCs() const;
++
+     bool isFaultModelEnabled() const { return m_enable_fault_model; }
+     FaultModel* fault_model;
+ 
+@@ -226,6 +258,8 @@ class GarnetNetwork : public Network
+     bool m_enable_cbs;
+     uint32_t m_buffers_per_data_vc;
+     int m_routing_algorithm;
++    std::string m_dpphys_policy;
++    uint32_t m_dpphys_r;
+     bool m_enable_fault_model;
+ 
+     // CBS critical bubble registry: m_cbs_mark[router][dirn][vnet] is true
+diff --git a/src/mem/ruby/network/garnet/GarnetNetwork.py b/src/mem/ruby/network/garnet/GarnetNetwork.py
+index 36736c3..1d38aa3 100644
+--- a/src/mem/ruby/network/garnet/GarnetNetwork.py
++++ b/src/mem/ruby/network/garnet/GarnetNetwork.py
+@@ -58,6 +58,14 @@ class GarnetNetwork(RubyNetwork):
+         False,
+         "critical bubble scheme flow control on Torus3D rings (ctrl vnets)",
+     )
++    dpphys_policy = Param.String(
++        "",
++        "DP-Phys pooled-VC policy for adaptive torus routing; empty "
++        "string disables",
++    )
++    dpphys_r = Param.UInt32(
++        2, "DP-Phys reserved VCs per side (includes the escape VC)"
++    )
+     routing_algorithm = Param.Int(
+         0,
+         "0: Table, 1: XY, 2: Custom, 3: Torus3D DOR, "
+diff --git a/src/mem/ruby/network/garnet/InputUnit.cc b/src/mem/ruby/network/garnet/InputUnit.cc
+index f2a1a4f..5cc8a2c 100644
+--- a/src/mem/ruby/network/garnet/InputUnit.cc
++++ b/src/mem/ruby/network/garnet/InputUnit.cc
+@@ -87,6 +87,15 @@ InputUnit::wakeup()
+         int vc = t_flit->get_vc();
+         t_flit->increment_hops(); // for stats
+ 
++        auto *net = m_router->get_net_ptr();
++        if (net->isDPPhys() && m_direction != "Local") {
++            // DP-Phys P1: a flit may only arrive on a VC id owned by
++            // this input port's side of the pair.
++            assert(net->dpphysOffsetAllowedAt(
++                vc % m_vc_per_vnet,
++                GarnetNetwork::dpphysSideOfInportDirn(m_direction)));
++        }
++
+         int vnet = vc/m_vc_per_vnet;
+         bool is_head = (t_flit->get_type() == HEAD_) ||
+             (t_flit->get_type() == HEAD_TAIL_);
+@@ -115,6 +124,17 @@ InputUnit::wakeup()
+             assert(virtualChannels[vc].get_state() == ACTIVE_);
+         }
+ 
++        if (net->isDPPhys() && m_direction != "Local" && is_head) {
++            // DP-Phys P1: per-IU active VCs never exceed the per-side
++            // budget r + P/2.
++            int active = 0;
++            const int vc_base = vnet * m_vc_per_vnet;
++            for (int i = 0; i < m_vc_per_vnet; i++) {
++                if (virtualChannels[vc_base + i].get_state() == ACTIVE_)
++                    active++;
++            }
++            assert(active <= net->dpphysSideBudget());
++        }
+ 
+         // Buffer the flit
+         virtualChannels[vc].insertFlit(t_flit);
+diff --git a/src/mem/ruby/network/garnet/NetworkInterface.cc b/src/mem/ruby/network/garnet/NetworkInterface.cc
+index 2337315..ab23d39 100644
+--- a/src/mem/ruby/network/garnet/NetworkInterface.cc
++++ b/src/mem/ruby/network/garnet/NetworkInterface.cc
+@@ -460,7 +460,7 @@ int
+ NetworkInterface::calculateVC(int vnet)
+ {
+     const int allocatable_vcs = m_net_ptr->isTorus3DAdaptive() ?
+-        m_net_ptr->adaptiveWindow().second : m_vc_per_vnet;
++        m_net_ptr->injectionVCs() : m_vc_per_vnet;
+     for (int i = 0; i < allocatable_vcs; i++) {
+         int delta = m_vc_allocator[vnet];
+         m_vc_allocator[vnet]++;
+diff --git a/src/mem/ruby/network/garnet/OutputUnit.cc b/src/mem/ruby/network/garnet/OutputUnit.cc
+index c53ee24..39f6ec3 100644
+--- a/src/mem/ruby/network/garnet/OutputUnit.cc
++++ b/src/mem/ruby/network/garnet/OutputUnit.cc
+@@ -34,6 +34,7 @@
+ #include "debug/RubyNetwork.hh"
+ #include "mem/ruby/network/garnet/Credit.hh"
+ #include "mem/ruby/network/garnet/CreditLink.hh"
++#include "mem/ruby/network/garnet/GarnetNetwork.hh"
+ #include "mem/ruby/network/garnet/Router.hh"
+ #include "mem/ruby/network/garnet/flitBuffer.hh"
+ 
+@@ -123,6 +124,68 @@ OutputUnit::free_vc_credit_count(int vnet, int first_offset, int count)
+     return credits;
+ }
+ 
++// DP-Phys: the VC ids this port may use for one class, in
++// availability order (own reserve first, then the side's pool half).
++std::vector<int>
++OutputUnit::dpphys_offsets(bool escape)
++{
++    auto *net = m_router->get_net_ptr();
++    const bool local = m_direction == "Local";
++    const int side = local ? 0 :
++        GarnetNetwork::dpphysSideOfOutportDirn(m_direction);
++    return net->dpphysOrderedOffsets(escape, side, local);
++}
++
++// Class-based selectors: resolve this port's VC layout (baseline
++// contiguous windows, or the DP-Phys pair-global id space) and visit
++// the class members in availability order.
++bool
++OutputUnit::has_free_vc_class(int vnet, bool escape)
++{
++    return free_vc_credit_count_class(vnet, escape) > 0;
++}
++
++int
++OutputUnit::free_vc_credit_count_class(int vnet, bool escape)
++{
++    auto *net = m_router->get_net_ptr();
++    if (!net->isDPPhys()) {
++        const auto window = escape ? net->escapeWindow()
++                                   : net->adaptiveWindow();
++        return free_vc_credit_count(vnet, window.first, window.second);
++    }
++
++    int credits = 0;
++    const int vc_base = vnet * m_vc_per_vnet;
++    for (const int offset : dpphys_offsets(escape)) {
++        const int vc = vc_base + offset;
++        if (is_vc_idle(vc, curTick()))
++            credits += outVcState[vc].get_credit_count();
++    }
++    return credits;
++}
++
++int
++OutputUnit::select_free_vc_class(int vnet, bool escape)
++{
++    auto *net = m_router->get_net_ptr();
++    if (!net->isDPPhys()) {
++        const auto window = escape ? net->escapeWindow()
++                                   : net->adaptiveWindow();
++        return select_free_vc(vnet, window.first, window.second);
++    }
++
++    const int vc_base = vnet * m_vc_per_vnet;
++    for (const int offset : dpphys_offsets(escape)) {
++        const int vc = vc_base + offset;
++        if (is_vc_idle(vc, curTick())) {
++            outVcState[vc].setState(ACTIVE_, curTick());
++            return vc;
++        }
++    }
++    return -1;
++}
++
+ // Number of idle (free) VCs of this vnet at the downstream input port.
+ // Used by the Critical Bubble Scheme to reserve the critical slot.
+ int
+diff --git a/src/mem/ruby/network/garnet/OutputUnit.hh b/src/mem/ruby/network/garnet/OutputUnit.hh
+index cbea6a5..2e20ae8 100644
+--- a/src/mem/ruby/network/garnet/OutputUnit.hh
++++ b/src/mem/ruby/network/garnet/OutputUnit.hh
+@@ -75,6 +75,9 @@ class OutputUnit : public Consumer
+     int select_free_vc(int vnet, int first_offset, int count);
+     int free_vc_credit_count(int vnet, int first_offset, int count);
+     int count_free_vcs(int vnet);
++    bool has_free_vc_class(int vnet, bool escape);
++    int select_free_vc_class(int vnet, bool escape);
++    int free_vc_credit_count_class(int vnet, bool escape);
+ 
+     inline PortDirection get_direction() { return m_direction; }
+ 
+@@ -114,6 +117,8 @@ class OutputUnit : public Consumer
+     uint32_t functionalWrite(Packet *pkt);
+ 
+   private:
++    std::vector<int> dpphys_offsets(bool escape);
++
+     Router *m_router;
+     GEM5_CLASS_VAR_USED int m_id;
+     PortDirection m_direction;
+diff --git a/src/mem/ruby/network/garnet/Router.cc b/src/mem/ruby/network/garnet/Router.cc
+index 3ab0425..9caf98e 100644
+--- a/src/mem/ruby/network/garnet/Router.cc
++++ b/src/mem/ruby/network/garnet/Router.cc
+@@ -167,10 +167,11 @@ Router::route_compute(RouteInfo route, int inport, PortDirection inport_dirn,
+ 
+ AdaptiveRouteDecision
+ Router::route_compute_3d_adaptive(RouteInfo route, int invc,
+-                                  bool require_available)
++                                  bool require_available,
++                                  PortDirection inport_dirn)
+ {
+     return routingUnit.outportCompute3DAdaptive(
+-        route, invc, require_available);
++        route, invc, require_available, inport_dirn);
+ }
+ 
+ void
+diff --git a/src/mem/ruby/network/garnet/Router.hh b/src/mem/ruby/network/garnet/Router.hh
+index 57444e8..187499c 100644
+--- a/src/mem/ruby/network/garnet/Router.hh
++++ b/src/mem/ruby/network/garnet/Router.hh
+@@ -119,7 +119,8 @@ class Router : public BasicRouter, public Consumer
+     int route_compute(RouteInfo route, int inport, PortDirection direction,
+                       int invc);
+     AdaptiveRouteDecision route_compute_3d_adaptive(
+-        RouteInfo route, int invc, bool require_available);
++        RouteInfo route, int invc, bool require_available,
++        PortDirection inport_dirn);
+     void grant_switch(int inport, flit *t_flit);
+     void schedule_wakeup(Cycles time);
+ 
+diff --git a/src/mem/ruby/network/garnet/RoutingUnit.cc b/src/mem/ruby/network/garnet/RoutingUnit.cc
+index 1f2c031..bddcf27 100644
+--- a/src/mem/ruby/network/garnet/RoutingUnit.cc
++++ b/src/mem/ruby/network/garnet/RoutingUnit.cc
+@@ -197,7 +197,8 @@ RoutingUnit::outportCompute(RouteInfo route, int inport,
+         case TORUS_3D_DOR_: outport =
+             outportCompute3DDOR(route, inport, inport_dirn); break;
+         case TORUS_3D_ADAPTIVE_: outport =
+-            outportCompute3DAdaptive(route, invc, false).outport; break;
++            outportCompute3DAdaptive(
++                route, invc, false, inport_dirn).outport; break;
+         case MESH_3D_XYZ_: outport =
+             outportCompute3DXYZ(route); break;
+         default: outport =
+@@ -380,7 +381,8 @@ RoutingUnit::outportCompute3DXYZ(RouteInfo route)
+ 
+ AdaptiveRouteDecision
+ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
+-                                      bool require_available)
++                                      bool require_available,
++                                      PortDirection inport_dirn)
+ {
+     const int size_x = m_router->get_net_ptr()->getTorusX();
+     const int size_y = m_router->get_net_ptr()->getTorusY();
+@@ -388,7 +390,8 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
+     const int vcs_per_vnet = m_router->get_vc_per_vnet();
+     const int vnet = invc / vcs_per_vnet;
+     const int escape_vcs = m_router->get_net_ptr()->getEscapeVCs();
+-    const bool input_escape = m_router->get_net_ptr()->isEscapeVC(invc);
++    const bool input_escape = m_router->get_net_ptr()->isEscapeVCAt(
++        invc, inport_dirn == "Local");
+ 
+     const int current_id = m_router->get_id();
+     const int destination_id = route.dest_router;
+@@ -418,11 +421,8 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
+         return lookupRoutingTable(route.vnet, route.net_dest);
+     };
+     auto hasClassVC = [&](int outport, bool escape) {
+-        const auto window = escape ?
+-            m_router->get_net_ptr()->escapeWindow() :
+-            m_router->get_net_ptr()->adaptiveWindow();
+-        return m_router->getOutputUnit(outport)->has_free_vc(
+-            vnet, window.first, window.second);
++        return m_router->getOutputUnit(outport)->has_free_vc_class(
++            vnet, escape);
+     };
+ 
+     if (input_escape) {
+@@ -467,13 +467,12 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
+         current_z, destination_z, size_z, "Up", "Down");
+     assert(!candidates.empty());
+ 
+-    const auto adaptive = m_router->get_net_ptr()->adaptiveWindow();
+     int best_credits = -1;
+     std::vector<int> best_outports;
+     for (size_t i = 0; i < candidates.size(); i++) {
+         const int outport = candidates[i];
+         const int credits = m_router->getOutputUnit(outport)->
+-            free_vc_credit_count(vnet, adaptive.first, adaptive.second);
++            free_vc_credit_count_class(vnet, false);
+         if (require_available && credits == 0)
+             continue;
+         if (credits > best_credits) {
+diff --git a/src/mem/ruby/network/garnet/RoutingUnit.hh b/src/mem/ruby/network/garnet/RoutingUnit.hh
+index 2910800..b48be52 100644
+--- a/src/mem/ruby/network/garnet/RoutingUnit.hh
++++ b/src/mem/ruby/network/garnet/RoutingUnit.hh
+@@ -86,7 +86,8 @@ class RoutingUnit
+     int outportCompute3DXYZ(RouteInfo route);
+ 
+     AdaptiveRouteDecision outportCompute3DAdaptive(
+-        RouteInfo route, int invc, bool require_available);
++        RouteInfo route, int invc, bool require_available,
++        PortDirection inport_dirn);
+ 
+     // Returns true if vnet is present in the vector
+     // of vnets or if the vector supports all vnets.
+diff --git a/src/mem/ruby/network/garnet/SwitchAllocator.cc b/src/mem/ruby/network/garnet/SwitchAllocator.cc
+index ab91444..2c94414 100644
+--- a/src/mem/ruby/network/garnet/SwitchAllocator.cc
++++ b/src/mem/ruby/network/garnet/SwitchAllocator.cc
+@@ -139,7 +139,7 @@ SwitchAllocator::arbitrate_inports()
+                         AdaptiveRouteDecision decision =
+                             m_router->route_compute_3d_adaptive(
+                                 input_unit->peekTopFlit(invc)->get_route(),
+-                                invc, true);
++                                invc, true, input_unit->get_direction());
+                         route_available = decision.outport != -1;
+                         if (route_available) {
+                             outport = decision.outport;
+@@ -147,8 +147,11 @@ SwitchAllocator::arbitrate_inports()
+                             input_unit->grant_outport(invc, outport);
+                         }
+                     } else {
+-                        escape_request =
+-                            m_router->get_net_ptr()->isEscapeVC(outvc);
++                        const bool outport_local =
++                            m_router->getOutputUnit(outport)->
++                                get_direction() == "Local";
++                        escape_request = m_router->get_net_ptr()->
++                            isEscapeVCAt(outvc, outport_local);
+                     }
+                 }
+ 
+@@ -247,9 +250,11 @@ SwitchAllocator::arbitrate_outports()
+                 if (m_router->get_net_ptr()->isTorus3DAdaptive() &&
+                     output_unit->get_direction() != "Local") {
+                     const bool output_escape =
+-                        m_router->get_net_ptr()->isEscapeVC(outvc);
++                        m_router->get_net_ptr()->isEscapeVCAt(
++                            outvc, false);
+                     const bool input_escape =
+-                        m_router->get_net_ptr()->isEscapeVC(invc);
++                        m_router->get_net_ptr()->isEscapeVCAt(invc,
++                            input_unit->get_direction() == "Local");
+                     if (output_escape)
+                         m_router->get_net_ptr()->increment_escape_hop();
+                     else
+@@ -400,11 +405,8 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc,
+ 
+         bool output_available = false;
+         if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
+-            const auto window = escape_request ?
+-                m_router->get_net_ptr()->escapeWindow() :
+-                m_router->get_net_ptr()->adaptiveWindow();
+-            output_available = output_unit->has_free_vc(
+-                vnet, window.first, window.second);
++            output_available = output_unit->has_free_vc_class(
++                vnet, escape_request);
+         } else {
+             bool wormhole_control =
+                 m_router->get_net_ptr()->isWormhole() &&
+@@ -491,11 +493,8 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc,
+     int vnet = get_vnet(invc);
+     int outvc = -1;
+     if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
+-        const auto window = escape_request ?
+-            m_router->get_net_ptr()->escapeWindow() :
+-            m_router->get_net_ptr()->adaptiveWindow();
+-        outvc = m_router->getOutputUnit(outport)->select_free_vc(
+-            vnet, window.first, window.second);
++        outvc = m_router->getOutputUnit(outport)->select_free_vc_class(
++            vnet, escape_request);
+     } else {
+         bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
+             m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
