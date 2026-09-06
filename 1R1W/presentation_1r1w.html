@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DP-Phys 1R1W — Direction-Paired Buffer Pooling</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#fff; --surface:#f7f9fc; --surface2:#eef3f8; --border:#ccd6e3;
+    --blue:#2563eb; --green:#079b83; --orange:#d97706; --red:#dc3c3c;
+    --purple:#7c3aed; --text:#172033; --muted:#607087; --w:1200px; --h:675px;
+  }
+  html,body { width:100%; height:100%; }
+  body { overflow:hidden; background:#e9eef4; color:var(--text); font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  #stage { position:fixed; inset:0 0 50px; overflow:hidden; }
+  #deck { position:absolute; left:50%; top:50%; width:var(--w); height:var(--h); overflow:hidden; border:1px solid #d2dbe6; border-radius:12px; background:var(--bg); box-shadow:0 24px 70px rgba(36,53,77,.18); transform-origin:center; }
+  .slide { position:absolute; inset:0; display:none; flex-direction:column; padding:42px 54px 34px; }
+  .slide.active { display:flex; }
+  .slide::after { content:"DP-Phys 1R1W · preliminary gem5 results"; position:absolute; right:28px; bottom:15px; color:#8a98aa; font-size:11px; letter-spacing:.04em; }
+  #slide-1::after { content:""; }
+  h1 { font-size:43px; line-height:1.08; letter-spacing:-.025em; }
+  h2 { font-size:25px; line-height:1.18; }
+  h3 { margin-bottom:8px; color:var(--blue); font-size:14px; text-transform:uppercase; letter-spacing:.07em; }
+  p,li { font-size:15px; line-height:1.43; }
+  ul { padding-left:20px; }
+  li { margin-bottom:7px; }
+  code { padding:2px 6px; border-radius:4px; background:#edf1f7; color:var(--purple); font:13px "SFMono-Regular",Consolas,monospace; }
+  .header { display:flex; align-items:center; gap:13px; margin-bottom:21px; padding-bottom:13px; border-bottom:1px solid var(--border); }
+  .num { flex:none; padding:4px 10px; border:1px solid var(--border); border-radius:999px; color:var(--muted); font-size:11px; letter-spacing:.06em; }
+  .cols { display:flex; flex:1; min-height:0; gap:22px; }
+  .col { display:flex; flex:1; min-width:0; flex-direction:column; }
+  .box { margin-bottom:11px; padding:14px 16px; border:1px solid var(--border); border-radius:9px; background:rgba(255,255,255,.96); box-shadow:0 5px 16px rgba(35,55,80,.045); }
+  .box:last-child { margin-bottom:0; }
+  .box.blue { border-color:rgba(37,99,235,.55); } .box.green { border-color:rgba(7,155,131,.55); }
+  .box.orange { border-color:rgba(217,119,6,.55); } .box.red { border-color:rgba(220,60,60,.50); }
+  .box.purple { border-color:rgba(124,58,237,.48); } .grow { flex:1; }
+  .tag { display:inline-block; margin-bottom:8px; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+  .tag.blue { color:var(--blue); background:rgba(37,99,235,.09); } .tag.green { color:var(--green); background:rgba(7,155,131,.09); }
+  .tag.orange { color:var(--orange); background:rgba(217,119,6,.09); } .tag.red { color:var(--red); background:rgba(220,60,60,.09); }
+  .hi { color:var(--blue); font-weight:700; } .good { color:var(--green); font-weight:700; }
+  .warn { color:var(--orange); font-weight:700; } .bad { color:var(--red); font-weight:700; }
+  .purple-text { color:var(--purple); font-weight:700; } .muted { color:var(--muted); }
+  .big-number { font-size:38px; line-height:1; font-weight:800; }
+  .metrics { display:flex; gap:12px; }
+  .metric { flex:1; padding:14px 15px; border:1px solid var(--border); border-radius:9px; background:var(--surface); }
+  .metric .label { margin-top:7px; color:var(--muted); font-size:12px; }
+  .callout { margin-top:12px; padding:11px 15px; border-left:4px solid var(--green); border-radius:0 7px 7px 0; background:rgba(7,155,131,.07); font-size:15px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { padding:7px 9px; border-bottom:1px solid var(--border); color:var(--muted); text-align:left; font-weight:650; }
+  td { padding:7px 9px; border-bottom:1px solid #e2e8f0; }
+  tr:last-child td { border-bottom:0; }
+  .flow { display:flex; align-items:center; justify-content:center; gap:8px; }
+  .node { min-width:112px; padding:10px 11px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); text-align:center; font-size:13px; }
+  .arrow { color:var(--green); font-size:23px; font-weight:700; }
+  .bank { padding:12px; border:1px solid var(--border); border-radius:9px; background:#f8fafc; }
+  .bank-title { margin-bottom:8px; color:var(--muted); font-size:12px; text-align:center; }
+  .slots { display:flex; justify-content:center; gap:5px; }
+  .slot { display:grid; width:53px; height:42px; place-items:center; border:1px solid; border-radius:6px; font-size:11px; font-weight:750; }
+  .private { border-color:var(--blue); color:var(--blue); background:rgba(37,99,235,.08); }
+  .escape { border-color:var(--purple); color:var(--purple); background:rgba(124,58,237,.08); }
+  .pool { border-color:var(--green); color:var(--green); background:rgba(7,155,131,.08); }
+  .pair-module { padding:13px 12px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; box-shadow:0 5px 15px rgba(35,55,80,.05); }
+  .pair-strip { display:grid; grid-template-columns:1fr 2fr 1fr; gap:7px; }
+  .pair-region { padding:8px 5px; border-radius:7px; text-align:center; }
+  .pair-region.res { background:rgba(37,99,235,.06); border:1px solid rgba(37,99,235,.25); }
+  .pair-region.shared { background:rgba(7,155,131,.06); border:1px solid rgba(7,155,131,.28); }
+  .mini-label { margin-bottom:6px; color:var(--muted); font-size:10px; font-weight:750; }
+  .mini-slots { display:flex; justify-content:center; gap:3px; }
+  .mini-slot { display:grid; width:25px; height:26px; place-items:center; border:1px solid; border-radius:4px; font-size:8px; font-weight:800; }
+  .phase-grid { display:grid; grid-template-columns:105px repeat(2,1fr); overflow:hidden; border:1px solid var(--border); border-radius:8px; }
+  .phase-grid>div { padding:13px 15px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); }
+  .phase-grid>div:nth-child(3n) { border-right:0; } .phase-grid>div:nth-last-child(-n+3) { border-bottom:0; }
+  .phase-head { color:var(--muted); background:var(--surface); font-size:12px; }
+  .phase-res { color:var(--blue); background:rgba(37,99,235,.07); font-weight:700; }
+  .phase-pool { color:var(--green); background:rgba(7,155,131,.07); font-weight:700; }
+  .timeline { display:grid; grid-template-columns:90px repeat(6,1fr); gap:5px; align-items:center; }
+  .cycle { padding:11px 5px; border-radius:6px; background:var(--surface2); text-align:center; font-size:12px; font-weight:750; }
+  .cycle.res { color:var(--blue); background:rgba(37,99,235,.09); } .cycle.poolc { color:var(--green); background:rgba(7,155,131,.09); }
+  .bar-row { display:grid; grid-template-columns:115px 1fr 70px; align-items:center; gap:10px; margin:10px 0; }
+  .bar-label { color:var(--muted); font-size:13px; }
+  .bar-track { position:relative; height:25px; overflow:hidden; border-radius:5px; background:#e9eef5; }
+  .bar-track::after { content:""; position:absolute; left:83.33%; top:0; bottom:0; width:2px; background:#8d9aad; }
+  .bar { height:100%; display:flex; align-items:center; padding-left:9px; color:#172033; font-size:11px; font-weight:800; }
+  .bar.base { background:#aab7c7; } .bar.win { background:linear-gradient(90deg,#62c7a9,#92dec3); } .bar.loss { background:linear-gradient(90deg,#f3a394,#f4c08f); }
+  .bar-value { font-size:13px; font-weight:700; text-align:right; }
+  .role-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+  .role { min-height:135px; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+  .role-name { margin-bottom:9px; color:var(--muted); font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+  .role h3 { margin-bottom:7px; font-size:16px; text-transform:none; letter-spacing:0; }
+  .speaker-note { display:none; }
+  #notes { display:none; position:fixed; left:20px; right:20px; bottom:58px; max-height:155px; overflow:auto; padding:12px 16px; border:1px solid var(--border); border-radius:9px; background:rgba(23,32,51,.96); color:#fff; font-size:13px; line-height:1.45; z-index:5; }
+  #notes.visible { display:block; }
+  #slide-1 { justify-content:center; padding:70px 78px; background:radial-gradient(circle at 8% 18%,rgba(37,99,235,.07),transparent 30%),radial-gradient(circle at 94% 82%,rgba(7,155,131,.06),transparent 31%),#fff; }
+  #slide-1 .eyebrow { margin-bottom:14px; color:var(--green); font-size:13px; font-weight:750; letter-spacing:.13em; text-transform:uppercase; }
+  #slide-1 h1 { max-width:900px; } #slide-1 .subtitle { max-width:850px; margin:18px 0 30px; color:var(--muted); font-size:20px; }
+  .pills { display:flex; gap:9px; flex-wrap:wrap; } .pill { padding:6px 12px; border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--muted); font-size:12px; }
+  #controls { position:fixed; left:0; right:0; bottom:0; height:50px; display:flex; align-items:center; justify-content:center; gap:15px; color:var(--muted); font-size:12px; }
+  button { padding:6px 14px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); cursor:pointer; }
+  button:hover { border-color:var(--blue); } #progress { display:flex; gap:5px; }
+  .dot { width:6px; height:6px; border-radius:50%; background:#bdc8d5; cursor:pointer; } .dot.active { background:var(--blue); }
+</style>
+</head>
+<body>
+<div id="stage"><div id="deck">
+
+  <section class="slide active" id="slide-1">
+    <div style="display:grid;grid-template-columns:1.02fr .98fr;align-items:center;gap:38px;height:100%">
+      <div>
+        <div class="eyebrow">Architecture · Implementation · Evaluation · Team</div>
+        <h1>DP-Phys 1R1W:<br>Direction-Paired Buffer Pooling</h1>
+        <p class="subtitle">Move storage to the busy input direction while keeping one read and one write port per shared Pool.</p>
+        <div class="pills"><span class="pill">RES = 1 private + 1 escape</span><span class="pill">4 shared VCs / pair</span><span class="pill">strict alternating phase</span><span class="pill">equal storage</span></div>
+        <div class="callout" style="margin-top:28px"><strong>Thesis:</strong> directional elasticity can offset a narrower Pool interface when traffic is persistently asymmetric.</div>
+      </div>
+      <div class="pair-module" style="padding:24px 18px">
+        <div style="display:flex;justify-content:space-between;margin:0 7px 10px;color:var(--blue);font-size:25px;font-weight:800"><span>E →</span><span>← W</span></div>
+        <div class="pair-strip">
+          <div class="pair-region res"><div class="mini-label">E RES</div><div class="mini-slots"><span class="mini-slot private">P</span><span class="mini-slot escape">E</span></div></div>
+          <div class="pair-region shared"><div class="mini-label">POOL · 4 VC · 1R1W</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
+          <div class="pair-region res"><div class="mini-label">W RES</div><div class="mini-slots"><span class="mini-slot private">P</span><span class="mini-slot escape">E</span></div></div>
+        </div>
+        <p class="muted" style="margin-top:22px;text-align:center;font-size:13px">Same module for N/S and U/D</p>
+      </div>
+    </div>
+    <aside class="speaker-note">20 s — Introduce the goal: the same total storage as the private baseline, but a narrower and shareable Pool. The key question is when elasticity pays for 1R1W arbitration.</aside>
+  </section>
+
+  <section class="slide" id="slide-2">
+    <div class="header"><span class="num">02 / 09</span><span class="tag green" style="margin:0">Architecture</span><h2>Same Eight Slots per Direction Pair, Different Ownership</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="box blue grow"><span class="tag blue">Baseline · private-v4</span>
+          <div class="bank" style="margin:20px 0 18px"><div class="bank-title">East input · fixed 4</div><div class="slots"><span class="slot private">A</span><span class="slot private">A</span><span class="slot private">A</span><span class="slot escape">ESC</span></div></div>
+          <div class="bank"><div class="bank-title">West input · fixed 4</div><div class="slots"><span class="slot private">A</span><span class="slot private">A</span><span class="slot private">A</span><span class="slot escape">ESC</span></div></div>
+          <p style="margin-top:18px">A hot side cannot use slots stranded behind the cold side's private boundary.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box green grow"><span class="tag green">DP-Phys 1R1W</span>
+          <div class="bank" style="margin:20px 0 14px"><div class="bank-title">Two RES banks · 2 slots each</div><div class="slots"><span class="slot private">E·P</span><span class="slot escape">E·ESC</span><span style="width:24px"></span><span class="slot private">W·P</span><span class="slot escape">W·ESC</span></div></div>
+          <div class="bank"><div class="bank-title">Shared Pool · 4 adaptive slots</div><div class="slots"><span class="slot pool">P0</span><span class="slot pool">P1</span><span class="slot pool">P2</span><span class="slot pool">P3</span></div></div>
+          <p style="margin-top:18px">Escape never migrates. Pool membership follows the <strong>actual ingress</strong>, not the chosen output.</p>
+        </div>
+      </div>
+    </div>
+    <div class="callout"><strong>Example:</strong> a West-in packet that later exits North may still occupy the E/W Pool.</div>
+    <aside class="speaker-note">55 s — Explain the fair comparison. Private-v4 has 3 adaptive plus 1 escape on each side. DP-Phys keeps 1 private plus 1 escape on each side and puts the remaining four adaptive VCs in the shared pair Pool. Total storage remains eight.</aside>
+  </section>
+
+  <section class="slide" id="slide-3">
+    <div class="header"><span class="num">03 / 09</span><span class="tag green" style="margin:0">Architecture</span><h2>Complementary Round-Robin Makes 1R1W Usable Every Cycle</h2></div>
+    <div class="cols">
+      <div class="col" style="flex:1.12">
+        <div class="phase-grid">
+          <div class="phase-head">Cycle phase</div><div class="phase-head">East checks / serves</div><div class="phase-head">West checks / serves</div>
+          <div class="phase-head">A · even</div><div class="phase-res">RES</div><div class="phase-pool">POOL</div>
+          <div class="phase-head">B · odd</div><div class="phase-pool">POOL</div><div class="phase-res">RES</div>
+        </div>
+        <div class="box green" style="margin-top:18px">
+          <h3>One shared service lane</h3>
+          <div class="timeline" style="margin-top:12px"><div class="muted">Pool user</div><div class="cycle poolc">W</div><div class="cycle poolc">E</div><div class="cycle poolc">W</div><div class="cycle poolc">E</div><div class="cycle poolc">W</div><div class="cycle poolc">E</div></div>
+          <div class="timeline" style="margin-top:5px"><div class="muted">Other bank</div><div class="cycle res">E·RES</div><div class="cycle res">W·RES</div><div class="cycle res">E·RES</div><div class="cycle res">W·RES</div><div class="cycle res">E·RES</div><div class="cycle res">W·RES</div></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box blue"><span class="tag blue">Read</span><p>At most one pooled flit from the E/W pair enters switch allocation in a cycle.</p></div>
+        <div class="box green"><span class="tag green">Write</span><p>At most one arriving adaptive flit is admitted to the shared Pool per pair per cycle.</p></div>
+        <div class="box orange"><span class="tag orange">Cost</span><p>A hot side receives only every other Pool phase; unused cold-side phases are not work-conserving.</p></div>
+      </div>
+    </div>
+    <div class="callout">The design saves Pool access bandwidth, not storage bits. Actual area and energy still require RTL synthesis.</div>
+    <aside class="speaker-note">60 s — Describe the strict two-phase schedule. In phase A East examines RES while West examines Pool; phase B swaps them. This prevents two requests from reaching the single Pool service port. It is simple and conflict-free, but it can waste a cold side's turn.</aside>
+  </section>
+
+  <section class="slide" id="slide-4">
+    <div class="header"><span class="num">04 / 09</span><span class="tag blue" style="margin:0">Implementation</span><h2>Where the Pool Sits in Garnet</h2></div>
+    <div class="flow" style="margin:8px 0 24px">
+      <div class="node">Input link<br><span class="muted">flits arrive</span></div><div class="arrow">→</div>
+      <div class="node" style="border-color:var(--blue)">Input Unit<br><span class="hi">RES / Pool select</span></div><div class="arrow">→</div>
+      <div class="node">Route compute<br><span class="muted">choose outport</span></div><div class="arrow">→</div>
+      <div class="node" style="border-color:var(--green)">VC + switch alloc<br><span class="good">phase gate</span></div><div class="arrow">→</div>
+      <div class="node">Crossbar<br><span class="muted">to output link</span></div>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="box blue grow"><h3>Data structure</h3><ul><li>Three pair-local Pools per router: E/W, N/S, U/D.</li><li>Each Pool slot stores owner direction, VC state and buffered flits.</li><li>The escape VC remains in RES; only adaptive traffic may borrow Pool storage.</li></ul></div>
+      </div>
+      <div class="col">
+        <div class="box green grow"><h3>Cycle behavior</h3><ul><li>True input direction selects the pair before routing.</li><li>Phase parity gates RES versus Pool requests.</li><li>One pair-local arbiter serializes Pool read/write service and records utilization.</li></ul></div>
+      </div>
+      <div class="col">
+        <div class="box purple grow"><h3>Safety checks</h3><ul><li>No Pool read conflict.</li><li>Allocation, migration and return conservation.</li><li>Owner cap respected; no credit created or lost.</li><li>Deadlock watchdog remains clean.</li></ul></div>
+      </div>
+    </div>
+    <aside class="speaker-note">55 s — Switch here means Garnet's switch allocation and crossbar path, not a separate physical network switch. The main modifications are around the input unit, VC ownership and switch request gating. Routing itself is unchanged.</aside>
+  </section>
+
+  <section class="slide" id="slide-5">
+    <div class="header"><span class="num">05 / 09</span><span class="tag blue" style="margin:0">Implementation</span><h2>Pool Credits Move Toward Pressure; the Last Credit Stays Sticky</h2></div>
+    <div class="cols">
+      <div class="col" style="flex:1.05">
+        <div class="box green grow"><span class="tag green">Recommended · pressure cap 3</span>
+          <div class="flow" style="margin:17px 0 21px"><div class="node">Use RES first</div><div class="arrow">→</div><div class="node">Use owned Pool credit</div><div class="arrow">→</div><div class="node">Reclaim idle peer slot</div></div>
+          <ul><li>A side may own at most <strong>3 of 4</strong> Pool credits.</li><li>A released slot goes to the side whose RES is more occupied.</li><li>Ties keep the previous owner: temporal locality without blind handoff.</li><li>An idle side returns surplus ownership, but normally retains its final credit.</li></ul>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box blue"><span class="tag blue">Why credit ownership?</span><p>An upstream sender may inject into the Pool only when it holds a Pool credit. Reserved credits remain separate.</p></div>
+        <div class="box orange"><span class="tag orange">Why cap 3?</span><p>The hot side can borrow one extra slot while the peer always retains one Pool credit. Cap 4 is evaluated only as a full-elasticity upper bound.</p></div>
+        <div class="box red"><span class="tag red">Why not owner-RR?</span><p>Blind round-robin can park credits on an idle side. In tornado tests it collapsed to <strong>0.435× throughput</strong> and <strong>3.181× latency</strong>.</p></div>
+      </div>
+    </div>
+    <aside class="speaker-note">60 s — Separate bank scheduling from credit policy. The bank uses strict round-robin phases. Credit ownership is demand-aware: pressure cap 3 is the recommended policy. Explain why blind owner round-robin is a bad control and why keeping one credit sticky helps the likely next packet.</aside>
+  </section>
+
+  <section class="slide" id="slide-6">
+    <div class="header"><span class="num">06 / 09</span><span class="tag orange" style="margin:0">Evaluation</span><h2>Equal-Capacity Baseline and Validation Matrix</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="box blue grow"><h3>Compared designs</h3>
+          <table><tr><th>Arm</th><th>Per pair</th><th>Purpose</th></tr><tr><td>private-v4</td><td>4 + 4 private</td><td>fair baseline</td></tr><tr><td>pressure cap 3</td><td>2 + 4 + 2</td><td>safe proposal</td></tr><tr><td>pressure cap 4</td><td>2 + 4 + 2</td><td>elastic upper bound</td></tr><tr><td>owner-RR</td><td>2 + 4 + 2</td><td>policy control</td></tr></table>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box green grow"><h3>Workloads and scale</h3><ul><li>4×4×4 Torus3D: uniform, tornado, x-opposite.</li><li>8×4×4 Torus3D: distributed 3-hop X-biased traffic.</li><li>Link latency L=1 and L=8; one- and eight-flit packets where applicable.</li><li>Main policy/cap studies: 10k cycles, 3 seeds.</li></ul></div>
+      </div>
+      <div class="col">
+        <div class="box purple grow"><h3>Structural evidence</h3><div class="metrics" style="margin:12px 0"><div class="metric"><div class="big-number good">120</div><div class="label">broad validation points</div></div><div class="metric"><div class="big-number good">0</div><div class="label">Pool read conflicts</div></div></div><ul><li class="good">No deadlock observed.</li><li class="good">All ownership conservation checks pass.</li><li class="good">Cap-3 borrowed peak = 1.</li></ul></div>
+      </div>
+    </div>
+    <div class="callout">All performance claims are paired against <strong>private-v4 with identical physical VC capacity</strong>.</div>
+    <aside class="speaker-note">50 s — Define fairness before showing results. The baseline has the same eight VC slots per pair. The matrix is not just performance: it includes structural invariants, conflict counters and deadlock checks. Mention that neighbor exists only in an older design generation and is excluded here.</aside>
+  </section>
+
+  <section class="slide" id="slide-7">
+    <div class="header"><span class="num">07 / 09</span><span class="tag orange" style="margin:0">Evaluation</span><h2>The Win Appears When Directional Skew Creates Stranded Capacity</h2></div>
+    <div class="cols">
+      <div class="col" style="flex:1.12">
+        <div class="box green grow"><span class="tag green">8×4×4 · L=8 · inj=0.10 · 3 X hops</span>
+          <p class="muted" style="font-size:12px;margin-bottom:12px">Network latency ratio versus private-v4; lower is better. Gray marker = baseline 1.00.</p>
+          <div class="bar-row"><div class="bar-label">50% +X</div><div class="bar-track"><div class="bar loss" style="width:85.3%">1R1W cap 3</div></div><div class="bar-value bad">1.023×</div></div>
+          <div class="bar-row"><div class="bar-label">70% +X</div><div class="bar-track"><div class="bar loss" style="width:84.7%">1R1W cap 3</div></div><div class="bar-value bad">1.016×</div></div>
+          <div class="bar-row"><div class="bar-label">80% +X</div><div class="bar-track"><div class="bar base" style="width:83.4%">break-even</div></div><div class="bar-value">1.001×</div></div>
+          <div class="bar-row"><div class="bar-label">90% +X</div><div class="bar-track"><div class="bar win" style="width:75.7%">capacity wins</div></div><div class="bar-value good">0.908×</div></div>
+          <div style="display:flex;justify-content:flex-end;margin:2px 70px 0 0;color:var(--muted);font-size:10px">baseline 1.00 ↑</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="metrics"><div class="metric"><div class="big-number good">−9.2%</div><div class="label">latency at 90% +X, cap 3</div></div><div class="metric"><div class="big-number good">+25%</div><div class="label">coarse stable-rate bracket: 0.08 → 0.10</div></div></div>
+        <div class="box blue" style="margin-top:12px"><h3>Why it works</h3><p>The flows stay distributed across X rings. The private design stalls on input credits; DP-Phys lends one cold-side slot to the hot side before the output link becomes the dominant bottleneck.</p></div>
+        <div class="box orange"><h3>Upper bound</h3><p>Cap 4 reaches <strong>−12.0%</strong> latency at 90% +X and a coarse stable rate near 0.12, but may leave the cold side with no Pool credit.</p></div>
+      </div>
+    </div>
+    <aside class="speaker-note">65 s — This is the main result. At balanced traffic the phase cost dominates. The crossover happens around 80/20. At 90/10, cap 3 reduces latency 9.2 percent. The coarse stability bracket moves from 0.08 to 0.10, about 25 percent. Keep cap 4 framed as an upper bound.</aside>
+  </section>
+
+  <section class="slide" id="slide-8">
+    <div class="header"><span class="num">08 / 09</span><span class="tag orange" style="margin:0">Evaluation</span><h2>Where 1R1W Helps—and Where the Phase Tax Wins</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="box green grow"><span class="tag green">Best case</span><h3 style="font-size:18px;text-transform:none;letter-spacing:0">Persistent one-direction pressure</h3><ul><li><strong>X-biased 90/10:</strong> cap 3 latency −9.2%.</li><li><strong>100% +X above private saturation:</strong> 1.818× delivered throughput.</li><li><strong>Long credit loop:</strong> L=8 gives borrowing time to matter.</li></ul><p class="muted" style="margin-top:14px;font-size:12px">The 100% latency ratio is not a valid below-saturation comparison.</p></div>
+      </div>
+      <div class="col">
+        <div class="box blue grow"><span class="tag blue">Small win</span><h3 style="font-size:18px;text-transform:none;letter-spacing:0">Tornado under high load</h3><ul><li>L=8, eight-flit packets, inj=0.9.</li><li>Throughput is unchanged: ≈0.1564.</li><li>Cap 3 network latency: 49.37 → 46.97 cycles, <strong class="good">−4.85%</strong>.</li></ul><p style="margin-top:14px">Sharing helps, but a downstream/output bottleneck limits the gain.</p></div>
+      </div>
+      <div class="col">
+        <div class="box red grow"><span class="tag red">No advantage</span><h3 style="font-size:18px;text-transform:none;letter-spacing:0">Balanced or rapidly competing inputs</h3><ul><li><strong>Uniform L=8:</strong> throughput unchanged; latency about +3.2% at inj=0.9.</li><li><strong>X-opposite:</strong> paired contention gives +3% to +15% latency for L8.</li><li><strong>Rapid reversal:</strong> ownership motion cannot repay phase serialization.</li></ul></div>
+      </div>
+    </div>
+    <div class="callout"><strong>Interpretation:</strong> 1R1W is a specialization for asymmetric pressure—not a universal replacement for private input buffers.</div>
+    <aside class="speaker-note">60 s — Be explicit about limitations. Tornado gets a modest latency benefit, uniform is slightly worse, and x-opposite is worse because both sides compete for the same Pool. The mechanism targets persistent asymmetry, not every traffic pattern.</aside>
+  </section>
+
+  <section class="slide" id="slide-9">
+    <div class="header"><span class="num">09 / 09</span><span class="tag purple" style="margin:0">Division of Labor</span><h2>Work Packages and Final Takeaway</h2></div>
+    <div class="cols">
+      <div class="col" style="flex:1.18">
+        <div class="role-grid">
+          <div class="role"><div class="role-name">Member A · replace name</div><h3>Architecture</h3><p>Pair layout, RES/Pool capacity, 1R1W phase schedule and safety argument.</p></div>
+          <div class="role"><div class="role-name">Member B · replace name</div><h3>Implementation</h3><p>Garnet input-unit changes, ownership state, arbitration and instrumentation.</p></div>
+          <div class="role"><div class="role-name">Member C · replace name</div><h3>Evaluation</h3><p>Sweep automation, equal-capacity baselines, statistics and figure generation.</p></div>
+          <div class="role"><div class="role-name">Member D · replace name</div><h3>Validation & Presentation</h3><p>Invariant checks, result review, documentation, slides and rehearsal.</p></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box green grow"><span class="tag green">Takeaway</span><h3 style="font-size:21px;text-transform:none;letter-spacing:0">Same storage. Narrower Pool. Better under sustained directional skew.</h3>
+          <ul style="margin-top:15px"><li>Three pair-local Pools per node.</li><li>RES protects one adaptive and one escape VC per direction.</li><li>Strict complementary scheduling enforces one Pool read/write service.</li><li>Pressure cap 3 is the safe main policy.</li><li>90/10 X bias: <strong class="good">−9.2% latency</strong>; coarse stable load <strong class="good">+25%</strong>.</li></ul>
+        </div>
+        <div class="callout"><strong>Next:</strong> 50k-cycle, five-seed, 0.005-step knee sweep plus RTL synthesis for area/energy.</div>
+      </div>
+    </div>
+    <aside class="speaker-note">45 s — Replace the four placeholders with real names. Close with the qualified claim: equal storage and lower modeled Pool bandwidth, with a clear performance win under sustained directional skew. The remaining evidence needed is longer sweeps and RTL area/energy.</aside>
+  </section>
+
+</div></div>
+<div id="notes"></div>
+<div id="controls"><button id="prev">← Prev</button><div id="progress"></div><button id="next">Next →</button><button id="noteBtn" title="Toggle speaker notes (N)">Notes</button><span id="label" style="min-width:64px;text-align:center"></span></div>
+<script>
+  const deck=document.getElementById('deck'); const slides=[...document.querySelectorAll('.slide')];
+  const progress=document.getElementById('progress'); const label=document.getElementById('label'); const notes=document.getElementById('notes'); let current=0;
+  slides.forEach((_,i)=>{const dot=document.createElement('span');dot.className='dot'+(i===0?' active':'');dot.addEventListener('click',()=>go(i));progress.appendChild(dot);});
+  function fitDeck(){const scale=Math.min((innerWidth-24)/1200,(innerHeight-70)/675,1);deck.style.transform=`translate(-50%, -50%) scale(${scale})`;}
+  function syncNotes(){const n=slides[current].querySelector('.speaker-note');notes.textContent=n?n.textContent:'';}
+  function go(i){slides[current].classList.remove('active');progress.children[current].classList.remove('active');current=(i+slides.length)%slides.length;slides[current].classList.add('active');progress.children[current].classList.add('active');label.textContent=`${current+1} / ${slides.length}`;history.replaceState(null,'',`#${current+1}`);syncNotes();}
+  document.getElementById('prev').addEventListener('click',()=>go(current-1)); document.getElementById('next').addEventListener('click',()=>go(current+1));
+  document.getElementById('noteBtn').addEventListener('click',()=>notes.classList.toggle('visible'));
+  document.addEventListener('keydown',e=>{if(['ArrowRight','ArrowDown','PageDown',' '].includes(e.key))go(current+1);if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key))go(current-1);if(e.key==='Home')go(0);if(e.key==='End')go(slides.length-1);if(e.key.toLowerCase()==='n')notes.classList.toggle('visible');});
+  addEventListener('resize',fitDeck);fitDeck();const initial=Math.max(0,Math.min(slides.length-1,(parseInt(location.hash.slice(1),10)||1)-1));go(initial);
+</script>
+</body>
+</html>
