@@ -285,7 +285,7 @@ credit link 是**独立 NetworkLink、自带 1 flit/cycle 带宽**，与数据�
 
 ---
 
-### M6 — RR 策略、旗标、统计
+### M6 — RR 策略、旗标、统计（已完成）
 
 **改动**：
 
@@ -302,10 +302,13 @@ credit link 是**独立 NetworkLink、自带 1 flit/cycle 带宽**，与数据�
 
 ---
 
-### M7 — 实验（`design.md` §7）
+### M7 — 实验（`design.md` §7，执行中）
 
 5 模式（PRIV / RR-a / STV-a / RR-b / STV-b）× `L∈{1,8}` × 5 流量 × 20 速率 =
-**1000 次**。复用 `research/run_sweep_physical.py` / `analyze_physical.py`。
+**1000 次**。使用可断点续跑的 `research/run_dpphys.py`，并由
+`research/analyze_dpphys.py` 生成饱和吞吐、matched-load 延迟、方向公平性与机制
+统计摘要。旧的 `run_sweep_physical.py` / `analyze_physical.py` 保留为前一阶段的
+等物理存储实验记录。
 全程开 `--scope=invariant` 的断言集；任何一条 P1 不变量触发即停，先查再跑
 ——不变量破了，其余数据无意义。
 
