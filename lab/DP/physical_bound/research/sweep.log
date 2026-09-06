@@ -1,0 +1,1704 @@
+0 completed point(s), 1200 remaining; running 10 concurrent job(s)
+[  1/1200] done PA0_cbs_v4 torus3d_xopposite 0.05
+[  2/1200] done PA0_cbs_v4 torus3d_xopposite 0.10
+[  3/1200] done PA0_cbs_v4 torus3d_xopposite 0.15
+[  4/1200] done PA0_cbs_v4 torus3d_xopposite 0.20
+[  5/1200] done PA0_cbs_v4 torus3d_xopposite 0.25
+[  6/1200] done PA0_cbs_v4 torus3d_xopposite 0.30
+[  7/1200] done PA0_cbs_v4 torus3d_xopposite 0.35
+[  8/1200] done PA0_cbs_v4 torus3d_xopposite 0.40
+[  9/1200] done PA0_cbs_v4 torus3d_xopposite 0.45
+[ 10/1200] done PA0_cbs_v4 torus3d_xopposite 0.50
+[ 11/1200] done PA0_cbs_v4 torus3d_xopposite 0.55
+[ 12/1200] done PA0_cbs_v4 torus3d_xopposite 0.60
+[ 13/1200] done PA0_cbs_v4 torus3d_xopposite 0.65
+[ 14/1200] done PA0_cbs_v4 torus3d_xopposite 0.70
+[ 15/1200] done PA0_cbs_v4 torus3d_xopposite 0.75
+[ 16/1200] done PA0_cbs_v4 torus3d_xopposite 0.80
+[ 17/1200] done PA0_cbs_v4 torus3d_xopposite 0.85
+[ 18/1200] done PA0_cbs_v4 torus3d_xopposite 0.90
+[ 19/1200] done PA0_cbs_v4 torus3d_xopposite 0.95
+[ 20/1200] done PA0_cbs_v4 torus3d_xopposite 1.00
+[ 21/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.05
+[ 22/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.10
+[ 23/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.15
+[ 24/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.20
+[ 25/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.25
+[ 26/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.30
+[ 27/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.35
+[ 28/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.40
+[ 29/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.45
+[ 30/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.50
+[ 31/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.55
+[ 32/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.60
+[ 33/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.65
+[ 34/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.70
+[ 35/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.75
+[ 36/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.80
+[ 37/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.05
+[ 38/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.85
+[ 39/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.10
+[ 40/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.90
+[ 41/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 0.95
+[ 42/1200] done PA1_dpcbs_v4_s1 torus3d_xopposite 1.00
+[ 43/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.15
+[ 44/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.20
+[ 45/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.25
+[ 46/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.30
+[ 47/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.35
+[ 48/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.40
+[ 49/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.45
+[ 50/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.50
+[ 51/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.55
+[ 52/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.60
+[ 53/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.65
+[ 54/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.70
+[ 55/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.75
+[ 56/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.05
+[ 57/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.80
+[ 58/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.10
+[ 59/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.15
+[ 60/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.85
+[ 61/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.90
+[ 62/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 0.95
+[ 63/1200] done PA2_dpcbs_v4_s2 torus3d_xopposite 1.00
+[ 64/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.20
+[ 65/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.25
+[ 66/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.30
+[ 67/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.35
+[ 68/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.40
+[ 69/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.45
+[ 70/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.50
+[ 71/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.55
+[ 72/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.60
+[ 73/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.65
+[ 74/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.70
+[ 75/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.75
+[ 76/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.05
+[ 77/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.80
+[ 78/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.85
+[ 79/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.10
+[ 80/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.90
+[ 81/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.15
+[ 82/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 1.00
+[ 83/1200] done PA3_dpcbs_v4_s3 torus3d_xopposite 0.95
+[ 84/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.20
+[ 85/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.25
+[ 86/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.30
+[ 87/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.35
+[ 88/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.40
+[ 89/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.45
+[ 90/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.50
+[ 91/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.55
+[ 92/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.60
+[ 93/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.65
+[ 94/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.70
+[ 95/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.75
+[ 96/1200] done PB0_esc_v4 torus3d_xopposite 0.05
+[ 97/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.80
+[ 98/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.85
+[ 99/1200] done PB0_esc_v4 torus3d_xopposite 0.10
+[100/1200] done PB0_esc_v4 torus3d_xopposite 0.15
+[101/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.90
+[102/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 0.95
+[103/1200] done PA4_dpcbs_v4_s4 torus3d_xopposite 1.00
+[104/1200] done PB0_esc_v4 torus3d_xopposite 0.20
+[105/1200] done PB0_esc_v4 torus3d_xopposite 0.25
+[106/1200] done PB0_esc_v4 torus3d_xopposite 0.30
+[107/1200] done PB0_esc_v4 torus3d_xopposite 0.35
+[108/1200] done PB0_esc_v4 torus3d_xopposite 0.40
+[109/1200] done PB0_esc_v4 torus3d_xopposite 0.45
+[110/1200] done PB0_esc_v4 torus3d_xopposite 0.50
+[111/1200] done PB0_esc_v4 torus3d_xopposite 0.55
+[112/1200] done PB0_esc_v4 torus3d_xopposite 0.60
+[113/1200] done PB0_esc_v4 torus3d_xopposite 0.65
+[114/1200] done PB0_esc_v4 torus3d_xopposite 0.70
+[115/1200] done PB0_esc_v4 torus3d_xopposite 0.75
+[116/1200] done PB0_esc_v4 torus3d_xopposite 0.80
+[117/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.05
+[118/1200] done PB0_esc_v4 torus3d_xopposite 0.85
+[119/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.10
+[120/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.15
+[121/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.20
+[122/1200] done PB0_esc_v4 torus3d_xopposite 0.90
+[123/1200] done PB0_esc_v4 torus3d_xopposite 0.95
+[124/1200] done PB0_esc_v4 torus3d_xopposite 1.00
+[125/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.25
+[126/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.30
+[127/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.35
+[128/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.40
+[129/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.45
+[130/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.50
+[131/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.55
+[132/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.60
+[133/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.65
+[134/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.70
+[135/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.75
+[136/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.80
+[137/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.85
+[138/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.05
+[139/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.10
+[140/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.15
+[141/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.90
+[142/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.20
+[143/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 0.95
+[144/1200] done PB1_dpesc_v4_s1 torus3d_xopposite 1.00
+[145/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.25
+[146/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.30
+[147/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.35
+[148/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.40
+[149/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.45
+[150/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.50
+[151/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.55
+[152/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.60
+[153/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.65
+[154/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.70
+[155/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.75
+[156/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.80
+[157/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.05
+[158/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.85
+[159/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.90
+[160/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.10
+[161/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 0.95
+[162/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.15
+[163/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.20
+[164/1200] done PB2_dpesc_v4_s2 torus3d_xopposite 1.00
+[165/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.25
+[166/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.30
+[167/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.35
+[168/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.40
+[169/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.45
+[170/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.50
+[171/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.55
+[172/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.60
+[173/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.65
+[174/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.70
+[175/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.75
+[176/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.05
+[177/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.80
+[178/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.10
+[179/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.15
+[180/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.85
+[181/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.20
+[182/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.90
+[183/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.25
+[184/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 0.95
+[185/1200] done PB3_dpesc_v4_s3 torus3d_xopposite 1.00
+[186/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.30
+[187/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.35
+[188/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.40
+[189/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.45
+[190/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.50
+[191/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.55
+[192/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.60
+[193/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.65
+[194/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.70
+[195/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.75
+[196/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.80
+[197/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.85
+[198/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.05
+[199/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.90
+[200/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.10
+[201/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.15
+[202/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 0.95
+[203/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.20
+[204/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.25
+[205/1200] done PB4_dpesc_v4_s4 torus3d_xopposite 1.00
+[206/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.30
+[207/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.35
+[208/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.40
+[209/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.45
+[210/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.50
+[211/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.55
+[212/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.60
+[213/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.65
+[214/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.70
+[215/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.75
+[216/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.80
+[217/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.05
+[218/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.85
+[219/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.10
+[220/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.90
+[221/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.15
+[222/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 0.95
+[223/1200] done PB5_dpesc_v4_s5 torus3d_xopposite 1.00
+[224/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.20
+[225/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.25
+[226/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.30
+[227/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.35
+[228/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.40
+[229/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.45
+[230/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.50
+[231/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.55
+[232/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.60
+[233/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.65
+[234/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.70
+[235/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.75
+[236/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.80
+[237/1200] done PA0_cbs_v4 torus3d_tornado 0.05
+[238/1200] done PA0_cbs_v4 torus3d_tornado 0.10
+[239/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.85
+[240/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.90
+[241/1200] done PA0_cbs_v4 torus3d_tornado 0.15
+[242/1200] done PA0_cbs_v4 torus3d_tornado 0.20
+[243/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 0.95
+[244/1200] done PA0_cbs_v4 torus3d_tornado 0.25
+[245/1200] done PB6_dpesc_v4_s6 torus3d_xopposite 1.00
+[246/1200] done PA0_cbs_v4 torus3d_tornado 0.30
+[247/1200] done PA0_cbs_v4 torus3d_tornado 0.35
+[248/1200] done PA0_cbs_v4 torus3d_tornado 0.40
+[249/1200] done PA0_cbs_v4 torus3d_tornado 0.45
+[250/1200] done PA0_cbs_v4 torus3d_tornado 0.50
+[251/1200] done PA0_cbs_v4 torus3d_tornado 0.55
+[252/1200] done PA0_cbs_v4 torus3d_tornado 0.60
+[253/1200] done PA0_cbs_v4 torus3d_tornado 0.65
+[254/1200] done PA0_cbs_v4 torus3d_tornado 0.70
+[255/1200] done PA0_cbs_v4 torus3d_tornado 0.75
+[256/1200] done PA0_cbs_v4 torus3d_tornado 0.80
+[257/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.05
+[258/1200] done PA0_cbs_v4 torus3d_tornado 0.85
+[259/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.10
+[260/1200] done PA0_cbs_v4 torus3d_tornado 0.90
+[261/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.15
+[262/1200] done PA0_cbs_v4 torus3d_tornado 0.95
+[263/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.20
+[264/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.25
+[265/1200] done PA0_cbs_v4 torus3d_tornado 1.00
+[266/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.30
+[267/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.35
+[268/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.40
+[269/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.45
+[270/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.50
+[271/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.55
+[272/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.60
+[273/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.65
+[274/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.70
+[275/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.75
+[276/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.80
+[277/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.05
+[278/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.85
+[279/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.10
+[280/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.15
+[281/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.90
+[282/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 0.95
+[283/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.20
+[284/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.25
+[285/1200] done PA1_dpcbs_v4_s1 torus3d_tornado 1.00
+[286/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.30
+[287/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.35
+[288/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.40
+[289/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.45
+[290/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.50
+[291/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.55
+[292/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.60
+[293/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.65
+[294/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.70
+[295/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.75
+[296/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.80
+[297/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.05
+[298/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.85
+[299/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.90
+[300/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.10
+[301/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.15
+[302/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.20
+[303/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 0.95
+[304/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.25
+[305/1200] done PA2_dpcbs_v4_s2 torus3d_tornado 1.00
+[306/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.30
+[307/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.35
+[308/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.40
+[309/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.45
+[310/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.50
+[311/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.55
+[312/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.60
+[313/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.65
+[314/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.70
+[315/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.75
+[316/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.80
+[317/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.05
+[318/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.85
+[319/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.10
+[320/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.90
+[321/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.15
+[322/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 0.95
+[323/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.20
+[324/1200] done PA3_dpcbs_v4_s3 torus3d_tornado 1.00
+[325/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.25
+[326/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.30
+[327/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.35
+[328/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.40
+[329/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.45
+[330/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.50
+[331/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.55
+[332/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.60
+[333/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.65
+[334/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.70
+[335/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.75
+[336/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.80
+[337/1200] done PB0_esc_v4 torus3d_tornado 0.05
+[338/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.85
+[339/1200] done PB0_esc_v4 torus3d_tornado 0.10
+[340/1200] done PB0_esc_v4 torus3d_tornado 0.15
+[341/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.90
+[342/1200] done PB0_esc_v4 torus3d_tornado 0.20
+[343/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 0.95
+[344/1200] done PB0_esc_v4 torus3d_tornado 0.25
+[345/1200] done PA4_dpcbs_v4_s4 torus3d_tornado 1.00
+[346/1200] done PB0_esc_v4 torus3d_tornado 0.30
+[347/1200] done PB0_esc_v4 torus3d_tornado 0.35
+[348/1200] done PB0_esc_v4 torus3d_tornado 0.40
+[349/1200] done PB0_esc_v4 torus3d_tornado 0.45
+[350/1200] done PB0_esc_v4 torus3d_tornado 0.50
+[351/1200] done PB0_esc_v4 torus3d_tornado 0.55
+[352/1200] done PB0_esc_v4 torus3d_tornado 0.60
+[353/1200] done PB0_esc_v4 torus3d_tornado 0.65
+[354/1200] done PB0_esc_v4 torus3d_tornado 0.70
+[355/1200] done PB0_esc_v4 torus3d_tornado 0.75
+[356/1200] done PB0_esc_v4 torus3d_tornado 0.80
+[357/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.05
+[358/1200] done PB0_esc_v4 torus3d_tornado 0.85
+[359/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.10
+[360/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.15
+[361/1200] done PB0_esc_v4 torus3d_tornado 0.90
+[362/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.20
+[363/1200] done PB0_esc_v4 torus3d_tornado 0.95
+[364/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.25
+[365/1200] done PB0_esc_v4 torus3d_tornado 1.00
+[366/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.30
+[367/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.35
+[368/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.40
+[369/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.45
+[370/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.50
+[371/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.55
+[372/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.60
+[373/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.65
+[374/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.70
+[375/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.75
+[376/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.05
+[377/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.80
+[378/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.10
+[379/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.85
+[380/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.90
+[381/1200] done PB1_dpesc_v4_s1 torus3d_tornado 0.95
+[382/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.15
+[383/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.20
+[384/1200] done PB1_dpesc_v4_s1 torus3d_tornado 1.00
+[385/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.25
+[386/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.30
+[387/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.35
+[388/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.40
+[389/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.45
+[390/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.50
+[391/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.55
+[392/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.60
+[393/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.65
+[394/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.70
+[395/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.75
+[396/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.80
+[397/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.85
+[398/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.05
+[399/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.10
+[400/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.15
+[401/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.90
+[402/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.20
+[403/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.25
+[404/1200] done PB2_dpesc_v4_s2 torus3d_tornado 0.95
+[405/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.30
+[406/1200] done PB2_dpesc_v4_s2 torus3d_tornado 1.00
+[407/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.35
+[408/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.40
+[409/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.45
+[410/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.50
+[411/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.55
+[412/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.60
+[413/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.65
+[414/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.70
+[415/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.75
+[416/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.80
+[417/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.05
+[418/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.85
+[419/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.90
+[420/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.10
+[421/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.15
+[422/1200] done PB3_dpesc_v4_s3 torus3d_tornado 0.95
+[423/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.20
+[424/1200] done PB3_dpesc_v4_s3 torus3d_tornado 1.00
+[425/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.25
+[426/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.30
+[427/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.35
+[428/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.40
+[429/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.45
+[430/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.50
+[431/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.55
+[432/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.60
+[433/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.65
+[434/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.70
+[435/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.75
+[436/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.80
+[437/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.05
+[438/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.10
+[439/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.85
+[440/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.90
+[441/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.15
+[442/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.20
+[443/1200] done PB4_dpesc_v4_s4 torus3d_tornado 0.95
+[444/1200] done PB4_dpesc_v4_s4 torus3d_tornado 1.00
+[445/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.25
+[446/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.30
+[447/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.35
+[448/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.40
+[449/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.45
+[450/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.50
+[451/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.55
+[452/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.60
+[453/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.65
+[454/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.70
+[455/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.75
+[456/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.05
+[457/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.80
+[458/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.10
+[459/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.85
+[460/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.15
+[461/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.90
+[462/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.20
+[463/1200] done PB5_dpesc_v4_s5 torus3d_tornado 0.95
+[464/1200] done PB5_dpesc_v4_s5 torus3d_tornado 1.00
+[465/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.25
+[466/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.30
+[467/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.35
+[468/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.40
+[469/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.45
+[470/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.50
+[471/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.55
+[472/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.60
+[473/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.65
+[474/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.70
+[475/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.75
+[476/1200] done PA0_cbs_v4 torus3d_transpose 0.05
+[477/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.80
+[478/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.85
+[479/1200] done PA0_cbs_v4 torus3d_transpose 0.10
+[480/1200] done PA0_cbs_v4 torus3d_transpose 0.15
+[481/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.90
+[482/1200] done PA0_cbs_v4 torus3d_transpose 0.20
+[483/1200] done PB6_dpesc_v4_s6 torus3d_tornado 0.95
+[484/1200] done PA0_cbs_v4 torus3d_transpose 0.25
+[485/1200] done PB6_dpesc_v4_s6 torus3d_tornado 1.00
+[486/1200] done PA0_cbs_v4 torus3d_transpose 0.30
+[487/1200] done PA0_cbs_v4 torus3d_transpose 0.35
+[488/1200] done PA0_cbs_v4 torus3d_transpose 0.40
+[489/1200] done PA0_cbs_v4 torus3d_transpose 0.45
+[490/1200] done PA0_cbs_v4 torus3d_transpose 0.50
+[491/1200] done PA0_cbs_v4 torus3d_transpose 0.55
+[492/1200] done PA0_cbs_v4 torus3d_transpose 0.60
+[493/1200] done PA0_cbs_v4 torus3d_transpose 0.65
+[494/1200] done PA0_cbs_v4 torus3d_transpose 0.70
+[495/1200] done PA0_cbs_v4 torus3d_transpose 0.75
+[496/1200] done PA0_cbs_v4 torus3d_transpose 0.80
+[497/1200] done PA0_cbs_v4 torus3d_transpose 0.85
+[498/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.05
+[499/1200] done PA0_cbs_v4 torus3d_transpose 0.90
+[500/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.10
+[501/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.15
+[502/1200] done PA0_cbs_v4 torus3d_transpose 0.95
+[503/1200] done PA0_cbs_v4 torus3d_transpose 1.00
+[504/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.20
+[505/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.25
+[506/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.30
+[507/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.35
+[508/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.40
+[509/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.45
+[510/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.50
+[511/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.55
+[512/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.60
+[513/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.65
+[514/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.70
+[515/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.75
+[516/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.80
+[517/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.85
+[518/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.05
+[519/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.10
+[520/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.90
+[521/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.15
+[522/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.20
+[523/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 0.95
+[524/1200] done PA1_dpcbs_v4_s1 torus3d_transpose 1.00
+[525/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.25
+[526/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.30
+[527/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.35
+[528/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.40
+[529/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.45
+[530/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.50
+[531/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.55
+[532/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.60
+[533/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.65
+[534/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.70
+[535/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.75
+[536/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.80
+[537/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.05
+[538/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.85
+[539/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.90
+[540/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.10
+[541/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 0.95
+[542/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.15
+[543/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.20
+[544/1200] done PA2_dpcbs_v4_s2 torus3d_transpose 1.00
+[545/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.25
+[546/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.30
+[547/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.35
+[548/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.40
+[549/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.45
+[550/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.50
+[551/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.55
+[552/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.60
+[553/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.65
+[554/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.70
+[555/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.75
+[556/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.80
+[557/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.85
+[558/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.05
+[559/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.10
+[560/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.15
+[561/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.90
+[562/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.20
+[563/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 0.95
+[564/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.25
+[565/1200] done PA3_dpcbs_v4_s3 torus3d_transpose 1.00
+[566/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.30
+[567/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.35
+[568/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.40
+[569/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.45
+[570/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.50
+[571/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.55
+[572/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.60
+[573/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.65
+[574/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.70
+[575/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.75
+[576/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.80
+[577/1200] done PB0_esc_v4 torus3d_transpose 0.05
+[578/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.85
+[579/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.90
+[580/1200] done PB0_esc_v4 torus3d_transpose 0.10
+[581/1200] done PB0_esc_v4 torus3d_transpose 0.15
+[582/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 0.95
+[583/1200] done PB0_esc_v4 torus3d_transpose 0.20
+[584/1200] done PA4_dpcbs_v4_s4 torus3d_transpose 1.00
+[585/1200] done PB0_esc_v4 torus3d_transpose 0.25
+[586/1200] done PB0_esc_v4 torus3d_transpose 0.30
+[587/1200] done PB0_esc_v4 torus3d_transpose 0.35
+[588/1200] done PB0_esc_v4 torus3d_transpose 0.40
+[589/1200] done PB0_esc_v4 torus3d_transpose 0.45
+[590/1200] done PB0_esc_v4 torus3d_transpose 0.50
+[591/1200] done PB0_esc_v4 torus3d_transpose 0.55
+[592/1200] done PB0_esc_v4 torus3d_transpose 0.60
+[593/1200] done PB0_esc_v4 torus3d_transpose 0.65
+[594/1200] done PB0_esc_v4 torus3d_transpose 0.70
+[595/1200] done PB0_esc_v4 torus3d_transpose 0.75
+[596/1200] done PB0_esc_v4 torus3d_transpose 0.80
+[597/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.05
+[598/1200] done PB0_esc_v4 torus3d_transpose 0.85
+[599/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.10
+[600/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.15
+[601/1200] done PB0_esc_v4 torus3d_transpose 0.90
+[602/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.20
+[603/1200] done PB0_esc_v4 torus3d_transpose 0.95
+[604/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.25
+[605/1200] done PB0_esc_v4 torus3d_transpose 1.00
+[606/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.30
+[607/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.35
+[608/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.40
+[609/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.45
+[610/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.50
+[611/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.55
+[612/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.60
+[613/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.65
+[614/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.70
+[615/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.75
+[616/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.80
+[617/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.85
+[618/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.05
+[619/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.90
+[620/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.10
+[621/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.15
+[622/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.20
+[623/1200] done PB1_dpesc_v4_s1 torus3d_transpose 0.95
+[624/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.25
+[625/1200] done PB1_dpesc_v4_s1 torus3d_transpose 1.00
+[626/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.30
+[627/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.35
+[628/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.40
+[629/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.45
+[630/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.50
+[631/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.55
+[632/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.60
+[633/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.65
+[634/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.70
+[635/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.75
+[636/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.05
+[637/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.80
+[638/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.10
+[639/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.85
+[640/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.15
+[641/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.90
+[642/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.20
+[643/1200] done PB2_dpesc_v4_s2 torus3d_transpose 0.95
+[644/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.25
+[645/1200] done PB2_dpesc_v4_s2 torus3d_transpose 1.00
+[646/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.30
+[647/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.35
+[648/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.40
+[649/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.45
+[650/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.50
+[651/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.55
+[652/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.60
+[653/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.65
+[654/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.70
+[655/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.75
+[656/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.05
+[657/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.80
+[658/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.85
+[659/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.10
+[660/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.90
+[661/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.15
+[662/1200] done PB3_dpesc_v4_s3 torus3d_transpose 0.95
+[663/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.20
+[664/1200] done PB3_dpesc_v4_s3 torus3d_transpose 1.00
+[665/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.25
+[666/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.30
+[667/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.35
+[668/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.40
+[669/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.45
+[670/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.50
+[671/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.55
+[672/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.60
+[673/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.65
+[674/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.70
+[675/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.75
+[676/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.05
+[677/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.80
+[678/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.85
+[679/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.10
+[680/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.15
+[681/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.90
+[682/1200] done PB4_dpesc_v4_s4 torus3d_transpose 0.95
+[683/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.20
+[684/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.25
+[685/1200] done PB4_dpesc_v4_s4 torus3d_transpose 1.00
+[686/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.30
+[687/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.35
+[688/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.40
+[689/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.45
+[690/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.50
+[691/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.55
+[692/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.60
+[693/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.65
+[694/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.70
+[695/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.75
+[696/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.05
+[697/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.80
+[698/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.10
+[699/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.85
+[700/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.15
+[701/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.90
+[702/1200] done PB5_dpesc_v4_s5 torus3d_transpose 0.95
+[703/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.20
+[704/1200] done PB5_dpesc_v4_s5 torus3d_transpose 1.00
+[705/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.25
+[706/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.30
+[707/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.35
+[708/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.40
+[709/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.45
+[710/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.50
+[711/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.55
+[712/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.60
+[713/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.65
+[714/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.70
+[715/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.75
+[716/1200] done PA0_cbs_v4 torus3d_neighbor 0.05
+[717/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.80
+[718/1200] done PA0_cbs_v4 torus3d_neighbor 0.10
+[719/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.85
+[720/1200] done PA0_cbs_v4 torus3d_neighbor 0.15
+[721/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.90
+[722/1200] done PA0_cbs_v4 torus3d_neighbor 0.20
+[723/1200] done PB6_dpesc_v4_s6 torus3d_transpose 0.95
+[724/1200] done PA0_cbs_v4 torus3d_neighbor 0.25
+[725/1200] done PB6_dpesc_v4_s6 torus3d_transpose 1.00
+[726/1200] done PA0_cbs_v4 torus3d_neighbor 0.30
+[727/1200] done PA0_cbs_v4 torus3d_neighbor 0.35
+[728/1200] done PA0_cbs_v4 torus3d_neighbor 0.40
+[729/1200] done PA0_cbs_v4 torus3d_neighbor 0.45
+[730/1200] done PA0_cbs_v4 torus3d_neighbor 0.50
+[731/1200] done PA0_cbs_v4 torus3d_neighbor 0.55
+[732/1200] done PA0_cbs_v4 torus3d_neighbor 0.60
+[733/1200] done PA0_cbs_v4 torus3d_neighbor 0.65
+[734/1200] done PA0_cbs_v4 torus3d_neighbor 0.70
+[735/1200] done PA0_cbs_v4 torus3d_neighbor 0.75
+[736/1200] done PA0_cbs_v4 torus3d_neighbor 0.80
+[737/1200] done PA0_cbs_v4 torus3d_neighbor 0.85
+[738/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.05
+[739/1200] done PA0_cbs_v4 torus3d_neighbor 0.90
+[740/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.10
+[741/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.15
+[742/1200] done PA0_cbs_v4 torus3d_neighbor 0.95
+[743/1200] done PA0_cbs_v4 torus3d_neighbor 1.00
+[744/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.20
+[745/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.25
+[746/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.30
+[747/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.35
+[748/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.40
+[749/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.45
+[750/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.50
+[751/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.55
+[752/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.60
+[753/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.65
+[754/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.70
+[755/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.75
+[756/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.80
+[757/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.85
+[758/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.05
+[759/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.90
+[760/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.10
+[761/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.15
+[762/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.20
+[763/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 0.95
+[764/1200] done PA1_dpcbs_v4_s1 torus3d_neighbor 1.00
+[765/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.25
+[766/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.30
+[767/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.35
+[768/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.40
+[769/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.45
+[770/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.50
+[771/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.55
+[772/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.60
+[773/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.65
+[774/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.70
+[775/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.75
+[776/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.80
+[777/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.05
+[778/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.85
+[779/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.10
+[780/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.90
+[781/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.15
+[782/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 0.95
+[783/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.20
+[784/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.25
+[785/1200] done PA2_dpcbs_v4_s2 torus3d_neighbor 1.00
+[786/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.30
+[787/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.35
+[788/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.40
+[789/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.45
+[790/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.50
+[791/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.55
+[792/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.60
+[793/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.65
+[794/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.70
+[795/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.75
+[796/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.80
+[797/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.85
+[798/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.05
+[799/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.10
+[800/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.90
+[801/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.15
+[802/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.20
+[803/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.25
+[804/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 0.95
+[805/1200] done PA3_dpcbs_v4_s3 torus3d_neighbor 1.00
+[806/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.30
+[807/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.35
+[808/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.40
+[809/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.45
+[810/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.50
+[811/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.55
+[812/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.60
+[813/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.65
+[814/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.70
+[815/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.75
+[816/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.80
+[817/1200] done PB0_esc_v4 torus3d_neighbor 0.05
+[818/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.85
+[819/1200] done PB0_esc_v4 torus3d_neighbor 0.10
+[820/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.90
+[821/1200] done PB0_esc_v4 torus3d_neighbor 0.15
+[822/1200] done PB0_esc_v4 torus3d_neighbor 0.20
+[823/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 0.95
+[824/1200] done PA4_dpcbs_v4_s4 torus3d_neighbor 1.00
+[825/1200] done PB0_esc_v4 torus3d_neighbor 0.25
+[826/1200] done PB0_esc_v4 torus3d_neighbor 0.30
+[827/1200] done PB0_esc_v4 torus3d_neighbor 0.35
+[828/1200] done PB0_esc_v4 torus3d_neighbor 0.40
+[829/1200] done PB0_esc_v4 torus3d_neighbor 0.45
+[830/1200] done PB0_esc_v4 torus3d_neighbor 0.50
+[831/1200] done PB0_esc_v4 torus3d_neighbor 0.55
+[832/1200] done PB0_esc_v4 torus3d_neighbor 0.60
+[833/1200] done PB0_esc_v4 torus3d_neighbor 0.65
+[834/1200] done PB0_esc_v4 torus3d_neighbor 0.70
+[835/1200] done PB0_esc_v4 torus3d_neighbor 0.75
+[836/1200] done PB0_esc_v4 torus3d_neighbor 0.80
+[837/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.05
+[838/1200] done PB0_esc_v4 torus3d_neighbor 0.85
+[839/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.10
+[840/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.15
+[841/1200] done PB0_esc_v4 torus3d_neighbor 0.90
+[842/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.20
+[843/1200] done PB0_esc_v4 torus3d_neighbor 0.95
+[844/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.25
+[845/1200] done PB0_esc_v4 torus3d_neighbor 1.00
+[846/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.30
+[847/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.35
+[848/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.40
+[849/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.45
+[850/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.50
+[851/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.55
+[852/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.60
+[853/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.65
+[854/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.70
+[855/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.75
+[856/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.80
+[857/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.05
+[858/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.85
+[859/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.10
+[860/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.90
+[861/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.15
+[862/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.20
+[863/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 0.95
+[864/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.25
+[865/1200] done PB1_dpesc_v4_s1 torus3d_neighbor 1.00
+[866/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.30
+[867/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.35
+[868/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.40
+[869/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.45
+[870/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.50
+[871/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.55
+[872/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.60
+[873/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.65
+[874/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.70
+[875/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.75
+[876/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.80
+[877/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.05
+[878/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.85
+[879/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.10
+[880/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.90
+[881/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.15
+[882/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.20
+[883/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 0.95
+[884/1200] done PB2_dpesc_v4_s2 torus3d_neighbor 1.00
+[885/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.25
+[886/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.30
+[887/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.35
+[888/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.40
+[889/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.45
+[890/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.50
+[891/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.55
+[892/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.60
+[893/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.65
+[894/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.70
+[895/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.75
+[896/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.80
+[897/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.05
+[898/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.85
+[899/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.10
+[900/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.90
+[901/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.15
+[902/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.20
+[903/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 0.95
+[904/1200] done PB3_dpesc_v4_s3 torus3d_neighbor 1.00
+[905/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.25
+[906/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.30
+[907/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.35
+[908/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.40
+[909/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.45
+[910/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.50
+[911/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.55
+[912/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.60
+[913/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.65
+[914/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.70
+[915/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.75
+[916/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.80
+[917/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.85
+[918/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.05
+[919/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.90
+[920/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.10
+[921/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.15
+[922/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.20
+[923/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 0.95
+[924/1200] done PB4_dpesc_v4_s4 torus3d_neighbor 1.00
+[925/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.25
+[926/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.30
+[927/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.35
+[928/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.40
+[929/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.45
+[930/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.50
+[931/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.55
+[932/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.60
+[933/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.65
+[934/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.70
+[935/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.75
+[936/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.80
+[937/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.85
+[938/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.05
+[939/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.90
+[940/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.10
+[941/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.15
+[942/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.20
+[943/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 0.95
+[944/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.25
+[945/1200] done PB5_dpesc_v4_s5 torus3d_neighbor 1.00
+[946/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.30
+[947/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.35
+[948/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.40
+[949/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.45
+[950/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.50
+[951/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.55
+[952/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.60
+[953/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.65
+[954/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.70
+[955/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.75
+[956/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.80
+[957/1200] done PA0_cbs_v4 uniform_random 0.05
+[958/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.85
+[959/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.90
+[960/1200] done PA0_cbs_v4 uniform_random 0.10
+[961/1200] done PA0_cbs_v4 uniform_random 0.15
+[962/1200] done PA0_cbs_v4 uniform_random 0.20
+[963/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 0.95
+[964/1200] done PB6_dpesc_v4_s6 torus3d_neighbor 1.00
+[965/1200] done PA0_cbs_v4 uniform_random 0.25
+[966/1200] done PA0_cbs_v4 uniform_random 0.30
+[967/1200] done PA0_cbs_v4 uniform_random 0.35
+[968/1200] done PA0_cbs_v4 uniform_random 0.40
+[969/1200] done PA0_cbs_v4 uniform_random 0.45
+[970/1200] done PA0_cbs_v4 uniform_random 0.50
+[971/1200] done PA0_cbs_v4 uniform_random 0.55
+[972/1200] done PA0_cbs_v4 uniform_random 0.60
+[973/1200] done PA0_cbs_v4 uniform_random 0.65
+[974/1200] done PA0_cbs_v4 uniform_random 0.70
+[975/1200] done PA0_cbs_v4 uniform_random 0.75
+[976/1200] done PA0_cbs_v4 uniform_random 0.80
+[977/1200] done PA1_dpcbs_v4_s1 uniform_random 0.05
+[978/1200] done PA0_cbs_v4 uniform_random 0.85
+[979/1200] done PA1_dpcbs_v4_s1 uniform_random 0.10
+[980/1200] done PA0_cbs_v4 uniform_random 0.90
+[981/1200] done PA1_dpcbs_v4_s1 uniform_random 0.15
+[982/1200] done PA1_dpcbs_v4_s1 uniform_random 0.20
+[983/1200] done PA1_dpcbs_v4_s1 uniform_random 0.25
+[984/1200] done PA0_cbs_v4 uniform_random 0.95
+[985/1200] done PA0_cbs_v4 uniform_random 1.00
+[986/1200] done PA1_dpcbs_v4_s1 uniform_random 0.30
+[987/1200] done PA1_dpcbs_v4_s1 uniform_random 0.35
+[988/1200] done PA1_dpcbs_v4_s1 uniform_random 0.40
+[989/1200] done PA1_dpcbs_v4_s1 uniform_random 0.45
+[990/1200] done PA1_dpcbs_v4_s1 uniform_random 0.50
+[991/1200] done PA1_dpcbs_v4_s1 uniform_random 0.55
+[992/1200] done PA1_dpcbs_v4_s1 uniform_random 0.60
+[993/1200] done PA1_dpcbs_v4_s1 uniform_random 0.65
+[994/1200] done PA1_dpcbs_v4_s1 uniform_random 0.70
+[995/1200] done PA1_dpcbs_v4_s1 uniform_random 0.75
+[996/1200] done PA1_dpcbs_v4_s1 uniform_random 0.80
+[997/1200] done PA2_dpcbs_v4_s2 uniform_random 0.05
+[998/1200] done PA2_dpcbs_v4_s2 uniform_random 0.10
+[999/1200] done PA1_dpcbs_v4_s1 uniform_random 0.85
+[1000/1200] done PA2_dpcbs_v4_s2 uniform_random 0.15
+[1001/1200] done PA1_dpcbs_v4_s1 uniform_random 0.90
+[1002/1200] done PA2_dpcbs_v4_s2 uniform_random 0.20
+[1003/1200] done PA1_dpcbs_v4_s1 uniform_random 0.95
+[1004/1200] done PA2_dpcbs_v4_s2 uniform_random 0.25
+[1005/1200] done PA1_dpcbs_v4_s1 uniform_random 1.00
+[1006/1200] done PA2_dpcbs_v4_s2 uniform_random 0.30
+[1007/1200] done PA2_dpcbs_v4_s2 uniform_random 0.35
+[1008/1200] done PA2_dpcbs_v4_s2 uniform_random 0.40
+[1009/1200] done PA2_dpcbs_v4_s2 uniform_random 0.45
+[1010/1200] done PA2_dpcbs_v4_s2 uniform_random 0.50
+[1011/1200] done PA2_dpcbs_v4_s2 uniform_random 0.55
+[1012/1200] done PA2_dpcbs_v4_s2 uniform_random 0.60
+[1013/1200] done PA2_dpcbs_v4_s2 uniform_random 0.65
+[1014/1200] done PA2_dpcbs_v4_s2 uniform_random 0.70
+[1015/1200] done PA2_dpcbs_v4_s2 uniform_random 0.75
+[1016/1200] done PA2_dpcbs_v4_s2 uniform_random 0.80
+[1017/1200] done PA3_dpcbs_v4_s3 uniform_random 0.05
+[1018/1200] done PA2_dpcbs_v4_s2 uniform_random 0.85
+[1019/1200] done PA3_dpcbs_v4_s3 uniform_random 0.10
+[1020/1200] done PA3_dpcbs_v4_s3 uniform_random 0.15
+[1021/1200] done PA2_dpcbs_v4_s2 uniform_random 0.90
+[1022/1200] done PA3_dpcbs_v4_s3 uniform_random 0.20
+[1023/1200] done PA2_dpcbs_v4_s2 uniform_random 0.95
+[1024/1200] done PA3_dpcbs_v4_s3 uniform_random 0.25
+[1025/1200] done PA2_dpcbs_v4_s2 uniform_random 1.00
+[1026/1200] done PA3_dpcbs_v4_s3 uniform_random 0.30
+[1027/1200] done PA3_dpcbs_v4_s3 uniform_random 0.35
+[1028/1200] done PA3_dpcbs_v4_s3 uniform_random 0.40
+[1029/1200] done PA3_dpcbs_v4_s3 uniform_random 0.45
+[1030/1200] done PA3_dpcbs_v4_s3 uniform_random 0.50
+[1031/1200] done PA3_dpcbs_v4_s3 uniform_random 0.55
+[1032/1200] done PA3_dpcbs_v4_s3 uniform_random 0.60
+[1033/1200] done PA3_dpcbs_v4_s3 uniform_random 0.65
+[1034/1200] done PA3_dpcbs_v4_s3 uniform_random 0.70
+[1035/1200] done PA3_dpcbs_v4_s3 uniform_random 0.75
+[1036/1200] done PA3_dpcbs_v4_s3 uniform_random 0.80
+[1037/1200] done PA4_dpcbs_v4_s4 uniform_random 0.05
+[1038/1200] done PA3_dpcbs_v4_s3 uniform_random 0.85
+[1039/1200] done PA4_dpcbs_v4_s4 uniform_random 0.10
+[1040/1200] done PA3_dpcbs_v4_s3 uniform_random 0.90
+[1041/1200] done PA4_dpcbs_v4_s4 uniform_random 0.15
+[1042/1200] done PA3_dpcbs_v4_s3 uniform_random 0.95
+[1043/1200] done PA4_dpcbs_v4_s4 uniform_random 0.20
+[1044/1200] done PA3_dpcbs_v4_s3 uniform_random 1.00
+[1045/1200] done PA4_dpcbs_v4_s4 uniform_random 0.25
+[1046/1200] done PA4_dpcbs_v4_s4 uniform_random 0.30
+[1047/1200] done PA4_dpcbs_v4_s4 uniform_random 0.35
+[1048/1200] done PA4_dpcbs_v4_s4 uniform_random 0.40
+[1049/1200] done PA4_dpcbs_v4_s4 uniform_random 0.45
+[1050/1200] done PA4_dpcbs_v4_s4 uniform_random 0.50
+[1051/1200] done PA4_dpcbs_v4_s4 uniform_random 0.55
+[1052/1200] done PA4_dpcbs_v4_s4 uniform_random 0.60
+[1053/1200] done PA4_dpcbs_v4_s4 uniform_random 0.65
+[1054/1200] done PA4_dpcbs_v4_s4 uniform_random 0.70
+[1055/1200] done PA4_dpcbs_v4_s4 uniform_random 0.75
+[1056/1200] done PA4_dpcbs_v4_s4 uniform_random 0.80
+[1057/1200] done PB0_esc_v4 uniform_random 0.05
+[1058/1200] done PA4_dpcbs_v4_s4 uniform_random 0.85
+[1059/1200] done PB0_esc_v4 uniform_random 0.10
+[1060/1200] done PA4_dpcbs_v4_s4 uniform_random 0.90
+[1061/1200] done PB0_esc_v4 uniform_random 0.15
+[1062/1200] done PA4_dpcbs_v4_s4 uniform_random 0.95
+[1063/1200] done PB0_esc_v4 uniform_random 0.20
+[1064/1200] done PA4_dpcbs_v4_s4 uniform_random 1.00
+[1065/1200] done PB0_esc_v4 uniform_random 0.25
+[1066/1200] done PB0_esc_v4 uniform_random 0.30
+[1067/1200] done PB0_esc_v4 uniform_random 0.35
+[1068/1200] done PB0_esc_v4 uniform_random 0.40
+[1069/1200] done PB0_esc_v4 uniform_random 0.45
+[1070/1200] done PB0_esc_v4 uniform_random 0.50
+[1071/1200] done PB0_esc_v4 uniform_random 0.55
+[1072/1200] done PB0_esc_v4 uniform_random 0.60
+[1073/1200] done PB0_esc_v4 uniform_random 0.65
+[1074/1200] done PB0_esc_v4 uniform_random 0.70
+[1075/1200] done PB0_esc_v4 uniform_random 0.75
+[1076/1200] done PB0_esc_v4 uniform_random 0.80
+[1077/1200] done PB1_dpesc_v4_s1 uniform_random 0.05
+[1078/1200] done PB0_esc_v4 uniform_random 0.85
+[1079/1200] done PB1_dpesc_v4_s1 uniform_random 0.10
+[1080/1200] done PB0_esc_v4 uniform_random 0.90
+[1081/1200] done PB1_dpesc_v4_s1 uniform_random 0.15
+[1082/1200] done PB1_dpesc_v4_s1 uniform_random 0.20
+[1083/1200] done PB0_esc_v4 uniform_random 0.95
+[1084/1200] done PB0_esc_v4 uniform_random 1.00
+[1085/1200] done PB1_dpesc_v4_s1 uniform_random 0.25
+[1086/1200] done PB1_dpesc_v4_s1 uniform_random 0.30
+[1087/1200] done PB1_dpesc_v4_s1 uniform_random 0.35
+[1088/1200] done PB1_dpesc_v4_s1 uniform_random 0.40
+[1089/1200] done PB1_dpesc_v4_s1 uniform_random 0.45
+[1090/1200] done PB1_dpesc_v4_s1 uniform_random 0.50
+[1091/1200] done PB1_dpesc_v4_s1 uniform_random 0.55
+[1092/1200] done PB1_dpesc_v4_s1 uniform_random 0.60
+[1093/1200] done PB1_dpesc_v4_s1 uniform_random 0.65
+[1094/1200] done PB1_dpesc_v4_s1 uniform_random 0.70
+[1095/1200] done PB1_dpesc_v4_s1 uniform_random 0.75
+[1096/1200] done PB1_dpesc_v4_s1 uniform_random 0.80
+[1097/1200] done PB2_dpesc_v4_s2 uniform_random 0.05
+[1098/1200] done PB1_dpesc_v4_s1 uniform_random 0.85
+[1099/1200] done PB1_dpesc_v4_s1 uniform_random 0.90
+[1100/1200] done PB2_dpesc_v4_s2 uniform_random 0.10
+[1101/1200] done PB2_dpesc_v4_s2 uniform_random 0.15
+[1102/1200] done PB1_dpesc_v4_s1 uniform_random 0.95
+[1103/1200] done PB2_dpesc_v4_s2 uniform_random 0.20
+[1104/1200] done PB2_dpesc_v4_s2 uniform_random 0.25
+[1105/1200] done PB1_dpesc_v4_s1 uniform_random 1.00
+[1106/1200] done PB2_dpesc_v4_s2 uniform_random 0.30
+[1107/1200] done PB2_dpesc_v4_s2 uniform_random 0.35
+[1108/1200] done PB2_dpesc_v4_s2 uniform_random 0.40
+[1109/1200] done PB2_dpesc_v4_s2 uniform_random 0.45
+[1110/1200] done PB2_dpesc_v4_s2 uniform_random 0.50
+[1111/1200] done PB2_dpesc_v4_s2 uniform_random 0.55
+[1112/1200] done PB2_dpesc_v4_s2 uniform_random 0.60
+[1113/1200] done PB2_dpesc_v4_s2 uniform_random 0.65
+[1114/1200] done PB2_dpesc_v4_s2 uniform_random 0.70
+[1115/1200] done PB2_dpesc_v4_s2 uniform_random 0.75
+[1116/1200] done PB2_dpesc_v4_s2 uniform_random 0.80
+[1117/1200] done PB3_dpesc_v4_s3 uniform_random 0.05
+[1118/1200] done PB3_dpesc_v4_s3 uniform_random 0.10
+[1119/1200] done PB2_dpesc_v4_s2 uniform_random 0.85
+[1120/1200] done PB3_dpesc_v4_s3 uniform_random 0.15
+[1121/1200] done PB3_dpesc_v4_s3 uniform_random 0.20
+[1122/1200] done PB2_dpesc_v4_s2 uniform_random 0.90
+[1123/1200] done PB3_dpesc_v4_s3 uniform_random 0.25
+[1124/1200] done PB2_dpesc_v4_s2 uniform_random 0.95
+[1125/1200] done PB3_dpesc_v4_s3 uniform_random 0.30
+[1126/1200] done PB2_dpesc_v4_s2 uniform_random 1.00
+[1127/1200] done PB3_dpesc_v4_s3 uniform_random 0.35
+[1128/1200] done PB3_dpesc_v4_s3 uniform_random 0.40
+[1129/1200] done PB3_dpesc_v4_s3 uniform_random 0.45
+[1130/1200] done PB3_dpesc_v4_s3 uniform_random 0.50
+[1131/1200] done PB3_dpesc_v4_s3 uniform_random 0.55
+[1132/1200] done PB3_dpesc_v4_s3 uniform_random 0.60
+[1133/1200] done PB3_dpesc_v4_s3 uniform_random 0.65
+[1134/1200] done PB3_dpesc_v4_s3 uniform_random 0.70
+[1135/1200] done PB3_dpesc_v4_s3 uniform_random 0.75
+[1136/1200] done PB3_dpesc_v4_s3 uniform_random 0.80
+[1137/1200] done PB4_dpesc_v4_s4 uniform_random 0.05
+[1138/1200] done PB3_dpesc_v4_s3 uniform_random 0.85
+[1139/1200] done PB4_dpesc_v4_s4 uniform_random 0.10
+[1140/1200] done PB3_dpesc_v4_s3 uniform_random 0.90
+[1141/1200] done PB4_dpesc_v4_s4 uniform_random 0.15
+[1142/1200] done PB3_dpesc_v4_s3 uniform_random 0.95
+[1143/1200] done PB4_dpesc_v4_s4 uniform_random 0.20
+[1144/1200] done PB3_dpesc_v4_s3 uniform_random 1.00
+[1145/1200] done PB4_dpesc_v4_s4 uniform_random 0.25
+[1146/1200] done PB4_dpesc_v4_s4 uniform_random 0.30
+[1147/1200] done PB4_dpesc_v4_s4 uniform_random 0.35
+[1148/1200] done PB4_dpesc_v4_s4 uniform_random 0.40
+[1149/1200] done PB4_dpesc_v4_s4 uniform_random 0.45
+[1150/1200] done PB4_dpesc_v4_s4 uniform_random 0.50
+[1151/1200] done PB4_dpesc_v4_s4 uniform_random 0.55
+[1152/1200] done PB4_dpesc_v4_s4 uniform_random 0.60
+[1153/1200] done PB4_dpesc_v4_s4 uniform_random 0.65
+[1154/1200] done PB4_dpesc_v4_s4 uniform_random 0.70
+[1155/1200] done PB4_dpesc_v4_s4 uniform_random 0.75
+[1156/1200] done PB4_dpesc_v4_s4 uniform_random 0.80
+[1157/1200] done PB5_dpesc_v4_s5 uniform_random 0.05
+[1158/1200] done PB4_dpesc_v4_s4 uniform_random 0.85
+[1159/1200] done PB5_dpesc_v4_s5 uniform_random 0.10
+[1160/1200] done PB4_dpesc_v4_s4 uniform_random 0.90
+[1161/1200] done PB5_dpesc_v4_s5 uniform_random 0.15
+[1162/1200] done PB4_dpesc_v4_s4 uniform_random 0.95
+[1163/1200] done PB5_dpesc_v4_s5 uniform_random 0.20
+[1164/1200] done PB4_dpesc_v4_s4 uniform_random 1.00
+[1165/1200] done PB5_dpesc_v4_s5 uniform_random 0.25
+[1166/1200] done PB5_dpesc_v4_s5 uniform_random 0.30
+[1167/1200] done PB5_dpesc_v4_s5 uniform_random 0.35
+[1168/1200] done PB5_dpesc_v4_s5 uniform_random 0.40
+[1169/1200] done PB5_dpesc_v4_s5 uniform_random 0.45
+[1170/1200] done PB5_dpesc_v4_s5 uniform_random 0.50
+[1171/1200] done PB5_dpesc_v4_s5 uniform_random 0.55
+[1172/1200] done PB5_dpesc_v4_s5 uniform_random 0.60
+[1173/1200] done PB5_dpesc_v4_s5 uniform_random 0.65
+[1174/1200] done PB5_dpesc_v4_s5 uniform_random 0.70
+[1175/1200] done PB5_dpesc_v4_s5 uniform_random 0.75
+[1176/1200] done PB5_dpesc_v4_s5 uniform_random 0.80
+[1177/1200] done PB6_dpesc_v4_s6 uniform_random 0.05
+[1178/1200] done PB5_dpesc_v4_s5 uniform_random 0.85
+[1179/1200] done PB6_dpesc_v4_s6 uniform_random 0.10
+[1180/1200] done PB5_dpesc_v4_s5 uniform_random 0.90
+[1181/1200] done PB6_dpesc_v4_s6 uniform_random 0.15
+[1182/1200] done PB5_dpesc_v4_s5 uniform_random 0.95
+[1183/1200] done PB6_dpesc_v4_s6 uniform_random 0.20
+[1184/1200] done PB5_dpesc_v4_s5 uniform_random 1.00
+[1185/1200] done PB6_dpesc_v4_s6 uniform_random 0.25
+[1186/1200] done PB6_dpesc_v4_s6 uniform_random 0.30
+[1187/1200] done PB6_dpesc_v4_s6 uniform_random 0.35
+[1188/1200] done PB6_dpesc_v4_s6 uniform_random 0.40
+[1189/1200] done PB6_dpesc_v4_s6 uniform_random 0.45
+[1190/1200] done PB6_dpesc_v4_s6 uniform_random 0.50
+[1191/1200] done PB6_dpesc_v4_s6 uniform_random 0.55
+[1192/1200] done PB6_dpesc_v4_s6 uniform_random 0.60
+[1193/1200] done PB6_dpesc_v4_s6 uniform_random 0.65
+[1194/1200] done PB6_dpesc_v4_s6 uniform_random 0.70
+[1195/1200] done PB6_dpesc_v4_s6 uniform_random 0.75
+[1196/1200] done PB6_dpesc_v4_s6 uniform_random 0.80
+[1197/1200] done PB6_dpesc_v4_s6 uniform_random 0.85
+[1198/1200] done PB6_dpesc_v4_s6 uniform_random 0.90
+[1199/1200] done PB6_dpesc_v4_s6 uniform_random 0.95
+[1200/1200] done PB6_dpesc_v4_s6 uniform_random 1.00
+results written to /home/sockish/gem5/lab/lab4/physical_bound/results_physical.csv
+0 completed point(s), 500 remaining; running 10 concurrent job(s)
+[  1/500] done PC0_esc_v3 torus3d_xopposite 0.05
+[  2/500] done PC0_esc_v3 torus3d_xopposite 0.10
+[  3/500] done PC0_esc_v3 torus3d_xopposite 0.15
+[  4/500] done PC0_esc_v3 torus3d_xopposite 0.20
+[  5/500] done PC0_esc_v3 torus3d_xopposite 0.25
+[  6/500] done PC0_esc_v3 torus3d_xopposite 0.30
+[  7/500] done PC0_esc_v3 torus3d_xopposite 0.35
+[  8/500] done PC0_esc_v3 torus3d_xopposite 0.40
+[  9/500] done PC0_esc_v3 torus3d_xopposite 0.45
+[ 10/500] done PC0_esc_v3 torus3d_xopposite 0.50
+[ 11/500] done PC0_esc_v3 torus3d_xopposite 0.55
+[ 12/500] done PC0_esc_v3 torus3d_xopposite 0.60
+[ 13/500] done PC0_esc_v3 torus3d_xopposite 0.65
+[ 14/500] done PC0_esc_v3 torus3d_xopposite 0.70
+[ 15/500] done PC0_esc_v3 torus3d_xopposite 0.75
+[ 16/500] done PC0_esc_v3 torus3d_xopposite 0.80
+[ 17/500] done PC0_esc_v3 torus3d_xopposite 0.85
+[ 18/500] done PC0_esc_v3 torus3d_xopposite 0.90
+[ 19/500] done PC0_esc_v3 torus3d_xopposite 1.00
+[ 20/500] done PC0_esc_v3 torus3d_xopposite 0.95
+[ 21/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.05
+[ 22/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.10
+[ 23/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.15
+[ 24/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.20
+[ 25/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.25
+[ 26/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.30
+[ 27/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.35
+[ 28/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.40
+[ 29/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.45
+[ 30/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.50
+[ 31/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.55
+[ 32/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.60
+[ 33/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.65
+[ 34/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.70
+[ 35/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.75
+[ 36/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.80
+[ 37/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.05
+[ 38/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.85
+[ 39/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.10
+[ 40/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.90
+[ 41/500] done PC1_dpesc_v3_s1 torus3d_xopposite 0.95
+[ 42/500] done PC1_dpesc_v3_s1 torus3d_xopposite 1.00
+[ 43/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.15
+[ 44/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.20
+[ 45/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.25
+[ 46/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.30
+[ 47/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.35
+[ 48/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.40
+[ 49/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.45
+[ 50/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.50
+[ 51/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.55
+[ 52/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.60
+[ 53/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.65
+[ 54/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.70
+[ 55/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.75
+[ 56/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.80
+[ 57/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.05
+[ 58/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.85
+[ 59/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.10
+[ 60/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.90
+[ 61/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.15
+[ 62/500] done PC2_dpesc_v3_s2 torus3d_xopposite 0.95
+[ 63/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.20
+[ 64/500] done PC2_dpesc_v3_s2 torus3d_xopposite 1.00
+[ 65/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.25
+[ 66/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.30
+[ 67/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.35
+[ 68/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.40
+[ 69/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.45
+[ 70/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.50
+[ 71/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.55
+[ 72/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.60
+[ 73/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.65
+[ 74/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.70
+[ 75/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.75
+[ 76/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.05
+[ 77/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.80
+[ 78/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.10
+[ 79/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.85
+[ 80/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.15
+[ 81/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.90
+[ 82/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.20
+[ 83/500] done PC3_dpesc_v3_s3 torus3d_xopposite 0.95
+[ 84/500] done PC3_dpesc_v3_s3 torus3d_xopposite 1.00
+[ 85/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.25
+[ 86/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.30
+[ 87/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.35
+[ 88/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.40
+[ 89/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.45
+[ 90/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.50
+[ 91/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.55
+[ 92/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.60
+[ 93/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.65
+[ 94/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.70
+[ 95/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.75
+[ 96/500] done PC0_esc_v3 torus3d_tornado 0.05
+[ 97/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.80
+[ 98/500] done PC0_esc_v3 torus3d_tornado 0.10
+[ 99/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.85
+[100/500] done PC0_esc_v3 torus3d_tornado 0.15
+[101/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.90
+[102/500] done PC4_dpesc_v3_s4 torus3d_xopposite 0.95
+[103/500] done PC0_esc_v3 torus3d_tornado 0.20
+[104/500] done PC4_dpesc_v3_s4 torus3d_xopposite 1.00
+[105/500] done PC0_esc_v3 torus3d_tornado 0.25
+[106/500] done PC0_esc_v3 torus3d_tornado 0.30
+[107/500] done PC0_esc_v3 torus3d_tornado 0.35
+[108/500] done PC0_esc_v3 torus3d_tornado 0.40
+[109/500] done PC0_esc_v3 torus3d_tornado 0.45
+[110/500] done PC0_esc_v3 torus3d_tornado 0.50
+[111/500] done PC0_esc_v3 torus3d_tornado 0.55
+[112/500] done PC0_esc_v3 torus3d_tornado 0.60
+[113/500] done PC0_esc_v3 torus3d_tornado 0.65
+[114/500] done PC0_esc_v3 torus3d_tornado 0.70
+[115/500] done PC0_esc_v3 torus3d_tornado 0.75
+[116/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.05
+[117/500] done PC0_esc_v3 torus3d_tornado 0.80
+[118/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.10
+[119/500] done PC0_esc_v3 torus3d_tornado 0.85
+[120/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.15
+[121/500] done PC0_esc_v3 torus3d_tornado 0.90
+[122/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.20
+[123/500] done PC0_esc_v3 torus3d_tornado 0.95
+[124/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.25
+[125/500] done PC0_esc_v3 torus3d_tornado 1.00
+[126/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.30
+[127/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.35
+[128/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.40
+[129/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.45
+[130/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.50
+[131/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.55
+[132/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.60
+[133/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.65
+[134/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.70
+[135/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.75
+[136/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.05
+[137/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.10
+[138/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.80
+[139/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.85
+[140/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.15
+[141/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.90
+[142/500] done PC1_dpesc_v3_s1 torus3d_tornado 0.95
+[143/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.20
+[144/500] done PC1_dpesc_v3_s1 torus3d_tornado 1.00
+[145/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.25
+[146/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.30
+[147/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.35
+[148/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.40
+[149/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.45
+[150/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.50
+[151/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.55
+[152/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.60
+[153/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.65
+[154/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.70
+[155/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.75
+[156/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.80
+[157/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.05
+[158/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.10
+[159/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.85
+[160/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.90
+[161/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.15
+[162/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.20
+[163/500] done PC2_dpesc_v3_s2 torus3d_tornado 0.95
+[164/500] done PC2_dpesc_v3_s2 torus3d_tornado 1.00
+[165/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.25
+[166/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.30
+[167/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.35
+[168/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.40
+[169/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.45
+[170/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.50
+[171/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.55
+[172/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.60
+[173/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.65
+[174/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.70
+[175/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.75
+[176/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.05
+[177/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.80
+[178/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.85
+[179/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.10
+[180/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.15
+[181/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.90
+[182/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.20
+[183/500] done PC3_dpesc_v3_s3 torus3d_tornado 0.95
+[184/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.25
+[185/500] done PC3_dpesc_v3_s3 torus3d_tornado 1.00
+[186/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.30
+[187/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.35
+[188/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.40
+[189/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.45
+[190/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.50
+[191/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.55
+[192/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.60
+[193/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.65
+[194/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.70
+[195/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.75
+[196/500] done PC0_esc_v3 torus3d_transpose 0.05
+[197/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.80
+[198/500] done PC0_esc_v3 torus3d_transpose 0.10
+[199/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.85
+[200/500] done PC0_esc_v3 torus3d_transpose 0.15
+[201/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.90
+[202/500] done PC0_esc_v3 torus3d_transpose 0.20
+[203/500] done PC4_dpesc_v3_s4 torus3d_tornado 0.95
+[204/500] done PC0_esc_v3 torus3d_transpose 0.25
+[205/500] done PC4_dpesc_v3_s4 torus3d_tornado 1.00
+[206/500] done PC0_esc_v3 torus3d_transpose 0.30
+[207/500] done PC0_esc_v3 torus3d_transpose 0.35
+[208/500] done PC0_esc_v3 torus3d_transpose 0.40
+[209/500] done PC0_esc_v3 torus3d_transpose 0.45
+[210/500] done PC0_esc_v3 torus3d_transpose 0.50
+[211/500] done PC0_esc_v3 torus3d_transpose 0.55
+[212/500] done PC0_esc_v3 torus3d_transpose 0.60
+[213/500] done PC0_esc_v3 torus3d_transpose 0.65
+[214/500] done PC0_esc_v3 torus3d_transpose 0.70
+[215/500] done PC0_esc_v3 torus3d_transpose 0.75
+[216/500] done PC0_esc_v3 torus3d_transpose 0.80
+[217/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.05
+[218/500] done PC0_esc_v3 torus3d_transpose 0.85
+[219/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.10
+[220/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.15
+[221/500] done PC0_esc_v3 torus3d_transpose 0.90
+[222/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.20
+[223/500] done PC0_esc_v3 torus3d_transpose 0.95
+[224/500] done PC0_esc_v3 torus3d_transpose 1.00
+[225/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.25
+[226/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.30
+[227/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.35
+[228/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.40
+[229/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.45
+[230/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.50
+[231/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.55
+[232/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.60
+[233/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.65
+[234/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.70
+[235/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.75
+[236/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.80
+[237/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.85
+[238/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.05
+[239/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.10
+[240/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.90
+[241/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.15
+[242/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.20
+[243/500] done PC1_dpesc_v3_s1 torus3d_transpose 0.95
+[244/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.25
+[245/500] done PC1_dpesc_v3_s1 torus3d_transpose 1.00
+[246/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.30
+[247/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.35
+[248/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.40
+[249/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.45
+[250/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.50
+[251/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.55
+[252/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.60
+[253/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.65
+[254/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.70
+[255/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.75
+[256/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.05
+[257/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.80
+[258/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.10
+[259/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.85
+[260/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.90
+[261/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.15
+[262/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.20
+[263/500] done PC2_dpesc_v3_s2 torus3d_transpose 0.95
+[264/500] done PC2_dpesc_v3_s2 torus3d_transpose 1.00
+[265/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.25
+[266/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.30
+[267/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.35
+[268/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.40
+[269/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.45
+[270/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.50
+[271/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.55
+[272/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.60
+[273/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.65
+[274/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.70
+[275/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.75
+[276/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.05
+[277/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.80
+[278/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.85
+[279/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.10
+[280/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.15
+[281/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.90
+[282/500] done PC3_dpesc_v3_s3 torus3d_transpose 0.95
+[283/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.20
+[284/500] done PC3_dpesc_v3_s3 torus3d_transpose 1.00
+[285/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.25
+[286/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.30
+[287/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.35
+[288/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.40
+[289/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.45
+[290/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.50
+[291/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.55
+[292/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.60
+[293/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.65
+[294/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.70
+[295/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.75
+[296/500] done PC0_esc_v3 torus3d_neighbor 0.05
+[297/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.80
+[298/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.85
+[299/500] done PC0_esc_v3 torus3d_neighbor 0.10
+[300/500] done PC0_esc_v3 torus3d_neighbor 0.15
+[301/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.90
+[302/500] done PC0_esc_v3 torus3d_neighbor 0.20
+[303/500] done PC4_dpesc_v3_s4 torus3d_transpose 0.95
+[304/500] done PC0_esc_v3 torus3d_neighbor 0.25
+[305/500] done PC4_dpesc_v3_s4 torus3d_transpose 1.00
+[306/500] done PC0_esc_v3 torus3d_neighbor 0.30
+[307/500] done PC0_esc_v3 torus3d_neighbor 0.35
+[308/500] done PC0_esc_v3 torus3d_neighbor 0.40
+[309/500] done PC0_esc_v3 torus3d_neighbor 0.45
+[310/500] done PC0_esc_v3 torus3d_neighbor 0.50
+[311/500] done PC0_esc_v3 torus3d_neighbor 0.55
+[312/500] done PC0_esc_v3 torus3d_neighbor 0.60
+[313/500] done PC0_esc_v3 torus3d_neighbor 0.65
+[314/500] done PC0_esc_v3 torus3d_neighbor 0.70
+[315/500] done PC0_esc_v3 torus3d_neighbor 0.75
+[316/500] done PC0_esc_v3 torus3d_neighbor 0.80
+[317/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.05
+[318/500] done PC0_esc_v3 torus3d_neighbor 0.85
+[319/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.10
+[320/500] done PC0_esc_v3 torus3d_neighbor 0.90
+[321/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.15
+[322/500] done PC0_esc_v3 torus3d_neighbor 0.95
+[323/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.20
+[324/500] done PC0_esc_v3 torus3d_neighbor 1.00
+[325/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.25
+[326/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.30
+[327/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.35
+[328/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.40
+[329/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.45
+[330/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.50
+[331/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.55
+[332/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.60
+[333/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.65
+[334/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.70
+[335/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.75
+[336/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.80
+[337/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.05
+[338/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.85
+[339/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.10
+[340/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.90
+[341/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.15
+[342/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.20
+[343/500] done PC1_dpesc_v3_s1 torus3d_neighbor 0.95
+[344/500] done PC1_dpesc_v3_s1 torus3d_neighbor 1.00
+[345/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.25
+[346/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.30
+[347/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.35
+[348/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.40
+[349/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.45
+[350/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.50
+[351/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.55
+[352/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.60
+[353/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.65
+[354/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.70
+[355/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.75
+[356/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.80
+[357/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.05
+[358/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.85
+[359/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.10
+[360/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.15
+[361/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.90
+[362/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.20
+[363/500] done PC2_dpesc_v3_s2 torus3d_neighbor 0.95
+[364/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.25
+[365/500] done PC2_dpesc_v3_s2 torus3d_neighbor 1.00
+[366/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.30
+[367/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.35
+[368/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.40
+[369/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.45
+[370/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.50
+[371/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.55
+[372/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.60
+[373/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.65
+[374/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.70
+[375/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.75
+[376/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.05
+[377/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.80
+[378/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.10
+[379/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.85
+[380/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.15
+[381/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.20
+[382/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.90
+[383/500] done PC3_dpesc_v3_s3 torus3d_neighbor 0.95
+[384/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.25
+[385/500] done PC3_dpesc_v3_s3 torus3d_neighbor 1.00
+[386/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.30
+[387/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.35
+[388/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.40
+[389/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.45
+[390/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.50
+[391/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.55
+[392/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.60
+[393/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.65
+[394/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.70
+[395/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.75
+[396/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.80
+[397/500] done PC0_esc_v3 uniform_random 0.05
+[398/500] done PC0_esc_v3 uniform_random 0.10
+[399/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.85
+[400/500] done PC0_esc_v3 uniform_random 0.15
+[401/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.90
+[402/500] done PC0_esc_v3 uniform_random 0.20
+[403/500] done PC4_dpesc_v3_s4 torus3d_neighbor 0.95
+[404/500] done PC0_esc_v3 uniform_random 0.25
+[405/500] done PC4_dpesc_v3_s4 torus3d_neighbor 1.00
+[406/500] done PC0_esc_v3 uniform_random 0.30
+[407/500] done PC0_esc_v3 uniform_random 0.35
+[408/500] done PC0_esc_v3 uniform_random 0.40
+[409/500] done PC0_esc_v3 uniform_random 0.45
+[410/500] done PC0_esc_v3 uniform_random 0.50
+[411/500] done PC0_esc_v3 uniform_random 0.55
+[412/500] done PC0_esc_v3 uniform_random 0.60
+[413/500] done PC0_esc_v3 uniform_random 0.65
+[414/500] done PC0_esc_v3 uniform_random 0.70
+[415/500] done PC0_esc_v3 uniform_random 0.75
+[416/500] done PC1_dpesc_v3_s1 uniform_random 0.05
+[417/500] done PC0_esc_v3 uniform_random 0.80
+[418/500] done PC1_dpesc_v3_s1 uniform_random 0.10
+[419/500] done PC0_esc_v3 uniform_random 0.85
+[420/500] done PC1_dpesc_v3_s1 uniform_random 0.15
+[421/500] done PC1_dpesc_v3_s1 uniform_random 0.20
+[422/500] done PC0_esc_v3 uniform_random 0.90
+[423/500] done PC0_esc_v3 uniform_random 0.95
+[424/500] done PC1_dpesc_v3_s1 uniform_random 0.25
+[425/500] done PC0_esc_v3 uniform_random 1.00
+[426/500] done PC1_dpesc_v3_s1 uniform_random 0.30
+[427/500] done PC1_dpesc_v3_s1 uniform_random 0.35
+[428/500] done PC1_dpesc_v3_s1 uniform_random 0.40
+[429/500] done PC1_dpesc_v3_s1 uniform_random 0.45
+[430/500] done PC1_dpesc_v3_s1 uniform_random 0.50
+[431/500] done PC1_dpesc_v3_s1 uniform_random 0.55
+[432/500] done PC1_dpesc_v3_s1 uniform_random 0.60
+[433/500] done PC1_dpesc_v3_s1 uniform_random 0.65
+[434/500] done PC1_dpesc_v3_s1 uniform_random 0.70
+[435/500] done PC1_dpesc_v3_s1 uniform_random 0.75
+[436/500] done PC1_dpesc_v3_s1 uniform_random 0.80
+[437/500] done PC2_dpesc_v3_s2 uniform_random 0.05
+[438/500] done PC1_dpesc_v3_s1 uniform_random 0.85
+[439/500] done PC2_dpesc_v3_s2 uniform_random 0.10
+[440/500] done PC1_dpesc_v3_s1 uniform_random 0.90
+[441/500] done PC2_dpesc_v3_s2 uniform_random 0.15
+[442/500] done PC2_dpesc_v3_s2 uniform_random 0.20
+[443/500] done PC1_dpesc_v3_s1 uniform_random 0.95
+[444/500] done PC1_dpesc_v3_s1 uniform_random 1.00
+[445/500] done PC2_dpesc_v3_s2 uniform_random 0.25
+[446/500] done PC2_dpesc_v3_s2 uniform_random 0.30
+[447/500] done PC2_dpesc_v3_s2 uniform_random 0.35
+[448/500] done PC2_dpesc_v3_s2 uniform_random 0.40
+[449/500] done PC2_dpesc_v3_s2 uniform_random 0.45
+[450/500] done PC2_dpesc_v3_s2 uniform_random 0.50
+[451/500] done PC2_dpesc_v3_s2 uniform_random 0.55
+[452/500] done PC2_dpesc_v3_s2 uniform_random 0.60
+[453/500] done PC2_dpesc_v3_s2 uniform_random 0.65
+[454/500] done PC2_dpesc_v3_s2 uniform_random 0.70
+[455/500] done PC2_dpesc_v3_s2 uniform_random 0.75
+[456/500] done PC3_dpesc_v3_s3 uniform_random 0.05
+[457/500] done PC2_dpesc_v3_s2 uniform_random 0.80
+[458/500] done PC3_dpesc_v3_s3 uniform_random 0.10
+[459/500] done PC3_dpesc_v3_s3 uniform_random 0.15
+[460/500] done PC2_dpesc_v3_s2 uniform_random 0.85
+[461/500] done PC3_dpesc_v3_s3 uniform_random 0.20
+[462/500] done PC2_dpesc_v3_s2 uniform_random 0.90
+[463/500] done PC2_dpesc_v3_s2 uniform_random 0.95
+[464/500] done PC3_dpesc_v3_s3 uniform_random 0.25
+[465/500] done PC2_dpesc_v3_s2 uniform_random 1.00
+[466/500] done PC3_dpesc_v3_s3 uniform_random 0.30
+[467/500] done PC3_dpesc_v3_s3 uniform_random 0.35
+[468/500] done PC3_dpesc_v3_s3 uniform_random 0.40
+[469/500] done PC3_dpesc_v3_s3 uniform_random 0.45
+[470/500] done PC3_dpesc_v3_s3 uniform_random 0.50
+[471/500] done PC3_dpesc_v3_s3 uniform_random 0.55
+[472/500] done PC3_dpesc_v3_s3 uniform_random 0.60
+[473/500] done PC3_dpesc_v3_s3 uniform_random 0.65
+[474/500] done PC3_dpesc_v3_s3 uniform_random 0.70
+[475/500] done PC3_dpesc_v3_s3 uniform_random 0.75
+[476/500] done PC4_dpesc_v3_s4 uniform_random 0.05
+[477/500] done PC3_dpesc_v3_s3 uniform_random 0.80
+[478/500] done PC4_dpesc_v3_s4 uniform_random 0.10
+[479/500] done PC3_dpesc_v3_s3 uniform_random 0.85
+[480/500] done PC4_dpesc_v3_s4 uniform_random 0.15
+[481/500] done PC3_dpesc_v3_s3 uniform_random 0.90
+[482/500] done PC4_dpesc_v3_s4 uniform_random 0.20
+[483/500] done PC3_dpesc_v3_s3 uniform_random 0.95
+[484/500] done PC4_dpesc_v3_s4 uniform_random 0.25
+[485/500] done PC3_dpesc_v3_s3 uniform_random 1.00
+[486/500] done PC4_dpesc_v3_s4 uniform_random 0.30
+[487/500] done PC4_dpesc_v3_s4 uniform_random 0.35
+[488/500] done PC4_dpesc_v3_s4 uniform_random 0.40
+[489/500] done PC4_dpesc_v3_s4 uniform_random 0.45
+[490/500] done PC4_dpesc_v3_s4 uniform_random 0.50
+[491/500] done PC4_dpesc_v3_s4 uniform_random 0.55
+[492/500] done PC4_dpesc_v3_s4 uniform_random 0.60
+[493/500] done PC4_dpesc_v3_s4 uniform_random 0.65
+[494/500] done PC4_dpesc_v3_s4 uniform_random 0.70
+[495/500] done PC4_dpesc_v3_s4 uniform_random 0.75
+[496/500] done PC4_dpesc_v3_s4 uniform_random 0.80
+[497/500] done PC4_dpesc_v3_s4 uniform_random 0.85
+[498/500] done PC4_dpesc_v3_s4 uniform_random 0.90
+[499/500] done PC4_dpesc_v3_s4 uniform_random 0.95
+[500/500] done PC4_dpesc_v3_s4 uniform_random 1.00
+results written to /home/sockish/gem5/lab/lab4/physical_bound/results_physical.csv

@@ -1,0 +1,69 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{chen2011}
+\citation{duato1993}
+\citation{dally1987}
+\citation{duato1993}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\citation{dallytowles}
+\citation{dallytowles}
+\citation{chen2011}
+\citation{dally1987}
+\citation{duato1993}
+\citation{dally1992}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Background}{2}{section.2}\protected@file@percent }
+\newlabel{sec:background}{{2}{2}{Background}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Platform}{2}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Deadlock avoidance on torus rings}{2}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Design: the Dimension Pool}{2}{section.3}\protected@file@percent }
+\newlabel{sec:design}{{3}{2}{Design: the Dimension Pool}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Pool, cap, and tranches}{2}{subsection.3.1}\protected@file@percent }
+\newlabel{sec:pool}{{3.1}{2}{Pool, cap, and tranches}{subsection.3.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces The Dimension Pool at one router, dimension $X$. Each inport keeps its private per-VC FIFOs; only the \emph  {accounting} of the blue pooled slots is joined under the single budget $\mathit  {occ}(E)+\mathit  {occ}(W)<S$. Gray dedicated slots (DP-CBS) and the green escape VC (DP-ESC) are outside the pool.}}{3}{figure.1}\protected@file@percent }
+\newlabel{fig:concept}{{1}{3}{The Dimension Pool at one router, dimension $X$. Each inport keeps its private per-VC FIFOs; only the \emph {accounting} of the blue pooled slots is joined under the single budget $\mathit {occ}(E)+\mathit {occ}(W)<S$. Gray dedicated slots (DP-CBS) and the green escape VC (DP-ESC) are outside the pool}{figure.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Admission and retry semantics}{3}{subsection.3.2}\protected@file@percent }
+\newlabel{sec:retry}{{3.2}{3}{Admission and retry semantics}{subsection.3.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Where DP acts in the router pipeline. DP-ESC filters route candidates at route computation (with a belt check at switch allocation for the intervening race); DP-CBS checks admission in the switch allocator. The occupancy window spans allocation grant to credit return.}}{4}{figure.2}\protected@file@percent }
+\newlabel{fig:checks}{{2}{4}{Where DP acts in the router pipeline. DP-ESC filters route candidates at route computation (with a belt check at switch allocation for the intervening race); DP-CBS checks admission in the switch allocator. The occupancy window spans allocation grant to credit return}{figure.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Deadlock safety}{4}{subsection.3.3}\protected@file@percent }
+\newlabel{sec:safety}{{3.3}{4}{Deadlock safety}{subsection.3.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces The two safety compositions. In both, the pooled tranche may congest arbitrarily because every packet in it remains eligible at every hop for an unpooled resource that keeps its own invariant: the private CBS sub-ring (left --- Duato's construction transplanted from VC class to buffer depth) or the exempt escape VC (right --- Duato's theorem verbatim).}}{5}{figure.3}\protected@file@percent }
+\newlabel{fig:safety}{{3}{5}{The two safety compositions. In both, the pooled tranche may congest arbitrarily because every packet in it remains eligible at every hop for an unpooled resource that keeps its own invariant: the private CBS sub-ring (left --- Duato's construction transplanted from VC class to buffer depth) or the exempt escape VC (right --- Duato's theorem verbatim)}{figure.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Hardware cost}{5}{subsection.3.4}\protected@file@percent }
+\newlabel{sec:cost}{{3.4}{5}{Hardware cost}{subsection.3.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Implementation}{5}{section.4}\protected@file@percent }
+\newlabel{sec:impl}{{4}{5}{Implementation}{section.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Implementation map. Both bookkeeping sites address the downstream buffer owner symmetrically.}}{5}{table.1}\protected@file@percent }
+\newlabel{tab:impl}{{1}{5}{Implementation map. Both bookkeeping sites address the downstream buffer owner symmetrically}{table.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experiments}{6}{section.5}\protected@file@percent }
+\newlabel{sec:experiments}{{5}{6}{Experiments}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Methodology: equal usable storage}{6}{subsection.5.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Equal-usable-storage pairs. $C = 2\cdot \text  {dedicated} + S$ usable slots per dimension pair. The B $C{=}4$ and B $C{=}8$ pairs are swept but excluded from headline gains --- \S  \ref {sec:results} explains why they are uninformative; they return as attribution and regime-boundary evidence (\S  \ref {sec:validation}, \S  \ref {sec:analysis}).}}{6}{table.2}\protected@file@percent }
+\newlabel{tab:configs}{{2}{6}{Equal-usable-storage pairs. $C = 2\cdot \text {dedicated} + S$ usable slots per dimension pair. The B $C{=}4$ and B $C{=}8$ pairs are swept but excluded from headline gains --- \S \ref {sec:results} explains why they are uninformative; they return as attribution and regime-boundary evidence (\S \ref {sec:validation}, \S \ref {sec:analysis})}{table.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Results}{6}{subsection.5.2}\protected@file@percent }
+\newlabel{sec:results}{{5.2}{6}{Results}{subsection.5.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Peak stable throughput gain of DP over its equal-storage baseline, informative pairs only. ``ceil'': both sides saturate the 0.5 injection ceiling (no information). ``$\ge $'': the DP side is at the ceiling, so the gain is a lower bound.}}{6}{table.3}\protected@file@percent }
+\newlabel{tab:gains}{{3}{6}{Peak stable throughput gain of DP over its equal-storage baseline, informative pairs only. ``ceil'': both sides saturate the 0.5 injection ceiling (no information). ``$\ge $'': the DP side is at the ceiling, so the gain is a lower bound}{table.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Latency--throughput curves for the two headline cells (xopposite, $C{=}6$; stable points only, dotted verticals mark peak stable throughput). Left: DP-ESC, +21.3\%. Right: DP-CBS, +20.9\%. In both, DP holds flat latency past the baseline's collapse point at equal usable storage.}}{7}{figure.4}\protected@file@percent }
+\newlabel{fig:ltheadline}{{4}{7}{Latency--throughput curves for the two headline cells (xopposite, $C{=}6$; stable points only, dotted verticals mark peak stable throughput). Left: DP-ESC, +21.3\%. Right: DP-CBS, +20.9\%. In both, DP holds flat latency past the baseline's collapse point at equal usable storage}{figure.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Table~\ref {tab:gains}, drawn. Left: DP-ESC at $C{=}6$ across all five patterns; hatched bars are lower bounds (the DP side is at the 0.5 ceiling). Right: the informative DP-CBS cells, including the honest negative at $C{=}8$.}}{7}{figure.5}\protected@file@percent }
+\newlabel{fig:gains}{{5}{7}{Table~\ref {tab:gains}, drawn. Left: DP-ESC at $C{=}6$ across all five patterns; hatched bars are lower bounds (the DP side is at the 0.5 ceiling). Right: the informative DP-CBS cells, including the honest negative at $C{=}8$}{figure.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Validation and attribution}{8}{subsection.5.3}\protected@file@percent }
+\newlabel{sec:validation}{{5.3}{8}{Validation and attribution}{subsection.5.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces $S{=}1$ falsification (peak stable throughput). The neighbor row gives the honest attribution for one-sided B-family traffic: a hot-inport \emph  {lane-count} effect provided jointly by the pool budget and the escape exemption.}}{8}{table.4}\protected@file@percent }
+\newlabel{tab:s1}{{4}{8}{$S{=}1$ falsification (peak stable throughput). The neighbor row gives the honest attribution for one-sided B-family traffic: a hot-inport \emph {lane-count} effect provided jointly by the pool budget and the escape exemption}{table.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Pool activity vs.\ injection rate. Left: DP-CBS (A2) on two-sided transpose --- the pool is heavily exercised (\texttt  {dp\_shared\_grants}) and cap denials (\texttt  {dp\_pool\_blocks}) surge once the two directions start competing past saturation, confirming the counter works. On one-sided patterns the same counter is exactly zero: a denial requires the opposite side to hold budget. Right: DP-ESC (B4) on tornado --- \texttt  {dp\_pool\_blocks} is identically zero \emph  {by construction}, since pool pressure is absorbed by the route-time filter.}}{8}{figure.6}\protected@file@percent }
+\newlabel{fig:activity}{{6}{8}{Pool activity vs.\ injection rate. Left: DP-CBS (A2) on two-sided transpose --- the pool is heavily exercised (\texttt {dp\_shared\_grants}) and cap denials (\texttt {dp\_pool\_blocks}) surge once the two directions start competing past saturation, confirming the counter works. On one-sided patterns the same counter is exactly zero: a denial requires the opposite side to hold budget. Right: DP-ESC (B4) on tornado --- \texttt {dp\_pool\_blocks} is identically zero \emph {by construction}, since pool pressure is absorbed by the route-time filter}{figure.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Analysis}{8}{section.6}\protected@file@percent }
+\newlabel{sec:analysis}{{6}{8}{Analysis}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Why pooling wins}{8}{subsection.6.1}\protected@file@percent }
+\bibcite{dally1987}{1}
+\bibcite{dally1992}{2}
+\bibcite{duato1993}{3}
+\bibcite{chen2011}{4}
+\bibcite{dallytowles}{5}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Costs and regime boundaries}{9}{subsection.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{9}{section.7}\protected@file@percent }
+\gdef \@abspage@last{9}
