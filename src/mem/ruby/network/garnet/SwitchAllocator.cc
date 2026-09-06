@@ -31,6 +31,8 @@
 
 #include "mem/ruby/network/garnet/SwitchAllocator.hh"
 
+#include <algorithm>
+
 #include "debug/RubyNetwork.hh"
 #include "mem/ruby/network/garnet/GarnetNetwork.hh"
 #include "mem/ruby/network/garnet/InputUnit.hh"
@@ -268,6 +270,19 @@ SwitchAllocator::arbitrate_outports()
                     }
                 }
 
+                if (m_router->get_net_ptr()->isDPPhys() &&
+                    output_unit->get_direction() == "Local" &&
+                    (t_flit->get_type() == TAIL_ ||
+                     t_flit->get_type() == HEAD_TAIL_)) {
+                    InputUnit *arrival = input_unit;
+                    if (input_unit->get_direction() != "Local") {
+                        arrival = m_router->getInputUnit(
+                            input_unit->arrivalInport(invc));
+                    }
+                    m_router->get_net_ptr()->incrementDpphysReceived(
+                        arrival->get_direction());
+                }
+
                 // decrement credit in outvc
                 output_unit->decrement_credit(outvc);
 
@@ -417,9 +432,19 @@ SwitchAllocator::grantPoolCredit(int owner_inport, int vc)
     assert(m_router->dpphysPoolOwner(pair, vnet, pool_slot) ==
            owner_side);
 
+    int owner_count[2] = {0, 0};
+    for (int slot = 0; slot < net->dpphysP(); ++slot) {
+        const int owner = m_router->dpphysPoolOwner(pair, vnet, slot);
+        assert(owner == 0 || owner == 1);
+        owner_count[owner]++;
+    }
+    assert(owner_count[0] + owner_count[1] == net->dpphysP());
+
     int target_side = owner_side;
     if (net->dpphysPolicy() == "forced") {
         target_side = 1 - owner_side;
+    } else if (net->dpphysPolicy() == "rr") {
+        target_side = m_router->dpphysTakeRrSide(pair, vnet);
     } else if (net->dpphysPolicy() == "starve") {
         InputUnit *side_units[2];
         side_units[owner_side] = target;
@@ -463,20 +488,27 @@ SwitchAllocator::grantPoolCredit(int owner_inport, int vc)
         }
     }
 
+    if (target_side != owner_side &&
+        owner_count[target_side] >= net->dpphysCap()) {
+        target_side = owner_side;
+    }
+
     if (target_side != owner_side) {
         target = m_router->getPairedInputUnit(owner_inport);
         m_router->setDpphysPoolOwner(
             pair, vnet, pool_slot, target_side);
         net->incrementDpphysGrantsMigrated();
+        owner_count[owner_side]--;
+        owner_count[target_side]++;
     }
 
-    int owner_count[2] = {0, 0};
-    for (int slot = 0; slot < net->dpphysP(); ++slot) {
-        const int owner = m_router->dpphysPoolOwner(pair, vnet, slot);
-        assert(owner == 0 || owner == 1);
-        owner_count[owner]++;
-    }
     assert(owner_count[0] + owner_count[1] == net->dpphysP());
+    assert(owner_count[0] <= net->dpphysCap());
+    assert(owner_count[1] <= net->dpphysCap());
+    const int half = net->dpphysP() / 2;
+    net->updateDpphysBorrowedPeak(
+        std::max(std::max(0, owner_count[0] - half),
+                 std::max(0, owner_count[1] - half)));
     target->increment_credit(vc, true, curTick());
 }
 
@@ -528,6 +560,12 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc,
         if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
             output_available = output_unit->has_free_vc_class(
                 vnet, escape_request);
+            if (!output_available &&
+                m_router->get_net_ptr()->isDPPhys() &&
+                output_unit->get_direction() != "Local" &&
+                !escape_request) {
+                m_router->get_net_ptr()->incrementDpphysPoolFullBlock();
+            }
         } else {
             bool wormhole_control =
                 m_router->get_net_ptr()->isWormhole() &&

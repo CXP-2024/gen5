@@ -133,7 +133,7 @@ def define_options(parser):
         type=str,
         default="",
         help="""DP-Phys pooled-VC policy for routing-algorithm 4;
-            empty string disables (implemented: static)""",
+            empty string disables (static, rr, starve, forced)""",
     )
     parser.add_argument(
         "--dpphys-r",
@@ -142,6 +142,27 @@ def define_options(parser):
         default=2,
         help="""DP-Phys reserved VCs per side, escape VC included;
             the shared pool is vcs-per-vnet - 2*r""",
+    )
+    parser.add_argument(
+        "--dpphys-cap",
+        action="store",
+        type=int,
+        default=0,
+        help="""maximum pool credits owned by one side; zero selects P""",
+    )
+    parser.add_argument(
+        "--dpphys-return-base",
+        action="store",
+        type=float,
+        default=0.25,
+        help="""return timeout for g>=2 in RTT multiples""",
+    )
+    parser.add_argument(
+        "--dpphys-return-t1",
+        action="store",
+        type=float,
+        default=2.0,
+        help="""final-credit return timeout in RTT multiples; inf disables""",
     )
     parser.add_argument(
         "--routing-algorithm",
@@ -233,6 +254,9 @@ def init_network(options, network, InterfaceClass):
         network.enable_cbs = options.enable_cbs
         network.dpphys_policy = options.dpphys_policy
         network.dpphys_r = options.dpphys_r
+        network.dpphys_cap = options.dpphys_cap
+        network.dpphys_return_base = options.dpphys_return_base
+        network.dpphys_return_t1 = options.dpphys_return_t1
         if options.wormhole:
             network.buffers_per_ctrl_vc = 16
         network.ni_flit_size = options.link_width_bits / 8

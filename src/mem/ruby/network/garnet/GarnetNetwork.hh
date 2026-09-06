@@ -112,6 +112,12 @@ class GarnetNetwork : public Network
     bool isDPPhys() const { return !m_dpphys_policy.empty(); }
     const std::string &dpphysPolicy() const { return m_dpphys_policy; }
     int dpphysR() const { return m_dpphys_r; }
+    int dpphysCap() const
+    {
+        return m_dpphys_cap == 0 ? dpphysP() : m_dpphys_cap;
+    }
+    double dpphysReturnBase() const { return m_dpphys_return_base; }
+    double dpphysReturnT1() const { return m_dpphys_return_t1; }
 
     int
     dpphysP() const
@@ -134,6 +140,7 @@ class GarnetNetwork : public Network
     bool dpphysIsPoolOffset(int offset) const;
     int dpphysHomeSideOfOffset(int offset) const;
     static int dpphysPairOfDirn(const PortDirection &dirn);
+    static int dpphysDirnIndex(const PortDirection &dirn);
     int injectionVCs() const;
     void incrementDpphysGrantsMigrated()
     {
@@ -150,6 +157,23 @@ class GarnetNetwork : public Network
     void incrementDpphysReturnCreditConflict()
     {
         m_dpphys_return_credit_conflicts++;
+    }
+    void incrementDpphysPoolFullBlock()
+    {
+        m_dpphys_pool_full_blocks++;
+    }
+    void updateDpphysBorrowedPeak(int borrowed)
+    {
+        if (borrowed > m_dpphys_borrowed_peak_value) {
+            m_dpphys_borrowed_peak_value = borrowed;
+            m_dpphys_borrowed_peak = borrowed;
+        }
+    }
+    void incrementDpphysReceived(const PortDirection &dirn)
+    {
+        const int index = dpphysDirnIndex(dirn);
+        if (index >= 0)
+            m_dpphys_received_by_dir[index]++;
     }
 
     // for network
@@ -276,6 +300,9 @@ class GarnetNetwork : public Network
     int m_routing_algorithm;
     std::string m_dpphys_policy;
     uint32_t m_dpphys_r;
+    uint32_t m_dpphys_cap;
+    double m_dpphys_return_base;
+    double m_dpphys_return_t1;
     bool m_enable_fault_model;
 
     // CBS critical bubble registry: m_cbs_mark[router][dirn][vnet] is true
@@ -325,6 +352,10 @@ class GarnetNetwork : public Network
     statistics::Distribution m_dpphys_grant_queue_depth;
     statistics::Scalar m_dpphys_credits_returned;
     statistics::Scalar m_dpphys_return_credit_conflicts;
+    statistics::Scalar m_dpphys_pool_full_blocks;
+    statistics::Scalar m_dpphys_borrowed_peak;
+    statistics::Vector m_dpphys_received_by_dir;
+    int m_dpphys_borrowed_peak_value;
 
     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;

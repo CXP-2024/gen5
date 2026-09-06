@@ -66,6 +66,15 @@ class GarnetNetwork(RubyNetwork):
     dpphys_r = Param.UInt32(
         2, "DP-Phys reserved VCs per side (includes the escape VC)"
     )
+    dpphys_cap = Param.UInt32(
+        0, "DP-Phys maximum pool credits per side; zero selects P"
+    )
+    dpphys_return_base = Param.Float(
+        0.25, "DP-Phys return timeout for g>=2, in RTT multiples"
+    )
+    dpphys_return_t1 = Param.Float(
+        2.0, "DP-Phys final-credit return timeout, in RTT multiples"
+    )
     routing_algorithm = Param.Int(
         0,
         "0: Table, 1: XY, 2: Custom, 3: Torus3D DOR, "

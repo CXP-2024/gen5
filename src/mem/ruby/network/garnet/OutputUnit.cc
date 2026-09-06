@@ -32,6 +32,7 @@
 #include "mem/ruby/network/garnet/OutputUnit.hh"
 
 #include <algorithm>
+#include <cmath>
 
 #include "debug/RubyNetwork.hh"
 #include "mem/ruby/network/garnet/Credit.hh"
@@ -344,8 +345,14 @@ OutputUnit::tryDpphysReturn()
             continue;
         }
 
-        const int threshold = credits_held >= 2 ?
-            std::max(1, rtt / 4) : 2 * rtt;
+        const double timeout = credits_held >= 2 ?
+            net->dpphysReturnBase() : net->dpphysReturnT1();
+        if (std::isinf(timeout)) {
+            m_dpphys_return_wait[vnet] = 0;
+            continue;
+        }
+        const int threshold = std::max(
+            1, static_cast<int>(timeout * rtt));
         m_dpphys_return_wait[vnet]++;
         if (!returned && m_dpphys_return_wait[vnet] >= threshold) {
             assert(return_vc >= 0);

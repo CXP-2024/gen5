@@ -32,6 +32,7 @@
 #include "mem/ruby/network/garnet/GarnetNetwork.hh"
 
 #include <cassert>
+#include <cmath>
 
 #include "base/cast.hh"
 #include "base/compiler.hh"
@@ -78,6 +79,10 @@ GarnetNetwork::GarnetNetwork(const Params &p)
     m_routing_algorithm = p.routing_algorithm;
     m_dpphys_policy = p.dpphys_policy;
     m_dpphys_r = p.dpphys_r;
+    m_dpphys_cap = p.dpphys_cap;
+    m_dpphys_return_base = p.dpphys_return_base;
+    m_dpphys_return_t1 = p.dpphys_return_t1;
+    m_dpphys_borrowed_peak_value = 0;
     m_next_packet_id = 0;
 
     m_enable_fault_model = p.enable_fault_model;
@@ -229,6 +234,24 @@ GarnetNetwork::dpphysPairOfDirn(const PortDirection &dirn)
     return -1;
 }
 
+int
+GarnetNetwork::dpphysDirnIndex(const PortDirection &dirn)
+{
+    if (dirn == "East")
+        return 0;
+    if (dirn == "West")
+        return 1;
+    if (dirn == "North")
+        return 2;
+    if (dirn == "South")
+        return 3;
+    if (dirn == "Up")
+        return 4;
+    if (dirn == "Down")
+        return 5;
+    return -1;
+}
+
 // VCs an NI may inject into per vnet: the adaptive class of the Local
 // link (DP-Phys pins Local links to the baseline per-side budget).
 int
@@ -288,22 +311,33 @@ GarnetNetwork::init()
             "--dpphys-policy requires Torus3D adaptive routing "
             "(--routing-algorithm=4)");
         fatal_if(m_dpphys_policy != "static" &&
+                 m_dpphys_policy != "rr" &&
                  m_dpphys_policy != "forced" &&
                  m_dpphys_policy != "starve",
             "unimplemented --dpphys-policy '%s' "
-            "(available: static, starve, forced)",
+            "(available: static, rr, starve, forced)",
             m_dpphys_policy);
         fatal_if(m_escape_vcs != 1,
             "DP-Phys requires --escape-vcs=1: each side's reserve holds "
             "exactly one escape VC");
-        fatal_if(m_dpphys_r < 2,
-            "DP-Phys requires --dpphys-r >= 2: a side's reserve must "
-            "hold one adaptive and one escape VC");
+        fatal_if(m_dpphys_r < 1,
+            "DP-Phys requires --dpphys-r >= 1: a side's reserve must "
+            "hold its escape VC");
         const int pool = (int)m_max_vcs_per_vnet - 2 * (int)m_dpphys_r;
         fatal_if(pool < 2 || pool % 2 != 0,
             "DP-Phys requires --vcs-per-vnet == 2*dpphys-r + P with an "
             "even shared pool P >= 2 (got vcs=%d, r=%d)",
             m_max_vcs_per_vnet, m_dpphys_r);
+        const int cap = dpphysCap();
+        fatal_if(cap < (pool + 1) / 2 || cap > pool,
+            "DP-Phys requires ceil(P/2) <= --dpphys-cap <= P "
+            "(got cap=%d, P=%d)", cap, pool);
+        fatal_if(std::isnan(m_dpphys_return_base) ||
+                 m_dpphys_return_base < 0.0,
+            "--dpphys-return-base must be nonnegative");
+        fatal_if(std::isnan(m_dpphys_return_t1) ||
+                 m_dpphys_return_t1 < 0.0,
+            "--dpphys-return-t1 must be nonnegative or inf");
     }
 
     // Initialize topology specific parameters
@@ -875,6 +909,23 @@ GarnetNetwork::regStats()
     m_dpphys_return_credit_conflicts
         .name(name() + ".dpphys_return_credit_conflicts")
         .unit(count);
+    m_dpphys_pool_full_blocks
+        .name(name() + ".dpphys_pool_full_blocks")
+        .unit(count);
+    m_dpphys_borrowed_peak
+        .name(name() + ".dpphys_borrowed_peak")
+        .unit(count);
+    m_dpphys_received_by_dir
+        .init(6)
+        .name(name() + ".dpphys_received_by_dir")
+        .unit(count)
+        .flags(statistics::pdf | statistics::total |
+               statistics::oneline);
+    const char *dpphys_dir_names[6] = {
+        "East", "West", "North", "South", "Up", "Down"
+    };
+    for (int i = 0; i < 6; ++i)
+        m_dpphys_received_by_dir.subname(i, dpphys_dir_names[i]);
 
     // Links
     m_total_ext_in_link_utilization
