@@ -52,6 +52,7 @@ Import('*')
 if env['CONF']['PROTOCOL'] == 'None':
     Return()
 
+DebugFlag('DPPhys')
 DebugFlag('ProtocolTrace')
 DebugFlag('RubyCache')
 DebugFlag('RubyCacheTrace')

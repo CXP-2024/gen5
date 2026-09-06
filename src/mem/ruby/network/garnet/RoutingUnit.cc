@@ -420,6 +420,13 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
         return lookupRoutingTable(route.vnet, route.net_dest);
     };
     auto hasClassVC = [&](int outport, bool escape) {
+        const PortDirection outdir =
+            m_router->getOutputUnit(outport)->get_direction();
+        if (m_router->get_net_ptr()->dpPhysGoverns(vnet, outdir)) {
+            return escape ? m_router->dpPhysHasEscapeVC(outport, vnet) :
+                            m_router->dpPhysAdaptiveFreeCount(
+                                outport, vnet) > 0;
+        }
         const int first_offset = escape ? adaptive_vcs : 0;
         const int count = escape ? escape_vcs : adaptive_vcs;
         return m_router->getOutputUnit(outport)->has_free_vc(
@@ -476,8 +483,10 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
     auto *net = m_router->get_net_ptr();
     for (size_t i = 0; i < candidates.size(); i++) {
         const int outport = candidates[i];
-        const int credits = m_router->getOutputUnit(outport)->
-            free_vc_credit_count(vnet, 0, adaptive_vcs);
+        const int credits = net->dpPhysGoverns(vnet, candidate_dirns[i]) ?
+            m_router->dpPhysAdaptiveFreeCount(outport, vnet) :
+            m_router->getOutputUnit(outport)->free_vc_credit_count(
+                vnet, 0, adaptive_vcs);
         if (require_available && credits == 0)
             continue;
         // DP: skip outports whose downstream dimension pair is at its

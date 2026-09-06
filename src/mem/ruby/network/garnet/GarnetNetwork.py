@@ -69,6 +69,23 @@ class GarnetNetwork(RubyNetwork):
     dp_shared_cap = Param.UInt32(
         0, "joint cap on occupied pooled VCs across one dimension pair"
     )
+    enable_dpphys = Param.Bool(
+        False,
+        "equal-physical paired VC pools for opposing torus directions",
+    )
+    dpphys_private_vcs = Param.UInt32(
+        1, "private adaptive VCs permanently retained by each direction"
+    )
+    dpphys_pool_vcs = Param.UInt32(
+        4, "physical VC slots shared by each opposing direction pair"
+    )
+    dpphys_owner_cap = Param.UInt32(
+        3, "maximum shared-pool credits owned by either direction"
+    )
+    dpphys_policy = Param.String(
+        "pressure",
+        "pool-credit policy: rts, rr, or pressure",
+    )
     routing_algorithm = Param.Int(
         0,
         "0: Table, 1: XY, 2: Custom, 3: Torus3D DOR, "

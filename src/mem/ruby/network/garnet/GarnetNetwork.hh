@@ -32,6 +32,7 @@
 #ifndef __MEM_RUBY_NETWORK_GARNET_0_GARNETNETWORK_HH__
 #define __MEM_RUBY_NETWORK_GARNET_0_GARNETNETWORK_HH__
 
+#include <cstdint>
 #include <iostream>
 #include <vector>
 
@@ -212,6 +213,59 @@ class GarnetNetwork : public Network
                     int vnet, int vc_offset);
     void increment_dp_pool_block() { m_dp_pool_blocks++; }
 
+    // DP-Phys keeps the physical storage of two opposing inports equal to
+    // the baseline while allowing ownership of the pooled slots to migrate.
+    bool isDPPhysEnabled() const { return m_enable_dpphys; }
+    uint32_t getDPPhysPrivateVCs() const { return m_dpphys_private_vcs; }
+    uint32_t getDPPhysPoolVCs() const { return m_dpphys_pool_vcs; }
+    uint32_t getDPPhysOwnerCap() const { return m_dpphys_owner_cap; }
+    uint32_t getDPPhysLogicalVCs() const
+    {
+        return m_dpphys_private_vcs + m_dpphys_pool_vcs + m_escape_vcs;
+    }
+    bool dpPhysGoverns(int vnet, const PortDirection &direction) const;
+    bool dpPhysPhysicalPooledOffset(int vc_offset) const;
+    void dpPhysMapLogicalVC(int router_id,
+                            const PortDirection &true_inport, int vnet,
+                            int logical_offset,
+                            PortDirection &physical_inport,
+                            int &physical_offset) const;
+    bool dpPhysSlotOwnedBy(int router_id,
+                           const PortDirection &inport_dirn, int vnet,
+                           int slot) const;
+    bool dpPhysCanClaimSlot(int router_id,
+                            const PortDirection &inport_dirn, int vnet,
+                            int slot) const;
+    bool dpPhysPoolWriteAvailable(int router_id,
+                                  const PortDirection &inport_dirn,
+                                  int vnet, Tick when) const;
+    bool dpPhysClaimSlot(int router_id,
+                         const PortDirection &inport_dirn, int vnet,
+                         int slot, Tick when);
+    void dpPhysNoteOwnershipDemand(
+        int router_id, const PortDirection &inport_dirn, int vnet);
+    void dpPhysNoteFree(int router_id,
+                        const PortDirection &true_inport, int vnet,
+                        int logical_offset);
+    int dpPhysReservedUsed(int router_id,
+                           const PortDirection &inport_dirn, int vnet) const;
+    void increment_dp_phys_read_conflict()
+    { m_dpphys_pool_read_conflicts++; }
+    void increment_dp_phys_write_block()
+    { m_dpphys_pool_write_blocks++; }
+    void increment_dp_phys_pool_read(int direction)
+    {
+        m_dpphys_pool_reads++;
+        m_dpphys_pool_reads_by_dir[direction]++;
+    }
+    void increment_dp_phys_reserved_read(int direction)
+    {
+        m_dpphys_reserved_reads++;
+        m_dpphys_reserved_reads_by_dir[direction]++;
+    }
+    static int dpPhysDirnIndex(const PortDirection &direction)
+    { return cbsDirnIndex(direction); }
+
     void update_traffic_distribution(RouteInfo route);
     int getNextPacketID() { return m_next_packet_id++; }
 
@@ -224,6 +278,7 @@ class GarnetNetwork : public Network
     uint32_t m_torus_z;
     uint32_t m_ni_flit_size;
     uint32_t m_max_vcs_per_vnet;
+    uint32_t m_max_link_vcs_per_vnet;
     uint32_t m_escape_vcs;
     uint32_t m_buffers_per_ctrl_vc;
     bool m_wormhole;
@@ -231,6 +286,11 @@ class GarnetNetwork : public Network
     bool m_enable_dp;
     uint32_t m_dp_reserve;
     uint32_t m_dp_shared_cap;
+    bool m_enable_dpphys;
+    uint32_t m_dpphys_private_vcs;
+    uint32_t m_dpphys_pool_vcs;
+    uint32_t m_dpphys_owner_cap;
+    std::string m_dpphys_policy;
     uint32_t m_buffers_per_data_vc;
     int m_routing_algorithm;
     bool m_enable_fault_model;
@@ -248,6 +308,24 @@ class GarnetNetwork : public Network
     // pool checks is occ[d] + occ[d ^ 1] (E/W, N/S, U/D are adjacent).
     std::vector<std::vector<std::vector<int>>> m_dp_shared_occ;
     void dpInit();
+
+    // [router][dimension pair][vnet][slot]. Owner is the side index 0/1;
+    // busy remains true from upstream allocation until the physical slot
+    // drains. Round-robin and write-port state are per pair and vnet.
+    std::vector<std::vector<std::vector<std::vector<int>>>>
+        m_dpphys_owner;
+    std::vector<std::vector<std::vector<std::vector<bool>>>>
+        m_dpphys_busy;
+    std::vector<std::vector<std::vector<int>>> m_dpphys_rr_next;
+    std::vector<std::vector<std::vector<Tick>>> m_dpphys_write_tick;
+    std::vector<std::vector<std::vector<std::vector<uint64_t>>>>
+        m_dpphys_ownership_wait_start;
+    uint32_t m_dpphys_borrowed_peak_value;
+    uint64_t m_dpphys_ownership_wait_max_value;
+    void dpPhysInit();
+    int dpPhysOwnerCount(int router_id, int pair, int vnet, int side) const;
+    void dpPhysSetOwner(int router_id, int pair, int vnet, int slot,
+                        int side);
 
     // Statistical variables
     statistics::Vector m_packets_received;
@@ -287,6 +365,25 @@ class GarnetNetwork : public Network
     statistics::Scalar m_cbs_mark_moves;
     statistics::Scalar m_dp_pool_blocks;
     statistics::Scalar m_dp_shared_grants;
+    statistics::Scalar m_dpphys_pool_allocations;
+    statistics::Scalar m_dpphys_owned_pool_allocations;
+    statistics::Scalar m_dpphys_demand_reclaims;
+    statistics::Scalar m_dpphys_owner_migrations;
+    statistics::Scalar m_dpphys_release_handoffs;
+    statistics::Scalar m_dpphys_release_keeps;
+    statistics::Scalar m_dpphys_ownership_wait_starts;
+    statistics::Scalar m_dpphys_ownership_wait_completions;
+    statistics::Scalar m_dpphys_ownership_wait_cycles;
+    statistics::Scalar m_dpphys_ownership_wait_max;
+    statistics::Scalar m_dpphys_pool_write_blocks;
+    statistics::Scalar m_dpphys_pool_read_conflicts;
+    statistics::Scalar m_dpphys_pool_reads;
+    statistics::Scalar m_dpphys_reserved_reads;
+    statistics::Scalar m_dpphys_borrowed_peak;
+    statistics::Vector m_dpphys_pool_allocations_by_dir;
+    statistics::Vector m_dpphys_pool_reads_by_dir;
+    statistics::Vector m_dpphys_reserved_reads_by_dir;
+    statistics::Vector m_dpphys_migrations_to_dir;
 
     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;

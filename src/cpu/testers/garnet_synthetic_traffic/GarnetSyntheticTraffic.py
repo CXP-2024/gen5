@@ -41,6 +41,18 @@ class GarnetSyntheticTraffic(ClockedObject):
     torus_x = Param.UInt32(0, "routers in the X dimension of a 3D torus")
     torus_y = Param.UInt32(0, "routers in the Y dimension of a 3D torus")
     torus_z = Param.UInt32(0, "routers in the Z dimension of a 3D torus")
+    traffic_epoch_cycles = Param.UInt64(
+        64,
+        "Cycles before torus3d_x_reversal changes direction",
+    )
+    traffic_x_bias = Param.Float(
+        1.0,
+        "Probability of choosing +X in torus3d_xbiased traffic",
+    )
+    traffic_x_hops = Param.UInt32(
+        1,
+        "Minimal X distance used by torus3d_xbiased traffic",
+    )
     memory_size = Param.Int(65536, "memory size")
     sim_cycles = Param.Int(1000, "Number of simulation cycles")
     num_packets_max = Param.Int(

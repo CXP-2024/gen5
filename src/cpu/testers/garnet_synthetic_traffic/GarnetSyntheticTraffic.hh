@@ -29,6 +29,7 @@
 #ifndef __CPU_GARNET_SYNTHETIC_TRAFFIC_HH__
 #define __CPU_GARNET_SYNTHETIC_TRAFFIC_HH__
 
+#include <cstdint>
 #include <set>
 
 #include "base/statistics.hh"
@@ -55,6 +56,8 @@ enum TrafficType {BIT_COMPLEMENT_ = 0,
                   TORUS_3D_TORNADO_ = 9,
                   TORUS_3D_TRANSPOSE_ = 10,
                   TORUS_3D_XOPPOSITE_ = 11,
+                  TORUS_3D_X_REVERSAL_ = 12,
+                  TORUS_3D_XBIASED_ = 13,
                   NUM_TRAFFIC_PATTERNS_};
 
 class Packet;
@@ -126,6 +129,9 @@ class GarnetSyntheticTraffic : public ClockedObject
     int torusX;
     int torusY;
     int torusZ;
+    uint64_t trafficEpochCycles;
+    double trafficXBias;
+    uint32_t trafficXHops;
     Tick simCycles;
     int numPacketsMax;
     int numPacketsSent;

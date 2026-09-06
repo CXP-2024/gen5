@@ -63,6 +63,12 @@ class InputUnit : public Consumer
 
     inline PortDirection get_direction() { return m_direction; }
 
+    inline PortDirection
+    get_true_direction(int vc) const
+    {
+        return virtualChannels[vc].get_true_direction();
+    }
+
     inline void
     set_vc_idle(int vc, Tick curTime)
     {
@@ -112,6 +118,9 @@ class InputUnit : public Consumer
     }
 
     void increment_credit(int in_vc, bool free_signal, Tick curTime);
+    void enqueue_credit(int upstream_vc, bool free_signal, Tick curTime);
+
+    int count_active_vcs(int vnet, int first_offset, int count) const;
 
     inline flit*
     peekTopFlit(int vc)
@@ -164,6 +173,10 @@ class InputUnit : public Consumer
     void resetStats();
 
   private:
+    void accept_flit(flit *t_flit, int physical_vc,
+                     const PortDirection &true_direction,
+                     int credit_inport, int upstream_vc);
+
     Router *m_router;
     int m_id;
     PortDirection m_direction;

@@ -33,6 +33,7 @@
 
 #include "debug/RubyNetwork.hh"
 #include "mem/ruby/network/garnet/Credit.hh"
+#include "mem/ruby/network/garnet/GarnetNetwork.hh"
 #include "mem/ruby/network/garnet/Router.hh"
 
 namespace gem5
@@ -76,75 +77,116 @@ InputUnit::InputUnit(int id, PortDirection direction, Router *router)
 void
 InputUnit::wakeup()
 {
-    flit *t_flit;
     if (m_in_link->isReady(curTick())) {
-
-        t_flit = m_in_link->consumeLink();
+        flit *t_flit = m_in_link->consumeLink();
         DPRINTF(RubyNetwork, "Router[%d] Consuming:%s Width: %d Flit:%s\n",
-        m_router->get_id(), m_in_link->name(),
-        m_router->getBitWidth(), *t_flit);
+                m_router->get_id(), m_in_link->name(),
+                m_router->getBitWidth(), *t_flit);
         assert(t_flit->m_width == m_router->getBitWidth());
-        int vc = t_flit->get_vc();
         t_flit->increment_hops(); // for stats
 
-        int vnet = vc/m_vc_per_vnet;
-        bool is_head = (t_flit->get_type() == HEAD_) ||
-            (t_flit->get_type() == HEAD_TAIL_);
-        bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
-            m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
+        const int upstream_vc = t_flit->get_vc();
+        int physical_vc = upstream_vc;
+        InputUnit *target = this;
+        PortDirection target_direction = m_direction;
+        auto *net = m_router->get_net_ptr();
 
-        if (is_head) {
-            bool idle = virtualChannels[vc].get_state() == IDLE_;
-            assert(idle || wormhole_control);
-            if (idle)
-                set_vc_active(vc, curTick());
-            else
-                virtualChannels[vc].set_enqueue_time(curTick());
-
-            // Route computation for this vc
-            int outport = m_router->route_compute(t_flit->get_route(),
-                m_id, m_direction, vc);
-
-            if (wormhole_control)
-                t_flit->set_outport(outport);
-            else
-                // All flits in this packet use this output port.
-                grant_outport(vc, outport);
-
-        } else {
-            assert(virtualChannels[vc].get_state() == ACTIVE_);
+        // Internal DP-Phys links expose a logical namespace containing all
+        // four pool slots. Map that namespace back onto the fixed four-slot
+        // physical layout, redirecting borrowed slots to the InputUnit that
+        // physically owns the selected pool entry.
+        if (net->isDPPhysEnabled() && m_direction != "Local") {
+            const int logical_vcs = net->getDPPhysLogicalVCs();
+            const int vnet = t_flit->get_vnet();
+            assert(upstream_vc / logical_vcs == vnet);
+            const int logical_offset = upstream_vc % logical_vcs;
+            int physical_offset = logical_offset;
+            if (net->dpPhysGoverns(vnet, m_direction)) {
+                net->dpPhysMapLogicalVC(
+                    m_router->get_id(), m_direction, vnet, logical_offset,
+                    target_direction, physical_offset);
+            } else {
+                // Data vnets use the ordinary physical VC offsets; only the
+                // per-vnet stride on the internal link is enlarged.
+                assert(logical_offset < m_vc_per_vnet);
+            }
+            target = m_router->getInputUnitByDirection(target_direction);
+            physical_vc = vnet * m_vc_per_vnet + physical_offset;
         }
 
+        target->accept_flit(t_flit, physical_vc, m_direction, m_id,
+                            upstream_vc);
 
-        // Buffer the flit
-        virtualChannels[vc].insertFlit(t_flit);
-
-        // number of writes same as reads
-        // any flit that is written will be read only once
-        m_num_buffer_writes[vnet]++;
-        m_num_buffer_reads[vnet]++;
-
-        Cycles pipe_stages = m_router->get_pipe_stages();
-        if (pipe_stages == 1) {
-            // 1-cycle router
-            // Flit goes for SA directly
-            t_flit->advance_stage(SA_, curTick());
-        } else {
-            assert(pipe_stages > 1);
-            // Router delay is modeled by making flit wait in buffer for
-            // (pipe_stages cycles - 1) cycles before going for SA
-
-            Cycles wait_time = pipe_stages - Cycles(1);
-            t_flit->advance_stage(SA_, m_router->clockEdge(wait_time));
-
-            // Wakeup the router in that cycle to perform SA
-            m_router->schedule_wakeup(Cycles(wait_time));
-        }
-
-        if (m_in_link->isReady(curTick())) {
+        if (m_in_link->isReady(curTick()))
             m_router->schedule_wakeup(Cycles(1));
-        }
     }
+}
+
+void
+InputUnit::accept_flit(flit *t_flit, int vc,
+                       const PortDirection &true_direction,
+                       int credit_inport, int upstream_vc)
+{
+    assert(vc >= 0 && vc < static_cast<int>(virtualChannels.size()));
+    const int vnet = t_flit->get_vnet();
+    assert(vc / m_vc_per_vnet == vnet);
+    const bool is_head = t_flit->get_type() == HEAD_ ||
+                         t_flit->get_type() == HEAD_TAIL_;
+    const bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
+        m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
+
+    if (is_head) {
+        const bool idle = virtualChannels[vc].get_state() == IDLE_;
+        assert(idle || wormhole_control);
+        if (idle) {
+            virtualChannels[vc].set_ingress_metadata(
+                credit_inport, upstream_vc, true_direction);
+            set_vc_active(vc, curTick());
+        } else {
+            virtualChannels[vc].set_enqueue_time(curTick());
+        }
+
+        const int outport = m_router->route_compute(
+            t_flit->get_route(), m_id, true_direction, vc);
+        if (wormhole_control)
+            t_flit->set_outport(outport);
+        else
+            grant_outport(vc, outport);
+    } else {
+        assert(virtualChannels[vc].get_state() == ACTIVE_);
+    }
+
+    // From this point onward the router indexes the physical VC.
+    t_flit->set_vc(vc);
+    virtualChannels[vc].insertFlit(t_flit);
+
+    // number of writes same as reads: every buffered flit is read once.
+    m_num_buffer_writes[vnet]++;
+    m_num_buffer_reads[vnet]++;
+
+    const Cycles pipe_stages = m_router->get_pipe_stages();
+    if (pipe_stages == 1) {
+        t_flit->advance_stage(SA_, curTick());
+    } else {
+        assert(pipe_stages > 1);
+        const Cycles wait_time = pipe_stages - Cycles(1);
+        t_flit->advance_stage(SA_, m_router->clockEdge(wait_time));
+        m_router->schedule_wakeup(wait_time);
+    }
+}
+
+int
+InputUnit::count_active_vcs(int vnet, int first_offset, int count) const
+{
+    assert(first_offset >= 0 && count >= 0);
+    assert(first_offset + count <= m_vc_per_vnet);
+    int active = 0;
+    const int base = vnet * m_vc_per_vnet;
+    for (int offset = first_offset; offset < first_offset + count; ++offset) {
+        if (virtualChannels[base + offset].get_state() != IDLE_)
+            active++;
+    }
+    return active;
 }
 
 // Send a credit back to upstream router for this VC.
@@ -152,9 +194,32 @@ InputUnit::wakeup()
 void
 InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime)
 {
+    int credit_inport = m_id;
+    int upstream_vc = in_vc;
+    auto *net = m_router->get_net_ptr();
+    if (net->isDPPhysEnabled() &&
+        virtualChannels[in_vc].get_credit_inport() >= 0) {
+        credit_inport = virtualChannels[in_vc].get_credit_inport();
+        upstream_vc = virtualChannels[in_vc].get_upstream_vc();
+        if (free_signal) {
+            const int vnet = in_vc / m_vc_per_vnet;
+            net->dpPhysNoteFree(
+                m_router->get_id(),
+                virtualChannels[in_vc].get_true_direction(), vnet,
+                upstream_vc % net->getDPPhysLogicalVCs());
+        }
+    }
+    m_router->getInputUnit(credit_inport)->enqueue_credit(
+        upstream_vc, free_signal, curTime);
+}
+
+void
+InputUnit::enqueue_credit(int upstream_vc, bool free_signal, Tick curTime)
+{
     DPRINTF(RubyNetwork, "Router[%d]: Sending a credit vc:%d free:%d to %s\n",
-    m_router->get_id(), in_vc, free_signal, m_credit_link->name());
-    Credit *t_credit = new Credit(in_vc, free_signal, curTime);
+            m_router->get_id(), upstream_vc, free_signal,
+            m_credit_link->name());
+    Credit *t_credit = new Credit(upstream_vc, free_signal, curTime);
     creditQueue.insert(t_credit);
     m_credit_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
 }

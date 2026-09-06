@@ -27,6 +27,7 @@
 # Author: Tushar Krishna
 
 import m5
+from _m5.core import seedRandom
 from m5.objects import *
 from m5.defines import buildEnv
 from m5.util import addToPath
@@ -61,7 +62,30 @@ parser.add_argument(
         "torus3d_tornado",
         "torus3d_transpose",
         "torus3d_xopposite",
+        "torus3d_x_reversal",
+        "torus3d_xbiased",
     ],
+)
+
+parser.add_argument(
+    "--traffic-epoch-cycles",
+    type=int,
+    default=64,
+    help="Cycles per direction in torus3d_x_reversal traffic",
+)
+
+parser.add_argument(
+    "--traffic-x-bias",
+    type=float,
+    default=1.0,
+    help="Probability of choosing +X in torus3d_xbiased traffic",
+)
+
+parser.add_argument(
+    "--traffic-x-hops",
+    type=int,
+    default=1,
+    help="Minimal X distance used by torus3d_xbiased traffic",
 )
 
 parser.add_argument(
@@ -85,6 +109,13 @@ parser.add_argument(
 
 parser.add_argument(
     "--sim-cycles", type=int, default=1000, help="Number of simulation cycles"
+)
+
+parser.add_argument(
+    "--random-seed",
+    type=int,
+    default=1,
+    help="Seed for Garnet synthetic-traffic random injection decisions",
 )
 
 parser.add_argument(
@@ -128,6 +159,8 @@ Ruby.define_options(parser)
 
 args = parser.parse_args()
 
+seedRandom(args.random_seed)
+
 cpus = [
     GarnetSyntheticTraffic(
         num_packets_max=args.num_packets_max,
@@ -142,6 +175,9 @@ cpus = [
         torus_x=args.torus_x,
         torus_y=args.torus_y,
         torus_z=args.torus_z,
+        traffic_epoch_cycles=args.traffic_epoch_cycles,
+        traffic_x_bias=args.traffic_x_bias,
+        traffic_x_hops=args.traffic_x_hops,
     )
     for i in range(args.num_cpus)
 ]

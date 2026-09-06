@@ -32,15 +32,18 @@
 #include "mem/ruby/network/garnet/GarnetNetwork.hh"
 
 #include <cassert>
+#include <limits>
 
 #include "base/cast.hh"
 #include "base/compiler.hh"
+#include "debug/DPPhys.hh"
 #include "debug/RubyNetwork.hh"
 #include "mem/ruby/common/NetDest.hh"
 #include "mem/ruby/network/MessageBuffer.hh"
 #include "mem/ruby/network/garnet/CommonTypes.hh"
 #include "mem/ruby/network/garnet/CreditLink.hh"
 #include "mem/ruby/network/garnet/GarnetLink.hh"
+#include "mem/ruby/network/garnet/InputUnit.hh"
 #include "mem/ruby/network/garnet/NetworkInterface.hh"
 #include "mem/ruby/network/garnet/NetworkLink.hh"
 #include "mem/ruby/network/garnet/Router.hh"
@@ -70,6 +73,7 @@ GarnetNetwork::GarnetNetwork(const Params &p)
     m_torus_z = p.torus_z;
     m_ni_flit_size = p.ni_flit_size;
     m_max_vcs_per_vnet = 0;
+    m_max_link_vcs_per_vnet = 0;
     m_escape_vcs = p.escape_vcs;
     m_buffers_per_data_vc = p.buffers_per_data_vc;
     m_buffers_per_ctrl_vc = p.buffers_per_ctrl_vc;
@@ -78,6 +82,13 @@ GarnetNetwork::GarnetNetwork(const Params &p)
     m_enable_dp = p.enable_dp;
     m_dp_reserve = p.dp_reserve;
     m_dp_shared_cap = p.dp_shared_cap;
+    m_enable_dpphys = p.enable_dpphys;
+    m_dpphys_private_vcs = p.dpphys_private_vcs;
+    m_dpphys_pool_vcs = p.dpphys_pool_vcs;
+    m_dpphys_owner_cap = p.dpphys_owner_cap;
+    m_dpphys_policy = p.dpphys_policy;
+    m_dpphys_borrowed_peak_value = 0;
+    m_dpphys_ownership_wait_max_value = 0;
     m_routing_algorithm = p.routing_algorithm;
     m_next_packet_id = 0;
 
@@ -194,12 +205,58 @@ GarnetNetwork::init()
             (m_routing_algorithm == TORUS_3D_DOR_) ?
                 m_max_vcs_per_vnet - m_dp_reserve :
                 m_max_vcs_per_vnet - m_escape_vcs;
+        const uint32_t max_pool_cap = 2 * pooled_per_inport;
         fatal_if(m_dp_shared_cap < 1 ||
-                 m_dp_shared_cap > 2 * pooled_per_inport,
-            "--dp-shared-cap must lie in [1, %u] (twice the pooled VCs "
-            "per inport); a cap of %u pools nothing or exceeds storage",
-            2 * pooled_per_inport, m_dp_shared_cap);
+                 m_dp_shared_cap > max_pool_cap,
+            "--dp-shared-cap must lie in [1, %u]; a cap of %u pools "
+            "nothing or exceeds the dimension-pair storage",
+            max_pool_cap, m_dp_shared_cap);
         dpInit();
+    }
+
+    if (m_enable_dpphys) {
+        fatal_if(m_enable_dp,
+            "--enable-dpphys and --enable-dp are mutually exclusive");
+        fatal_if(torus_routers == 0 || m_torus_x < 3 || m_torus_y < 3 ||
+                 m_torus_z < 3,
+            "--enable-dpphys requires Torus3D dimensions >= 3");
+        fatal_if(m_routing_algorithm != TORUS_3D_ADAPTIVE_,
+            "--enable-dpphys requires adaptive Torus3D routing "
+            "(--routing-algorithm=4)");
+        fatal_if(m_enable_cbs || m_wormhole,
+            "--enable-dpphys cannot be combined with CBS or wormhole mode");
+        fatal_if(m_escape_vcs < 1,
+            "--enable-dpphys requires at least one private escape VC");
+        fatal_if(m_dpphys_private_vcs < 1 ||
+                 m_dpphys_pool_vcs < 2 || m_dpphys_pool_vcs % 2 != 0,
+            "DP-Phys requires at least one private adaptive VC and a "
+            "positive even pool size");
+        const uint32_t expected_physical = m_dpphys_private_vcs +
+            m_dpphys_pool_vcs / 2 + m_escape_vcs;
+        const uint32_t reserved_vcs =
+            m_dpphys_private_vcs + m_escape_vcs;
+        fatal_if(reserved_vcs != m_dpphys_pool_vcs / 2,
+            "DP-Phys phase RR requires private + escape (%u) to equal "
+            "half of the pool (%u)", reserved_vcs,
+            m_dpphys_pool_vcs / 2);
+        fatal_if(m_max_vcs_per_vnet != expected_physical,
+            "DP-Phys physical layout requires --vcs-per-vnet=%u "
+            "(private %u + local pool half %u + escape %u), got %u",
+            expected_physical, m_dpphys_private_vcs,
+            m_dpphys_pool_vcs / 2, m_escape_vcs,
+            m_max_vcs_per_vnet);
+        fatal_if(m_buffers_per_ctrl_vc != 1,
+            "DP-Phys currently requires one-flit control VC storage");
+        fatal_if(m_dpphys_owner_cap < m_dpphys_pool_vcs / 2 ||
+                 m_dpphys_owner_cap > m_dpphys_pool_vcs,
+            "--dpphys-owner-cap must lie in [%u, %u]",
+            m_dpphys_pool_vcs / 2, m_dpphys_pool_vcs);
+        fatal_if(m_dpphys_policy != "rts" &&
+                 m_dpphys_policy != "rr" &&
+                 m_dpphys_policy != "pressure",
+            "--dpphys-policy must be rts, rr, or pressure, got '%s'",
+            m_dpphys_policy);
+        dpPhysInit();
     }
 
     // Initialize topology specific parameters
@@ -352,9 +409,9 @@ GarnetNetwork::cbsMoveMark(int from_router, const PortDirection &from_inport,
 }
 
 /*
- * Dimension Pool (DP) support. The pooled VCs of the two opposing inports
- * of one dimension form a joint pool capped at dp_shared_cap occupants;
- * admission into a pooled VC is denied when the pair is at its cap.
+ * Dimension Pool (DP) support. Pooled VCs of the two opposing inports of one
+ * dimension form a joint pool. Admission is denied when the pair reaches its
+ * cap.
  * Deadlock freedom never depends on the pool: the dedicated window
  * [0, dp_reserve) runs CBS on algorithm 3, the escape window on
  * algorithm 4 stays exempt. Occupancy is counted at allocation grant
@@ -422,6 +479,307 @@ GarnetNetwork::dpInit()
             std::vector<int>(m_virtual_networks, 0)));
 }
 
+bool
+GarnetNetwork::dpPhysGoverns(int vnet,
+                             const PortDirection &direction) const
+{
+    return m_enable_dpphys && cbsDirnIndex(direction) >= 0 &&
+           m_vnet_type[vnet] == CTRL_VNET_;
+}
+
+bool
+GarnetNetwork::dpPhysPhysicalPooledOffset(int vc_offset) const
+{
+    return vc_offset >= static_cast<int>(m_dpphys_private_vcs) &&
+           vc_offset < static_cast<int>(m_dpphys_private_vcs +
+                                        m_dpphys_pool_vcs / 2);
+}
+
+void
+GarnetNetwork::dpPhysMapLogicalVC(
+    int router_id, const PortDirection &true_inport, int vnet,
+    int logical_offset, PortDirection &physical_inport,
+    int &physical_offset) const
+{
+    const int d = cbsDirnIndex(true_inport);
+    assert(d >= 0 && router_id >= 0 && router_id < m_routers.size());
+    const int pair = d / 2;
+    const int side = d % 2;
+    physical_inport = true_inport;
+
+    if (logical_offset < static_cast<int>(m_dpphys_private_vcs)) {
+        physical_offset = logical_offset;
+        return;
+    }
+
+    const int pool_begin = m_dpphys_private_vcs;
+    const int pool_end = pool_begin + m_dpphys_pool_vcs;
+    if (logical_offset < pool_end) {
+        const int slot = logical_offset - pool_begin;
+        assert(m_dpphys_busy[router_id][pair][vnet][slot]);
+        assert(m_dpphys_owner[router_id][pair][vnet][slot] == side);
+        const int physical_side = slot / (m_dpphys_pool_vcs / 2);
+        const int physical_dir = pair * 2 + physical_side;
+        static const PortDirection directions[6] = {
+            "East", "West", "North", "South", "Up", "Down"
+        };
+        physical_inport = directions[physical_dir];
+        physical_offset = m_dpphys_private_vcs +
+                          slot % (m_dpphys_pool_vcs / 2);
+        return;
+    }
+
+    const int escape_offset = logical_offset - pool_end;
+    assert(escape_offset >= 0 &&
+           escape_offset < static_cast<int>(m_escape_vcs));
+    physical_offset = m_dpphys_private_vcs + m_dpphys_pool_vcs / 2 +
+                      escape_offset;
+}
+
+int
+GarnetNetwork::dpPhysOwnerCount(int router_id, int pair, int vnet,
+                                int side) const
+{
+    int count = 0;
+    for (int owner : m_dpphys_owner[router_id][pair][vnet])
+        count += owner == side;
+    return count;
+}
+
+bool
+GarnetNetwork::dpPhysSlotOwnedBy(
+    int router_id, const PortDirection &inport_dirn, int vnet, int slot) const
+{
+    const int d = cbsDirnIndex(inport_dirn);
+    assert(d >= 0 && slot >= 0 &&
+           slot < static_cast<int>(m_dpphys_pool_vcs));
+    return m_dpphys_owner[router_id][d / 2][vnet][slot] == d % 2;
+}
+
+bool
+GarnetNetwork::dpPhysCanClaimSlot(
+    int router_id, const PortDirection &inport_dirn, int vnet, int slot) const
+{
+    const int d = cbsDirnIndex(inport_dirn);
+    assert(d >= 0 && slot >= 0 &&
+           slot < static_cast<int>(m_dpphys_pool_vcs));
+    const int pair = d / 2;
+    const int side = d % 2;
+    if (m_dpphys_busy[router_id][pair][vnet][slot])
+        return false;
+    if (m_dpphys_owner[router_id][pair][vnet][slot] == side)
+        return true;
+    return m_dpphys_policy == "pressure" &&
+           dpPhysOwnerCount(router_id, pair, vnet, side) <
+               static_cast<int>(m_dpphys_owner_cap);
+}
+
+bool
+GarnetNetwork::dpPhysPoolWriteAvailable(
+    int router_id, const PortDirection &inport_dirn, int vnet,
+    Tick when) const
+{
+    const int d = cbsDirnIndex(inport_dirn);
+    assert(d >= 0);
+    return m_dpphys_write_tick[router_id][d / 2][vnet] != when;
+}
+
+void
+GarnetNetwork::dpPhysSetOwner(int router_id, int pair, int vnet,
+                              int slot, int side)
+{
+    int &owner = m_dpphys_owner[router_id][pair][vnet][slot];
+    if (owner == side)
+        return;
+    owner = side;
+    m_dpphys_owner_migrations++;
+    m_dpphys_migrations_to_dir[pair * 2 + side]++;
+    uint64_t &wait_start =
+        m_dpphys_ownership_wait_start[router_id][pair][vnet][side];
+    if (wait_start != std::numeric_limits<uint64_t>::max()) {
+        const uint64_t delay =
+            static_cast<uint64_t>(curCycle()) - wait_start;
+        m_dpphys_ownership_wait_completions++;
+        m_dpphys_ownership_wait_cycles += delay;
+        if (delay > m_dpphys_ownership_wait_max_value) {
+            m_dpphys_ownership_wait_max_value = delay;
+            m_dpphys_ownership_wait_max = delay;
+        }
+        wait_start = std::numeric_limits<uint64_t>::max();
+    }
+    const int borrowed = dpPhysOwnerCount(router_id, pair, vnet, side) -
+                         static_cast<int>(m_dpphys_pool_vcs / 2);
+    if (borrowed > static_cast<int>(m_dpphys_borrowed_peak_value)) {
+        m_dpphys_borrowed_peak_value = borrowed;
+        m_dpphys_borrowed_peak = borrowed;
+    }
+}
+
+bool
+GarnetNetwork::dpPhysClaimSlot(
+    int router_id, const PortDirection &inport_dirn, int vnet, int slot,
+    Tick when)
+{
+    const int d = cbsDirnIndex(inport_dirn);
+    assert(d >= 0);
+    const int pair = d / 2;
+    const int side = d % 2;
+    if (!dpPhysPoolWriteAvailable(
+            router_id, inport_dirn, vnet, when)) {
+        m_dpphys_pool_write_blocks++;
+        return false;
+    }
+    if (!dpPhysCanClaimSlot(router_id, inport_dirn, vnet, slot))
+        return false;
+    const bool demand_reclaim =
+        m_dpphys_owner[router_id][pair][vnet][slot] != side;
+    if (demand_reclaim) {
+        dpPhysNoteOwnershipDemand(router_id, inport_dirn, vnet);
+        DPRINTF(DPPhys, "owner-change tick=%llu cycle=%llu router=%d "
+                "pair=%d vnet=%d slot=%d from=%d to=%d cause=demand\n",
+                static_cast<unsigned long long>(curTick()),
+                static_cast<unsigned long long>(curCycle()), router_id,
+                pair, vnet, slot, side ^ 1, side);
+    }
+    dpPhysSetOwner(router_id, pair, vnet, slot, side);
+    m_dpphys_busy[router_id][pair][vnet][slot] = true;
+    m_dpphys_write_tick[router_id][pair][vnet] = when;
+    m_dpphys_pool_allocations++;
+    m_dpphys_pool_allocations_by_dir[d]++;
+    if (demand_reclaim)
+        m_dpphys_demand_reclaims++;
+    else
+        m_dpphys_owned_pool_allocations++;
+    return true;
+}
+
+void
+GarnetNetwork::dpPhysNoteOwnershipDemand(
+    int router_id, const PortDirection &inport_dirn, int vnet)
+{
+    const int d = cbsDirnIndex(inport_dirn);
+    assert(d >= 0);
+    const int pair = d / 2;
+    const int side = d % 2;
+    if (dpPhysOwnerCount(router_id, pair, vnet, side) >=
+        static_cast<int>(m_dpphys_owner_cap)) {
+        return;
+    }
+
+    uint64_t &wait_start =
+        m_dpphys_ownership_wait_start[router_id][pair][vnet][side];
+    if (wait_start == std::numeric_limits<uint64_t>::max()) {
+        wait_start = static_cast<uint64_t>(curCycle());
+        m_dpphys_ownership_wait_starts++;
+    }
+}
+
+int
+GarnetNetwork::dpPhysReservedUsed(
+    int router_id, const PortDirection &inport_dirn, int vnet) const
+{
+    auto *input = m_routers[router_id]->getInputUnitByDirection(inport_dirn);
+    int used = input->count_active_vcs(vnet, 0, m_dpphys_private_vcs);
+    const int escape_begin = m_dpphys_private_vcs +
+                             m_dpphys_pool_vcs / 2;
+    used += input->count_active_vcs(vnet, escape_begin, m_escape_vcs);
+    return used;
+}
+
+void
+GarnetNetwork::dpPhysNoteFree(
+    int router_id, const PortDirection &true_inport, int vnet,
+    int logical_offset)
+{
+    const int pool_begin = m_dpphys_private_vcs;
+    const int slot = logical_offset - pool_begin;
+    if (!dpPhysGoverns(vnet, true_inport) || slot < 0 ||
+        slot >= static_cast<int>(m_dpphys_pool_vcs))
+        return;
+
+    const int d = cbsDirnIndex(true_inport);
+    const int pair = d / 2;
+    const int side = d % 2;
+    assert(m_dpphys_busy[router_id][pair][vnet][slot]);
+    assert(m_dpphys_owner[router_id][pair][vnet][slot] == side);
+    m_dpphys_busy[router_id][pair][vnet][slot] = false;
+
+    int target = side;
+    if (m_dpphys_policy == "rr") {
+        target = m_dpphys_rr_next[router_id][pair][vnet];
+        m_dpphys_rr_next[router_id][pair][vnet] ^= 1;
+    } else if (m_dpphys_policy == "pressure") {
+        const int peer = side ^ 1;
+        static const PortDirection directions[6] = {
+            "East", "West", "North", "South", "Up", "Down"
+        };
+        const int own_pressure = dpPhysReservedUsed(
+            router_id, directions[pair * 2 + side], vnet);
+        const int peer_pressure = dpPhysReservedUsed(
+            router_id, directions[pair * 2 + peer], vnet);
+        // Equal pressure is deliberately sticky: a returning credit remains
+        // with the last user, which preserves burst/packet locality.
+        if (peer_pressure > own_pressure)
+            target = peer;
+    }
+
+    if (target != side &&
+        dpPhysOwnerCount(router_id, pair, vnet, target) >=
+            static_cast<int>(m_dpphys_owner_cap))
+        target = side;
+    if (target == side)
+        m_dpphys_release_keeps++;
+    else {
+        m_dpphys_release_handoffs++;
+        DPRINTF(DPPhys, "owner-change tick=%llu cycle=%llu router=%d "
+                "pair=%d vnet=%d slot=%d from=%d to=%d cause=release\n",
+                static_cast<unsigned long long>(curTick()),
+                static_cast<unsigned long long>(curCycle()), router_id,
+                pair, vnet, slot, side, target);
+    }
+    dpPhysSetOwner(router_id, pair, vnet, slot, target);
+}
+
+void
+GarnetNetwork::dpPhysInit()
+{
+    const int routers = m_routers.size();
+    const int pairs = 3;
+    m_dpphys_owner.assign(routers,
+        std::vector<std::vector<std::vector<int>>>(pairs,
+            std::vector<std::vector<int>>(m_virtual_networks,
+                std::vector<int>(m_dpphys_pool_vcs, 0))));
+    m_dpphys_busy.assign(routers,
+        std::vector<std::vector<std::vector<bool>>>(pairs,
+            std::vector<std::vector<bool>>(m_virtual_networks,
+                std::vector<bool>(m_dpphys_pool_vcs, false))));
+    m_dpphys_rr_next.assign(routers,
+        std::vector<std::vector<int>>(pairs,
+            std::vector<int>(m_virtual_networks, 0)));
+    m_dpphys_write_tick.assign(routers,
+        std::vector<std::vector<Tick>>(pairs,
+            std::vector<Tick>(m_virtual_networks,
+                std::numeric_limits<Tick>::max())));
+    m_dpphys_ownership_wait_start.assign(routers,
+        std::vector<std::vector<std::vector<uint64_t>>>(pairs,
+            std::vector<std::vector<uint64_t>>(m_virtual_networks,
+                std::vector<uint64_t>(
+                    2, std::numeric_limits<uint64_t>::max()))));
+
+    // Start at the private baseline: each direction owns the two pool
+    // entries physically located in its own InputUnit.
+    for (int router = 0; router < routers; ++router) {
+        for (int pair = 0; pair < pairs; ++pair) {
+            for (int vnet = 0; vnet < m_virtual_networks; ++vnet) {
+                for (int slot = 0; slot < m_dpphys_pool_vcs; ++slot) {
+                    m_dpphys_owner[router][pair][vnet][slot] =
+                        slot / (m_dpphys_pool_vcs / 2);
+                }
+            }
+        }
+    }
+}
+
 /*
  * This function creates a link from the Network Interface (NI)
  * into the Network.
@@ -449,6 +807,8 @@ GarnetNetwork::makeExtInLink(NodeID global_src, SwitchID dest, BasicLink* link,
     PortDirection dst_inport_dirn = "Local";
 
     m_max_vcs_per_vnet = std::max(m_max_vcs_per_vnet,
+                             m_routers[dest]->get_vc_per_vnet());
+    m_max_link_vcs_per_vnet = std::max(m_max_link_vcs_per_vnet,
                              m_routers[dest]->get_vc_per_vnet());
 
     /*
@@ -523,6 +883,8 @@ GarnetNetwork::makeExtOutLink(SwitchID src, NodeID global_dest,
 
     m_max_vcs_per_vnet = std::max(m_max_vcs_per_vnet,
                              m_routers[src]->get_vc_per_vnet());
+    m_max_link_vcs_per_vnet = std::max(m_max_link_vcs_per_vnet,
+                             m_routers[src]->get_vc_per_vnet());
 
     /*
      * We check if a bridge was enabled at any end of the link.
@@ -592,6 +954,10 @@ GarnetNetwork::makeInternalLink(SwitchID src, SwitchID dest, BasicLink* link,
     m_max_vcs_per_vnet = std::max(m_max_vcs_per_vnet,
                              std::max(m_routers[dest]->get_vc_per_vnet(),
                              m_routers[src]->get_vc_per_vnet()));
+    const uint32_t consumer_vcs = m_enable_dpphys ?
+        getDPPhysLogicalVCs() : m_routers[dest]->get_vc_per_vnet();
+    m_max_link_vcs_per_vnet = std::max(
+        m_max_link_vcs_per_vnet, consumer_vcs);
 
     /*
      * We check if a bridge was enabled at any end of the link.
@@ -625,13 +991,13 @@ GarnetNetwork::makeInternalLink(SwitchID src, SwitchID dest, BasicLink* link,
             addOutPort(src_outport_dirn, n_bridge,
                        routing_table_entry,
                        link->m_weight, garnet_link->srcCredBridge,
-                       m_routers[dest]->get_vc_per_vnet());
+                       consumer_vcs);
         m_networkbridges.push_back(n_bridge);
     } else {
         m_routers[src]->addOutPort(src_outport_dirn, net_link,
                         routing_table_entry,
                         link->m_weight, credit_link,
-                        m_routers[dest]->get_vc_per_vnet());
+                        consumer_vcs);
     }
 }
 
@@ -832,6 +1198,85 @@ GarnetNetwork::regStats()
     m_dp_shared_grants
         .name(name() + ".dp_shared_grants")
         .unit(count);
+    m_dpphys_pool_allocations
+        .name(name() + ".dpphys_pool_allocations")
+        .unit(count);
+    m_dpphys_owned_pool_allocations
+        .name(name() + ".dpphys_owned_pool_allocations")
+        .unit(count);
+    m_dpphys_demand_reclaims
+        .name(name() + ".dpphys_demand_reclaims")
+        .unit(count);
+    m_dpphys_owner_migrations
+        .name(name() + ".dpphys_owner_migrations")
+        .unit(count);
+    m_dpphys_release_handoffs
+        .name(name() + ".dpphys_release_handoffs")
+        .unit(count);
+    m_dpphys_release_keeps
+        .name(name() + ".dpphys_release_keeps")
+        .unit(count);
+    m_dpphys_ownership_wait_starts
+        .name(name() + ".dpphys_ownership_wait_starts")
+        .unit(count);
+    m_dpphys_ownership_wait_completions
+        .name(name() + ".dpphys_ownership_wait_completions")
+        .unit(count);
+    m_dpphys_ownership_wait_cycles
+        .name(name() + ".dpphys_ownership_wait_cycles")
+        .unit(count);
+    m_dpphys_ownership_wait_max
+        .name(name() + ".dpphys_ownership_wait_max")
+        .unit(count);
+    m_dpphys_pool_write_blocks
+        .name(name() + ".dpphys_pool_write_blocks")
+        .unit(count);
+    m_dpphys_pool_read_conflicts
+        .name(name() + ".dpphys_pool_read_conflicts")
+        .unit(count);
+    m_dpphys_pool_reads
+        .name(name() + ".dpphys_pool_reads")
+        .unit(count);
+    m_dpphys_reserved_reads
+        .name(name() + ".dpphys_reserved_reads")
+        .unit(count);
+    m_dpphys_borrowed_peak
+        .name(name() + ".dpphys_borrowed_peak")
+        .unit(count);
+
+    static const char *dpphys_directions[6] = {
+        "East", "West", "North", "South", "Up", "Down"
+    };
+    m_dpphys_pool_allocations_by_dir
+        .init(6)
+        .name(name() + ".dpphys_pool_allocations_by_dir")
+        .unit(count)
+        .flags(statistics::total);
+    m_dpphys_pool_reads_by_dir
+        .init(6)
+        .name(name() + ".dpphys_pool_reads_by_dir")
+        .unit(count)
+        .flags(statistics::total);
+    m_dpphys_reserved_reads_by_dir
+        .init(6)
+        .name(name() + ".dpphys_reserved_reads_by_dir")
+        .unit(count)
+        .flags(statistics::total);
+    m_dpphys_migrations_to_dir
+        .init(6)
+        .name(name() + ".dpphys_migrations_to_dir")
+        .unit(count)
+        .flags(statistics::total);
+    for (int direction = 0; direction < 6; ++direction) {
+        m_dpphys_pool_allocations_by_dir.subname(
+            direction, dpphys_directions[direction]);
+        m_dpphys_pool_reads_by_dir.subname(
+            direction, dpphys_directions[direction]);
+        m_dpphys_reserved_reads_by_dir.subname(
+            direction, dpphys_directions[direction]);
+        m_dpphys_migrations_to_dir.subname(
+            direction, dpphys_directions[direction]);
+    }
 
     // Links
     m_total_ext_in_link_utilization
@@ -847,7 +1292,7 @@ GarnetNetwork::regStats()
         .name(name() + ".avg_link_utilization")
         .unit(ratio);
     m_average_vc_load
-        .init(m_virtual_networks * m_max_vcs_per_vnet)
+        .init(m_virtual_networks * m_max_link_vcs_per_vnet)
         .name(name() + ".avg_vc_load")
         .unit(ratio)
         .flags(statistics::pdf | statistics::total | statistics::nozero |

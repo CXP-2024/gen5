@@ -104,6 +104,9 @@ class Router : public BasicRouter, public Consumer
         return m_input_unit[port].get();
     }
 
+    InputUnit *getInputUnitByDirection(const PortDirection &direction);
+    int getInportIdByDirection(const PortDirection &direction) const;
+
     OutputUnit*
     getOutputUnit(unsigned port)
     {
@@ -120,6 +123,10 @@ class Router : public BasicRouter, public Consumer
                       int invc);
     AdaptiveRouteDecision route_compute_3d_adaptive(
         RouteInfo route, int invc, bool require_available);
+    int dpPhysAdaptiveFreeCount(int outport, int vnet);
+    int dpPhysSelectAdaptiveVC(int outport, int vnet);
+    bool dpPhysHasEscapeVC(int outport, int vnet);
+    int dpPhysSelectEscapeVC(int outport, int vnet);
     void grant_switch(int inport, flit *t_flit);
     void schedule_wakeup(Cycles time);
 

@@ -158,6 +158,26 @@ Router::getInportDirection(int inport)
     return m_input_unit[inport]->get_direction();
 }
 
+InputUnit *
+Router::getInputUnitByDirection(const PortDirection &direction)
+{
+    const int inport = getInportIdByDirection(direction);
+    if (inport < 0)
+        panic("Router %d has no input direction %s", m_id, direction);
+    return m_input_unit[inport].get();
+}
+
+int
+Router::getInportIdByDirection(const PortDirection &direction) const
+{
+    for (int inport = 0; inport < static_cast<int>(m_input_unit.size());
+         ++inport) {
+        if (m_input_unit[inport]->get_direction() == direction)
+            return inport;
+    }
+    return -1;
+}
+
 int
 Router::route_compute(RouteInfo route, int inport, PortDirection inport_dirn,
                       int invc)
@@ -171,6 +191,105 @@ Router::route_compute_3d_adaptive(RouteInfo route, int invc,
 {
     return routingUnit.outportCompute3DAdaptive(
         route, invc, require_available);
+}
+
+int
+Router::dpPhysAdaptiveFreeCount(int outport, int vnet)
+{
+    auto *net = get_net_ptr();
+    auto *output = getOutputUnit(outport);
+    const PortDirection outdir = output->get_direction();
+    assert(net->dpPhysGoverns(vnet, outdir));
+
+    int count = output->free_vc_credit_count(
+        vnet, 0, net->getDPPhysPrivateVCs());
+    const PortDirection down_inport =
+        GarnetNetwork::cbsOppositeDirn(outdir);
+    const int down_router = net->cbsDownstreamRouter(m_id, outdir);
+    if (!net->dpPhysPoolWriteAvailable(down_router, down_inport, vnet,
+                                       curTick()))
+        return count;
+
+    for (int slot = 0; slot < net->getDPPhysPoolVCs(); ++slot) {
+        const int logical_offset = net->getDPPhysPrivateVCs() + slot;
+        const int logical_vc = vnet * output->getVcsPerVnet() +
+                               logical_offset;
+        if (output->is_vc_idle(logical_vc, curTick()) &&
+            net->dpPhysCanClaimSlot(down_router, down_inport, vnet, slot))
+            count++;
+    }
+    return count;
+}
+
+int
+Router::dpPhysSelectAdaptiveVC(int outport, int vnet)
+{
+    auto *net = get_net_ptr();
+    auto *output = getOutputUnit(outport);
+    const PortDirection outdir = output->get_direction();
+    assert(net->dpPhysGoverns(vnet, outdir));
+
+    int outvc = output->select_free_vc(
+        vnet, 0, net->getDPPhysPrivateVCs());
+    if (outvc != -1)
+        return outvc;
+
+    const PortDirection down_inport =
+        GarnetNetwork::cbsOppositeDirn(outdir);
+    const int down_router = net->cbsDownstreamRouter(m_id, outdir);
+    if (!net->dpPhysPoolWriteAvailable(down_router, down_inport, vnet,
+                                       curTick())) {
+        net->increment_dp_phys_write_block();
+        net->dpPhysNoteOwnershipDemand(
+            down_router, down_inport, vnet);
+        return -1;
+    }
+
+    // Prefer already-owned credits. Borrow an idle opposing credit only
+    // when no owned shared slot is usable.
+    for (int pass = 0; pass < 2; ++pass) {
+        for (int slot = 0; slot < net->getDPPhysPoolVCs(); ++slot) {
+            const bool owned = net->dpPhysSlotOwnedBy(
+                down_router, down_inport, vnet, slot);
+            if ((pass == 0) != owned)
+                continue;
+            const int logical_offset = net->getDPPhysPrivateVCs() + slot;
+            const int logical_vc = vnet * output->getVcsPerVnet() +
+                                   logical_offset;
+            if (!output->is_vc_idle(logical_vc, curTick()) ||
+                !net->dpPhysCanClaimSlot(
+                    down_router, down_inport, vnet, slot))
+                continue;
+            if (!net->dpPhysClaimSlot(
+                    down_router, down_inport, vnet, slot, curTick()))
+                continue;
+            outvc = output->select_free_vc(vnet, logical_offset, 1);
+            assert(outvc == logical_vc);
+            return outvc;
+        }
+    }
+    net->dpPhysNoteOwnershipDemand(down_router, down_inport, vnet);
+    return -1;
+}
+
+bool
+Router::dpPhysHasEscapeVC(int outport, int vnet)
+{
+    auto *net = get_net_ptr();
+    auto *output = getOutputUnit(outport);
+    const int first = net->getDPPhysPrivateVCs() +
+                      net->getDPPhysPoolVCs();
+    return output->has_free_vc(vnet, first, net->getEscapeVCs());
+}
+
+int
+Router::dpPhysSelectEscapeVC(int outport, int vnet)
+{
+    auto *net = get_net_ptr();
+    auto *output = getOutputUnit(outport);
+    const int first = net->getDPPhysPrivateVCs() +
+                      net->getDPPhysPoolVCs();
+    return output->select_free_vc(vnet, first, net->getEscapeVCs());
 }
 
 void

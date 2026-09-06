@@ -84,6 +84,9 @@ GarnetSyntheticTraffic::GarnetSyntheticTraffic(const Params &p)
       torusX(p.torus_x),
       torusY(p.torus_y),
       torusZ(p.torus_z),
+      trafficEpochCycles(p.traffic_epoch_cycles),
+      trafficXBias(p.traffic_x_bias),
+      trafficXHops(p.traffic_x_hops),
       simCycles(p.sim_cycles),
       numPacketsMax(p.num_packets_max),
       numPacketsSent(0),
@@ -109,10 +112,20 @@ GarnetSyntheticTraffic::GarnetSyntheticTraffic(const Params &p)
     if (traffic == TORUS_3D_NEIGHBOR_ ||
         traffic == TORUS_3D_TORNADO_ ||
         traffic == TORUS_3D_TRANSPOSE_ ||
-        traffic == TORUS_3D_XOPPOSITE_) {
+        traffic == TORUS_3D_XOPPOSITE_ ||
+        traffic == TORUS_3D_X_REVERSAL_ ||
+        traffic == TORUS_3D_XBIASED_) {
         fatal_if(torusX * torusY * torusZ != numDestinations,
             "3D traffic dimensions do not match the destination count");
     }
+    fatal_if(traffic == TORUS_3D_X_REVERSAL_ && trafficEpochCycles == 0,
+        "torus3d_x_reversal requires traffic_epoch_cycles > 0");
+    fatal_if(traffic == TORUS_3D_XBIASED_ &&
+             (trafficXBias < 0.0 || trafficXBias > 1.0),
+        "torus3d_xbiased requires traffic_x_bias in [0, 1]");
+    fatal_if(traffic == TORUS_3D_XBIASED_ &&
+             (trafficXHops == 0 || 2 * trafficXHops >= torusX),
+        "torus3d_xbiased requires 0 < 2 * traffic_x_hops < torus_x");
 
     id = TESTER_NETWORK++;
     DPRINTF(GarnetSyntheticTraffic,"Config Created: Name = %s , and id = %d\n",
@@ -250,7 +263,9 @@ GarnetSyntheticTraffic::generatePkt()
     } else if (traffic == TORUS_3D_NEIGHBOR_ ||
                traffic == TORUS_3D_TORNADO_ ||
                traffic == TORUS_3D_TRANSPOSE_ ||
-               traffic == TORUS_3D_XOPPOSITE_) {
+               traffic == TORUS_3D_XOPPOSITE_ ||
+               traffic == TORUS_3D_X_REVERSAL_ ||
+               traffic == TORUS_3D_XBIASED_) {
         const int src_3d_x = source % torusX;
         const int src_3d_y = (source / torusX) % torusY;
         const int src_3d_z = source / (torusX * torusY);
@@ -260,6 +275,19 @@ GarnetSyntheticTraffic::generatePkt()
 
         if (traffic == TORUS_3D_NEIGHBOR_) {
             dest_3d_x = (src_3d_x + 1) % torusX;
+        } else if (traffic == TORUS_3D_X_REVERSAL_) {
+            const uint64_t epoch =
+                static_cast<uint64_t>(curCycle()) / trafficEpochCycles;
+            const int delta = (epoch & 1) == 0 ? 1 : torusX - 1;
+            dest_3d_x = (src_3d_x + delta) % torusX;
+        } else if (traffic == TORUS_3D_XBIASED_) {
+            constexpr unsigned bias_scale = 1000000;
+            const unsigned draw =
+                random_mt.random<unsigned>(0, bias_scale - 1);
+            const bool positive =
+                draw < static_cast<unsigned>(trafficXBias * bias_scale);
+            const int delta = positive ? trafficXHops : torusX - trafficXHops;
+            dest_3d_x = (src_3d_x + delta) % torusX;
         } else if (traffic == TORUS_3D_XOPPOSITE_) {
             fatal_if(torusX % 2 != 0,
                 "torus3d_xopposite requires an even X dimension");
@@ -382,6 +410,8 @@ GarnetSyntheticTraffic::initTrafficType()
     trafficStringToEnum["torus3d_tornado"] = TORUS_3D_TORNADO_;
     trafficStringToEnum["torus3d_transpose"] = TORUS_3D_TRANSPOSE_;
     trafficStringToEnum["torus3d_xopposite"] = TORUS_3D_XOPPOSITE_;
+    trafficStringToEnum["torus3d_x_reversal"] = TORUS_3D_X_REVERSAL_;
+    trafficStringToEnum["torus3d_xbiased"] = TORUS_3D_XBIASED_;
 }
 
 void
