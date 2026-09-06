@@ -10,7 +10,17 @@ from collections import defaultdict
 from pathlib import Path
 
 TASK_DIR = Path(__file__).resolve().parent
-MODE_ORDER = ["PRIV", "RR-a", "STV-a", "RR-b", "STV-b"]
+MODE_ORDER = [
+    "PRIV",
+    "RR-a",
+    "STV-a",
+    "RR-b",
+    "STV-b",
+    "PRIV-v3",
+    "STV-r1p4",
+    "PRIV-v2",
+    "STV-r1p2",
+]
 DIRECTIONS = ["east", "west", "north", "south", "up", "down"]
 
 
@@ -75,7 +85,12 @@ def main() -> int:
             mode for mode in MODE_ORDER if (latency, pattern, mode) in table
         ]
         curves = [table[(latency, pattern, mode)] for mode in present_modes]
-        priv_curve = table.get((latency, pattern, "PRIV"), {})
+        baseline = next(
+            (mode for mode in present_modes if mode.startswith("PRIV")), None
+        )
+        priv_curve = (
+            table.get((latency, pattern, baseline), {}) if baseline else {}
+        )
         priv_sat, _ = saturation(priv_curve)
         match = matched_rate(curves)
         print(f"L={latency} {pattern:<20}", end="")

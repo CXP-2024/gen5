@@ -42,15 +42,21 @@ class Mode:
     pool: int = 0
 
 
-# Every row has eight physical slots per dimension pair.  PRIV exposes four
-# private slots on each side; pair-global modes use 2*r + P == 8.
+# The five preregistered modes have eight physical slots per direction pair.
+# The v3/v2 modes are equal-physical follow-ups: private uses v slots per side,
+# while pair-global DP-Phys uses 2*r + P == 2*v slots across the pair.
 MODES = {
     "PRIV": Mode(vcs=4),
     "RR-a": Mode(vcs=8, policy="rr", reserve=2, pool=4),
     "STV-a": Mode(vcs=8, policy="starve", reserve=2, pool=4),
     "RR-b": Mode(vcs=8, policy="rr", reserve=1, pool=6),
     "STV-b": Mode(vcs=8, policy="starve", reserve=1, pool=6),
+    "PRIV-v3": Mode(vcs=3),
+    "STV-r1p4": Mode(vcs=6, policy="starve", reserve=1, pool=4),
+    "PRIV-v2": Mode(vcs=2),
+    "STV-r1p2": Mode(vcs=4, policy="starve", reserve=1, pool=2),
 }
+DEFAULT_MODES = ["PRIV", "RR-a", "STV-a", "RR-b", "STV-b"]
 PATTERNS = [
     "torus3d_xopposite",
     "torus3d_tornado",
@@ -126,7 +132,7 @@ FIELDNAMES = [
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--modes", nargs="+", choices=MODES, default=list(MODES)
+        "--modes", nargs="+", choices=MODES, default=DEFAULT_MODES
     )
     parser.add_argument(
         "--patterns", nargs="+", choices=PATTERNS, default=PATTERNS
@@ -301,7 +307,7 @@ def run_point(
         "policy": mode.policy or "private",
         "reserve": mode.reserve if mode.reserve is not None else "",
         "pool_slots": mode.pool,
-        "pair_slots": 8,
+        "pair_slots": mode.vcs if mode.policy else 2 * mode.vcs,
         "pattern": pattern,
         "link_latency": latency,
         "injection_rate": rate,
