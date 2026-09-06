@@ -288,9 +288,10 @@ GarnetNetwork::init()
             "--dpphys-policy requires Torus3D adaptive routing "
             "(--routing-algorithm=4)");
         fatal_if(m_dpphys_policy != "static" &&
-                 m_dpphys_policy != "forced",
+                 m_dpphys_policy != "forced" &&
+                 m_dpphys_policy != "starve",
             "unimplemented --dpphys-policy '%s' "
-            "(available: static, forced)",
+            "(available: static, starve, forced)",
             m_dpphys_policy);
         fatal_if(m_escape_vcs != 1,
             "DP-Phys requires --escape-vcs=1: each side's reserve holds "
@@ -861,6 +862,12 @@ GarnetNetwork::regStats()
     m_dpphys_grants_migrated
         .name(name() + ".dpphys_grants_migrated")
         .unit(count);
+    m_dpphys_grant_queue_depth
+        .init(0, 1024, 1)
+        .name(name() + ".dpphys_grant_queue_depth")
+        .desc("DP-Phys grants already queued when a new grant arrives")
+        .unit(count)
+        .flags(statistics::pdf | statistics::oneline);
 
     // Links
     m_total_ext_in_link_utilization

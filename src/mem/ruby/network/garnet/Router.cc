@@ -70,6 +70,8 @@ Router::init()
         m_dpphys_pool_owner.assign(
             3, std::vector<std::vector<int>>(
                    m_virtual_networks, std::vector<int>(pool, 0)));
+        m_dpphys_grant_rr.assign(
+            3, std::vector<bool>(m_virtual_networks, false));
         for (int pair = 0; pair < 3; ++pair) {
             for (int vnet = 0; vnet < m_virtual_networks; ++vnet) {
                 for (int slot = 0; slot < pool; ++slot) {
@@ -207,6 +209,16 @@ Router::setDpphysPoolOwner(int pair, int vnet, int pool_slot, int side)
     assert(pool_slot >= 0 &&
            pool_slot < m_dpphys_pool_owner[pair][vnet].size());
     m_dpphys_pool_owner[pair][vnet][pool_slot] = side;
+}
+
+int
+Router::dpphysTakeRrSide(int pair, int vnet)
+{
+    assert(pair >= 0 && pair < m_dpphys_grant_rr.size());
+    assert(vnet >= 0 && vnet < m_dpphys_grant_rr[pair].size());
+    const int side = m_dpphys_grant_rr[pair][vnet] ? 1 : 0;
+    m_dpphys_grant_rr[pair][vnet] = !m_dpphys_grant_rr[pair][vnet];
+    return side;
 }
 
 int

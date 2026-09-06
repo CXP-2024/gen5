@@ -382,15 +382,67 @@ SwitchAllocator::grantOnRelease(InputUnit *input_unit, int inport, int invc,
         assert(m_router->dpphysPoolOwner(pair, vnet, pool_slot) ==
                arrival_side);
 
+        int target_side = arrival_side;
         if (net->dpphysPolicy() == "forced") {
+            target_side = 1 - arrival_side;
+        } else if (net->dpphysPolicy() == "starve") {
+            InputUnit *side_units[2];
+            side_units[arrival_side] = target;
+            side_units[1 - arrival_side] =
+                m_router->getPairedInputUnit(arrival);
+
+            const int vc_base = vnet * m_vc_per_vnet;
+            const int reserve = net->dpphysR();
+            const int pool = net->dpphysP();
+            int free_slots[2] = {0, 0};
+            for (int side = 0; side < 2; ++side) {
+                for (int reserve_slot = 0;
+                     reserve_slot < reserve; ++reserve_slot) {
+                    const int candidate =
+                        vc_base + side * reserve + reserve_slot;
+                    if (candidate != invc &&
+                        side_units[side]->is_vc_idle(candidate)) {
+                        free_slots[side]++;
+                    }
+                }
+            }
+            for (int slot = 0; slot < pool; ++slot) {
+                const int owner =
+                    m_router->dpphysPoolOwner(pair, vnet, slot);
+                assert(owner == 0 || owner == 1);
+                const int candidate = vc_base + 2 * reserve + slot;
+                const int home = net->dpphysHomeSideOfOffset(
+                    2 * reserve + slot);
+                if (candidate != invc &&
+                    side_units[home]->is_vc_idle(candidate)) {
+                    free_slots[owner]++;
+                }
+            }
+
+            if (free_slots[0] == 0 && free_slots[1] > 0) {
+                target_side = 0;
+            } else if (free_slots[1] == 0 && free_slots[0] > 0) {
+                target_side = 1;
+            } else {
+                target_side = m_router->dpphysTakeRrSide(pair, vnet);
+            }
+        }
+
+        if (target_side != arrival_side) {
             target = m_router->getPairedInputUnit(arrival);
-            const int target_side =
-                GarnetNetwork::dpphysSideOfInportDirn(
-                    target->get_direction());
             m_router->setDpphysPoolOwner(
                 pair, vnet, pool_slot, target_side);
             net->incrementDpphysGrantsMigrated();
         }
+
+        int owner_count[2] = {0, 0};
+        for (int slot = 0; slot < net->dpphysP(); ++slot) {
+            const int owner =
+                m_router->dpphysPoolOwner(pair, vnet, slot);
+            assert(owner == 0 || owner == 1);
+            owner_count[owner]++;
+        }
+        assert(owner_count[0] + owner_count[1] == net->dpphysP());
     }
 
     target->increment_credit(invc, free_signal, curTick());

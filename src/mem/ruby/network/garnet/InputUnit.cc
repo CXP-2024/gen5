@@ -244,6 +244,10 @@ InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime)
     DPRINTF(RubyNetwork, "Router[%d]: Sending a credit vc:%d free:%d to %s\n",
     m_router->get_id(), in_vc, free_signal, m_credit_link->name());
     Credit *t_credit = new Credit(in_vc, free_signal, curTime);
+    if (m_router->get_net_ptr()->isDPPhys() && m_direction != "Local") {
+        m_router->get_net_ptr()->sampleDpphysGrantQueueDepth(
+            creditQueue.getSize());
+    }
     creditQueue.insert(t_credit);
     m_credit_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
 }
