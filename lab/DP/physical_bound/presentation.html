@@ -173,63 +173,9 @@
 
   <!-- ═══════════ SLIDE 1: Title ═══════════ -->
   <div class="slide active" id="slide-1">
-    <div class="kicker">Lab4 · Topic 2 Flow Control · gem5 / Garnet</div>
-    <h1>Tidal: Reversible-Lane Buffer Sharing</h1>
-    <p class="subtitle">Like a tidal lane — same road, ownership follows demand</p>
-
-    <!-- Tidal lane diagram: two rush-hour states -->
-    <svg viewBox="0 0 1040 300" style="width:100%; max-width:1040px; margin:6px 0 28px">
-      <defs>
-        <marker id="arrE" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-          <path d="M0,0 L7,3 L0,6 Z" fill="#f78166"/>
-        </marker>
-        <marker id="arrW" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-          <path d="M0,0 L7,3 L0,6 Z" fill="#58a6ff"/>
-        </marker>
-      </defs>
-
-      <!-- ── Morning state ── -->
-      <text x="250" y="26" text-anchor="middle" font-size="15" fill="#8b949e">Morning rush — eastbound heavy</text>
-      <rect x="30" y="42" width="440" height="96" rx="8" fill="#161b22" stroke="#30363d"/>
-      <!-- lane dividers -->
-      <line x1="30" y1="74" x2="470" y2="74" stroke="#30363d" stroke-dasharray="6,6"/>
-      <line x1="30" y1="106" x2="470" y2="106" stroke="#30363d" stroke-dasharray="6,6"/>
-      <!-- lanes: 3 east, 1 west -->
-      <line x1="70" y1="58" x2="420" y2="58" stroke="#f78166" stroke-width="3" marker-end="url(#arrE)"/>
-      <line x1="70" y1="90" x2="420" y2="90" stroke="#f78166" stroke-width="3" marker-end="url(#arrE)"/>
-      <line x1="430" y1="122" x2="80" y2="122" stroke="#58a6ff" stroke-width="3" marker-end="url(#arrW)"/>
-      <text x="250" y="162" text-anchor="middle" font-size="13" fill="#f78166">E gets the shared lane</text>
-
-      <!-- swap arrows between states -->
-      <text x="520" y="95" text-anchor="middle" font-size="26" fill="#3fb950">⇄</text>
-
-      <!-- ── Evening state ── -->
-      <text x="790" y="26" text-anchor="middle" font-size="15" fill="#8b949e">Evening rush — westbound heavy</text>
-      <rect x="570" y="42" width="440" height="96" rx="8" fill="#161b22" stroke="#30363d"/>
-      <line x1="570" y1="74" x2="1010" y2="74" stroke="#30363d" stroke-dasharray="6,6"/>
-      <line x1="570" y1="106" x2="1010" y2="106" stroke="#30363d" stroke-dasharray="6,6"/>
-      <!-- lanes: 1 east, 3 west -->
-      <line x1="610" y1="58" x2="960" y2="58" stroke="#f78166" stroke-width="3" marker-end="url(#arrE)"/>
-      <line x1="970" y1="90" x2="620" y2="90" stroke="#58a6ff" stroke-width="3" marker-end="url(#arrW)"/>
-      <line x1="970" y1="122" x2="620" y2="122" stroke="#58a6ff" stroke-width="3" marker-end="url(#arrW)"/>
-      <text x="790" y="162" text-anchor="middle" font-size="13" fill="#58a6ff">W gets it back</text>
-
-      <!-- mapping line -->
-      <text x="520" y="205" text-anchor="middle" font-size="15" fill="#e6edf3">
-        lanes = <tspan fill="#3fb950" font-weight="bold">buffer slots</tspan> ·
-        direction = <tspan fill="#3fb950" font-weight="bold">opposing input ports {E, W}</tspan> ·
-        repainting = <tspan fill="#3fb950" font-weight="bold">credit ownership migration</tspan>
-      </text>
-      <text x="520" y="236" text-anchor="middle" font-size="14" fill="#8b949e">
-        No new lanes built — B_pair = 2v = 8 slots, unchanged
-      </text>
-    </svg>
-
-    <div class="pills">
-      <span class="pill">4×4×4 Torus3D</span>
-      <span class="pill">gem5 / Garnet</span>
-      <span class="pill">zero extra slots</span>
-    </div>
+    <div class="kicker">Lab4 · Topic 2 Flow Control</div>
+    <h1 style="font-size:4.6rem">Tidal</h1>
+    <p class="subtitle" style="font-size:1.3rem">Reversible-lane buffer sharing for on-chip networks</p>
   </div>
 
   <!-- ═══════════ SLIDE 2: Motivation ═══════════ -->
