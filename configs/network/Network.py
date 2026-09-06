@@ -128,65 +128,41 @@ def define_options(parser):
             rings; requires --routing-algorithm=3 and no --wormhole""",
     )
     parser.add_argument(
-        "--enable-dp",
-        action="store_true",
-        default=False,
-        help="""enable Dimension Pool flow control: the two opposing
-            inports of each dimension share their pooled VCs under a
-            joint occupancy cap; requires --routing-algorithm=3 with
-            --enable-cbs, or --routing-algorithm=4""",
+        "--dpphys-policy",
+        action="store",
+        type=str,
+        default="",
+        help="""DP-Phys pooled-VC policy for routing-algorithm 4;
+            empty string disables (static, rr, starve, pressure, forced)""",
     )
     parser.add_argument(
-        "--dp-reserve",
+        "--dpphys-r",
         action="store",
         type=int,
         default=2,
-        help="""dedicated (non-pooled) VCs per inport reserved for the
-            CBS substrate when --enable-dp runs on routing-algorithm 3""",
+        help="""DP-Phys reserved VCs per side, escape VC included;
+            the shared pool is vcs-per-vnet - 2*r""",
     )
     parser.add_argument(
-        "--dp-shared-cap",
+        "--dpphys-cap",
         action="store",
         type=int,
         default=0,
-        help="""joint cap on occupied pooled VCs across one dimension
-            pair when --enable-dp is set""",
+        help="""maximum pool credits owned by one side; zero selects P""",
     )
     parser.add_argument(
-        "--enable-dpphys",
-        action="store_true",
-        default=False,
-        help="""enable equal-physical paired pools: E/W, N/S and U/D each
-            share movable VC storage while retaining private and escape VCs""",
-    )
-    parser.add_argument(
-        "--dpphys-private-vcs",
+        "--dpphys-return-base",
         action="store",
-        type=int,
-        default=1,
-        help="private adaptive VCs permanently retained by each direction",
+        type=float,
+        default=0.25,
+        help="""return timeout for g>=2 in RTT multiples""",
     )
     parser.add_argument(
-        "--dpphys-pool-vcs",
+        "--dpphys-return-t1",
         action="store",
-        type=int,
-        default=4,
-        help="physical VC slots shared by each opposing direction pair",
-    )
-    parser.add_argument(
-        "--dpphys-owner-cap",
-        action="store",
-        type=int,
-        default=3,
-        help="maximum shared-pool credits owned by either direction",
-    )
-    parser.add_argument(
-        "--dpphys-policy",
-        action="store",
-        choices=["rts", "rr", "pressure"],
-        default="pressure",
-        help="""pool-credit reassignment policy: return-to-sender,
-            round-robin, or reserved-pressure with sticky ownership""",
+        type=float,
+        default=2.0,
+        help="""final-credit return timeout in RTT multiples; inf disables""",
     )
     parser.add_argument(
         "--routing-algorithm",
@@ -276,14 +252,11 @@ def init_network(options, network, InterfaceClass):
         network.escape_vcs = options.escape_vcs
         network.wormhole = options.wormhole
         network.enable_cbs = options.enable_cbs
-        network.enable_dp = options.enable_dp
-        network.dp_reserve = options.dp_reserve
-        network.dp_shared_cap = options.dp_shared_cap
-        network.enable_dpphys = options.enable_dpphys
-        network.dpphys_private_vcs = options.dpphys_private_vcs
-        network.dpphys_pool_vcs = options.dpphys_pool_vcs
-        network.dpphys_owner_cap = options.dpphys_owner_cap
         network.dpphys_policy = options.dpphys_policy
+        network.dpphys_r = options.dpphys_r
+        network.dpphys_cap = options.dpphys_cap
+        network.dpphys_return_base = options.dpphys_return_base
+        network.dpphys_return_t1 = options.dpphys_return_t1
         if options.wormhole:
             network.buffers_per_ctrl_vc = 16
         network.ni_flit_size = options.link_width_bits / 8

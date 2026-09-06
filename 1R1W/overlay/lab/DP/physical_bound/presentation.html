@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DP-Phys — Direction-Paired Buffer Pooling</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff;
+    --surface: #f7f9fc;
+    --surface2: #eef3f8;
+    --border: #ccd6e3;
+    --blue: #2563eb;
+    --green: #079b83;
+    --orange: #d97706;
+    --red: #dc3c3c;
+    --purple: #7c3aed;
+    --text: #172033;
+    --muted: #607087;
+    --w: 1200px;
+    --h: 675px;
+  }
+  html, body { width: 100%; height: 100%; }
+  body {
+    overflow: hidden;
+    background: #e9eef4;
+    color: var(--text);
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", sans-serif;
+  }
+  #stage {
+    position: fixed;
+    inset: 0 0 50px;
+    overflow: hidden;
+  }
+  #deck {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--w);
+    height: var(--h);
+    overflow: hidden;
+    border: 1px solid #d2dbe6;
+    border-radius: 12px;
+    background: var(--bg);
+    box-shadow: 0 24px 70px rgba(36,53,77,.18);
+    transform-origin: center center;
+  }
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: 42px 54px 34px;
+  }
+  .slide.active { display: flex; }
+  .slide::after {
+    content: "DP-Phys · preliminary results";
+    position: absolute;
+    right: 28px;
+    bottom: 15px;
+    color: #8a98aa;
+    font-size: 11px;
+    letter-spacing: .04em;
+  }
+  #slide-1::after { content: ""; }
+  h1 { font-size: 43px; line-height: 1.08; letter-spacing: -.025em; }
+  h2 { font-size: 25px; line-height: 1.18; }
+  h3 {
+    margin-bottom: 8px;
+    color: var(--blue);
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+  }
+  p, li { font-size: 15px; line-height: 1.46; }
+  ul { padding-left: 20px; }
+  li { margin-bottom: 7px; }
+  code {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #edf1f7;
+    color: var(--purple);
+    font: 13px "SFMono-Regular", Consolas, monospace;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin-bottom: 21px;
+    padding-bottom: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .num {
+    flex: none;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: .06em;
+  }
+  .cols { display: flex; flex: 1; min-height: 0; gap: 22px; }
+  .col { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+  .box {
+    margin-bottom: 11px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: rgba(255,255,255,.96);
+    box-shadow: 0 5px 16px rgba(35,55,80,.045);
+  }
+  .box:last-child { margin-bottom: 0; }
+  .box.blue { border-color: rgba(37,99,235,.55); }
+  .box.green { border-color: rgba(7,155,131,.55); }
+  .box.orange { border-color: rgba(217,119,6,.55); }
+  .box.red { border-color: rgba(220,60,60,.50); }
+  .box.purple { border-color: rgba(124,58,237,.48); }
+  .grow { flex: 1; }
+  .tag {
+    display: inline-block;
+    margin-bottom: 8px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .tag.blue { color: var(--blue); background: rgba(37,99,235,.09); }
+  .tag.green { color: var(--green); background: rgba(7,155,131,.09); }
+  .tag.orange { color: var(--orange); background: rgba(217,119,6,.09); }
+  .tag.red { color: var(--red); background: rgba(220,60,60,.09); }
+  .hi { color: var(--blue); font-weight: 700; }
+  .good { color: var(--green); font-weight: 700; }
+  .warn { color: var(--orange); font-weight: 700; }
+  .bad { color: var(--red); font-weight: 700; }
+  .purple-text { color: var(--purple); font-weight: 700; }
+  .muted { color: var(--muted); }
+  .big-number { font-size: 38px; line-height: 1; font-weight: 800; }
+  .metric {
+    flex: 1;
+    padding: 14px 15px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface);
+  }
+  .metric .label { margin-top: 7px; color: var(--muted); font-size: 12px; }
+  .metrics { display: flex; gap: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    padding: 7px 9px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    text-align: left;
+    font-weight: 650;
+  }
+  td { padding: 7px 9px; border-bottom: 1px solid #e2e8f0; }
+  tr:last-child td { border-bottom: 0; }
+  .callout {
+    margin-top: 12px;
+    padding: 11px 15px;
+    border-left: 4px solid var(--green);
+    border-radius: 0 7px 7px 0;
+    background: rgba(7,155,131,.07);
+    font-size: 15px;
+  }
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .node {
+    min-width: 112px;
+    padding: 10px 11px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--surface2);
+    text-align: center;
+    font-size: 13px;
+  }
+  .arrow { color: var(--green); font-size: 23px; font-weight: 700; }
+  .bank {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: #f8fafc;
+  }
+  .bank-title { margin-bottom: 8px; color: var(--muted); font-size: 12px; text-align: center; }
+  .slots { display: flex; justify-content: center; gap: 5px; }
+  .slot {
+    display: grid;
+    width: 53px;
+    height: 42px;
+    place-items: center;
+    border: 1px solid;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 750;
+  }
+  .private { border-color: var(--blue); color: var(--blue); background: rgba(37,99,235,.08); }
+  .escape { border-color: var(--purple); color: var(--purple); background: rgba(124,58,237,.08); }
+  .pool { border-color: var(--green); color: var(--green); background: rgba(7,155,131,.08); }
+  .phase-grid {
+    display: grid;
+    grid-template-columns: 110px repeat(2, 1fr);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .phase-grid > div { padding: 11px 14px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .phase-grid > div:nth-child(3n) { border-right: 0; }
+  .phase-grid > div:nth-last-child(-n+3) { border-bottom: 0; }
+  .phase-head { color: var(--muted); background: var(--surface); font-size: 12px; }
+  .phase-res { color: var(--blue); background: rgba(37,99,235,.07); font-weight: 700; }
+  .phase-pool { color: var(--green); background: rgba(7,155,131,.07); font-weight: 700; }
+  .bar-row { display: grid; grid-template-columns: 150px 1fr 72px; align-items: center; gap: 10px; margin: 10px 0; }
+  .bar-label { color: var(--muted); font-size: 13px; }
+  .bar-track { height: 25px; overflow: hidden; border-radius: 5px; background: #e9eef5; }
+  .bar { height: 100%; display: flex; align-items: center; padding-left: 9px; color: #172033; font-size: 11px; font-weight: 800; }
+  .bar.base { background: #aab7c7; }
+  .bar.win { background: linear-gradient(90deg, #62c7a9, #92dec3); }
+  .bar.loss { background: linear-gradient(90deg, #f3a394, #f4c08f); }
+  .bar-value { font-size: 13px; font-weight: 700; text-align: right; }
+  #slide-1 {
+    justify-content: center;
+    padding: 70px 78px;
+    background:
+      radial-gradient(circle at 8% 18%, rgba(37,99,235,.07), transparent 30%),
+      radial-gradient(circle at 94% 82%, rgba(7,155,131,.06), transparent 31%),
+      #fff;
+  }
+  #slide-1 .eyebrow { margin-bottom: 14px; color: var(--green); font-size: 13px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+  #slide-1 h1 { max-width: 900px; }
+  #slide-1 .subtitle { max-width: 850px; margin: 18px 0 30px; color: var(--muted); font-size: 20px; }
+  .pills { display: flex; gap: 9px; flex-wrap: wrap; }
+  .pill { padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12px; }
+  #controls {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  button {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--blue); }
+  #progress { display: flex; gap: 5px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #bdc8d5; }
+  .figure-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 9px 25px rgba(35,55,80,.07);
+  }
+  .figure-card img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .figure-label {
+    position: absolute;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.94);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 750;
+    box-shadow: 0 3px 10px rgba(35,55,80,.08);
+  }
+  .pair-module {
+    padding: 13px 12px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 5px 15px rgba(35,55,80,.05);
+  }
+  .pair-strip { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 7px; }
+  .pair-region { padding: 8px 5px; border-radius: 7px; text-align: center; }
+  .pair-region.res { background: rgba(37,99,235,.06); border: 1px solid rgba(37,99,235,.25); }
+  .pair-region.shared { background: rgba(7,155,131,.06); border: 1px solid rgba(7,155,131,.28); }
+  .pair-region .mini-label { margin-bottom: 6px; color: var(--muted); font-size: 10px; font-weight: 750; }
+  .mini-slots { display: flex; justify-content: center; gap: 3px; }
+  .mini-slot { display: grid; width: 25px; height: 26px; place-items: center; border: 1px solid; border-radius: 4px; font-size: 8px; font-weight: 800; }
+  .dot.active { background: var(--blue); }
+</style>
+</head>
+<body>
+<div id="stage">
+<div id="deck">
+
+  <section class="slide active" id="slide-1">
+    <div style="display:grid;grid-template-columns:1.02fr .98fr;align-items:center;gap:38px;height:100%">
+      <div>
+        <div class="eyebrow">Architecture · Implementation · Evaluation</div>
+        <h1>DP-Phys: Direction-Paired Buffer Pooling</h1>
+        <p class="subtitle">Turn stranded per-direction capacity into a physical shared Pool—without changing total storage.</p>
+        <div class="pills">
+          <span class="pill">RES: private + escape</span>
+          <span class="pill">4 shared slots / pair</span>
+          <span class="pill">2 writes + 1 read</span>
+          <span class="pill">equal-storage baseline</span>
+        </div>
+        <div class="callout" style="margin-top:28px">One hot direction may temporarily use more than half of the pair's storage; safety-critical escape capacity never migrates.</div>
+      </div>
+      <div>
+        <div class="figure-card" style="height:330px;border-color:rgba(7,155,131,.34)"><img src="assets/dpphys_pair_pool_concept.jpg" alt="East and West reserved buffers sharing a four-slot pool"></div>
+        <p class="muted" style="margin-top:12px;text-align:center;font-size:12px">One direction pair; the router contains three identical pairs.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-2">
+    <div class="header"><span class="num">02 / 10</span><h2>The Opportunity: Capacity Is Stranded by Direction</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="box blue grow">
+          <span class="tag blue">C1 · long credit loop</span>
+          <h3 style="text-transform:none;letter-spacing:0;font-size:18px">A free slot is unusable until its credit returns</h3>
+          <div class="flow" style="margin:28px 0 25px">
+            <div class="node">allocate VC</div><div class="arrow">→</div>
+            <div class="node">send flit</div><div class="arrow">→</div>
+            <div class="node">free slot</div><div class="arrow">→</div>
+            <div class="node">credit returns</div>
+          </div>
+          <p>With link latency <span class="hi">L=8</span>, the credit loop is long enough that a hot input can run out of usable VCs even while its opposite input owns idle storage.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box green grow">
+          <span class="tag green">C2 · directional skew</span>
+          <h3 style="text-transform:none;letter-spacing:0;font-size:18px">Opposing inputs rarely need peak capacity together</h3>
+          <div class="figure-card" style="height:245px;margin:13px 0 15px"><img src="assets/dpphys_pair_pool_concept.jpg" alt="Opposing inputs share one central physical pool"></div>
+          <p>Private buffers lock the split at 4/4. A paired Pool can expose a safe 3/1 ownership split without adding a single data slot.</p>
+        </div>
+      </div>
+    </div>
+    <div class="callout">Design question: can <strong>one shared 2W1R bank</strong> absorb simultaneous E/W arrivals, then drain through one read port, while elastic capacity offsets the reduced read bandwidth?</div>
+  </section>
+
+  <section class="slide" id="slide-3">
+    <div class="header"><span class="num">03 / 10</span><h2>One Router, Three Independent Direction Pairs</h2></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      <div class="pair-module">
+        <h3 style="text-align:center">E / W pair</h3>
+        <div class="pair-strip">
+          <div class="pair-region res"><div class="mini-label">E · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
+          <div class="pair-region shared"><div class="mini-label">POOL · 4 · 2W1R</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
+          <div class="pair-region res"><div class="mini-label">W · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
+        </div>
+      </div>
+      <div class="pair-module">
+        <h3 style="text-align:center">N / S pair</h3>
+        <div class="pair-strip">
+          <div class="pair-region res"><div class="mini-label">N · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
+          <div class="pair-region shared"><div class="mini-label">POOL · 4 · 2W1R</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
+          <div class="pair-region res"><div class="mini-label">S · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
+        </div>
+      </div>
+      <div class="pair-module">
+        <h3 style="text-align:center">U / D pair</h3>
+        <div class="pair-strip">
+          <div class="pair-region res"><div class="mini-label">U · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
+          <div class="pair-region shared"><div class="mini-label">POOL · 4 · 2W1R</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
+          <div class="pair-region res"><div class="mini-label">D · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-around;color:var(--green);font-size:28px;line-height:36px"><span>↓</span><span>↓</span><span>↓</span></div>
+    <div style="height:185px;border:2px solid var(--blue);border-radius:17px;display:grid;place-items:center;background:radial-gradient(circle,rgba(37,99,235,.08),transparent 67%)">
+      <div style="text-align:center"><div style="font-size:29px;font-weight:800">Router datapath</div><div class="muted" style="font-size:13px;margin-top:7px">route computation · VC allocation · switch allocation · crossbar</div><div style="display:flex;justify-content:center;gap:7px;margin-top:17px"><span class="tag blue">three pool arbiters</span><span class="tag green">one owner table / pair</span></div></div>
+    </div>
+    <div class="callout" style="margin-top:12px">Membership follows the <strong>actual input direction</strong>, not the chosen output. A West-in flit may occupy E/W Pool and later leave through North.</div>
+  </section>
+
+  <section class="slide" id="slide-4">
+    <div class="header"><span class="num">04 / 10</span><span class="tag green" style="margin:0">Architecture</span><h2>Why the Shared Pool Is 2W1R</h2></div>
+    <div class="cols">
+      <div class="col" style="flex:1.18">
+        <div class="box green grow">
+          <h3>Two arrivals must never be rejected</h3>
+          <div class="figure-card" style="height:267px;margin:13px 0 14px">
+            <img src="assets/dpphys_2w1r_flow.png" alt="Two writes enter a four-slot shared pool and one read drains to the switch">
+            <span class="figure-label" style="left:31px;top:20px;color:var(--blue)">write 0 · E</span>
+            <span class="figure-label" style="right:31px;top:20px;color:var(--green)">write 1 · W</span>
+            <span class="figure-label" style="left:50%;bottom:13px;transform:translateX(-50%);color:var(--orange)">single shared read</span>
+          </div>
+          <div class="metrics">
+            <div class="metric"><div class="big-number good">2W</div><div class="label">E and W may deposit in the same cycle</div></div>
+            <div class="metric"><div class="big-number hi">1R</div><div class="label">one pooled flit drains per pair per cycle</div></div>
+          </div>
+          <p style="margin-top:17px">Input links are credit-controlled but an arriving flit cannot be sent back. Two write paths preserve lossless simultaneous arrival; one read port is shared by an E/W request arbiter.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box blue">
+          <h3>Read-side trade</h3>
+          <p>Two private input banks may drain independently. The Pool exposes only one shared read, so E and W contend when both have ready pooled flits.</p>
+        </div>
+        <div class="box green">
+          <h3>Capacity-side gain</h3>
+          <p>The hot side can occupy slots that would be stranded behind the opposite input's private wall. Under one-sided demand, the shared read is not a bottleneck.</p>
+        </div>
+        <div class="box orange">
+          <h3>Honest hardware boundary</h3>
+          <p>2W1R is an implementation assumption, not a free resource. SRAM/register-file area, write-port energy, central wiring and read arbitration must be measured separately from gem5.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-5">
+    <div class="header"><span class="num">05 / 10</span><span class="tag blue" style="margin:0">Implementation</span><h2>Pool-Credit Grant: Demand-Aware STARVE vs. Blind RR</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="box blue"><span class="tag blue">Credit meaning</span><p>Each free Pool slot has exactly one upstream owner. Holding its credit means that side may place one adaptive packet into the shared storage.</p></div>
+        <div class="box green"><span class="tag green">STARVE rule</span><p>On a Pool release, grant the credit to a side with no usable free Pool credit. If both sides are equally eligible, use round-robin.</p></div>
+        <div class="box purple"><span class="tag orange">Reserved credit</span><p>One private adaptive VC and one escape VC remain outside the Pool. Escape capacity never migrates, so safety does not depend on the grant policy.</p></div>
+      </div>
+      <div class="col">
+        <div class="box grow">
+          <h3>Same 2W1R hardware, different ownership decisions</h3>
+          <table>
+            <tr><th>Policy</th><th>Information</th><th>Expected role</th></tr>
+            <tr><td>RTS</td><td>last sender only</td><td>static/purity anchor</td></tr>
+            <tr><td>RR</td><td>none</td><td>traffic-oblivious control</td></tr>
+            <tr><td class="good">STARVE</td><td>free-credit demand</td><td>move credit toward blocked side</td></tr>
+          </table>
+          <div style="margin-top:24px;display:flex;align-items:center;justify-content:center;gap:10px">
+            <div class="node">initial<br><span class="hi">2 / 2</span></div><div class="arrow">→</div>
+            <div class="node">West hot<br><span class="good">3 / 1</span></div><div class="arrow">→</div>
+            <div class="node">West sustained<br><span class="purple-text">reuse credit</span></div>
+          </div>
+          <div class="callout" style="margin-top:25px">The research question is policy, not extra capacity: all arms keep the same 8 physical slots per direction pair.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-6">
+    <div class="header"><span class="num">06 / 10</span><span class="tag blue" style="margin:0">Implementation</span><h2>Credit Return: Recover Stranded Ownership Without Revocation</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="box red">
+          <h3>Release-only grants can freeze</h3>
+          <p>If West is idle, its Pool slots do not release—and therefore generate no event that could move ownership to hot East. The need for migration rises exactly when release traffic disappears.</p>
+        </div>
+        <div class="box blue grow">
+          <h3>Holder-initiated return</h3>
+          <div class="flow" style="margin:18px 0"><div class="node">holder sees<br>surplus credit</div><div class="arrow">→</div><div class="node">return flag on<br>credit link</div><div class="arrow">→</div><div class="node">router re-grants<br>with STARVE</div></div>
+          <p>The owner returns voluntarily; the router never revokes a credit that may already be promised to an in-flight flit.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box green">
+          <h3>Surplus detector</h3>
+          <p><code>credits_held &gt; flits_queued</code>, sustained for a threshold. A starving sender owns no spare credit, so it cannot mistakenly return capacity merely because it is silent.</p>
+        </div>
+        <div class="box purple grow">
+          <h3>Two-tier stickiness</h3>
+          <table>
+            <tr><th>Credits held</th><th>Return delay</th><th>Reason</th></tr>
+            <tr><td>2 or more</td><td>short</td><td>clear surplus; release quickly</td></tr>
+            <tr><td>last one</td><td>long</td><td>insurance for the next packet/burst</td></tr>
+          </table>
+          <p style="margin-top:15px">This directly tests the intuition: do not park many Pool credits locally, but keep the final one long enough to exploit temporal locality.</p>
+        </div>
+      </div>
+    </div>
+    <div class="callout">Transport proposal: reuse the reverse credit link with one return flag and demultiplex it as a synthetic release event.</div>
+  </section>
+
+  <section class="slide" id="slide-7">
+    <div class="header"><span class="num">07 / 10</span><span class="tag blue" style="margin:0">Implementation</span><h2>Garnet Mapping and Current Repository Status</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="box blue">
+          <h3>Datapath placement</h3>
+          <ul>
+            <li>Pool is indexed by the packet's true input direction pair—not by its next output.</li>
+            <li>A West-in packet can occupy the E/W Pool and leave through North: X-in → Y-out remains legal.</li>
+            <li>Escape traffic maps only to the private reserved region.</li>
+          </ul>
+        </div>
+        <div class="box green grow">
+          <h3>Safety contracts</h3>
+          <ul>
+            <li><code>g_E + g_W = P</code>: no Pool credit is created or lost.</li>
+            <li>One free slot has one owner; ownership may move only while the slot is safe to grant.</li>
+            <li>Reserved escape capacity is physically excluded from migration.</li>
+            <li>2W accepts both directional arrivals; 1R arbitration serializes Pool drain.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box orange grow">
+          <h3>What exists in the remote commit</h3>
+          <table>
+            <tr><th>Artifact</th><th>Status</th></tr>
+            <tr><td>Architecture/design document</td><td class="good">defined</td></tr>
+            <tr><td>M1 helper refactor script</td><td class="good">prepared</td></tr>
+            <tr><td>M2 pair-global VC layout script</td><td class="good">prepared</td></tr>
+            <tr><td>Dynamic STARVE ownership</td><td class="warn">not yet validated</td></tr>
+            <tr><td>2W1R Pool arbitration</td><td class="warn">not yet validated</td></tr>
+            <tr><td>Voluntary return channel</td><td class="warn">not yet validated</td></tr>
+          </table>
+          <p class="muted" style="margin-top:16px;font-size:13px">The slides therefore separate proposed behavior from measured results. The later 1R1W branch is intentionally excluded from this deck.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-8">
+    <div class="header"><span class="num">08 / 10</span><span class="tag orange" style="margin:0">Evaluation</span><h2>Existing Data: A Negative Control, Not the 2W1R Result</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="metrics">
+          <div class="metric"><div class="big-number hi">1700</div><div class="label">completed equal-physical control runs</div></div>
+          <div class="metric"><div class="big-number good">0</div><div class="label">deadlocks</div></div>
+        </div>
+        <div class="box red grow" style="margin-top:12px">
+          <h3>Result of the earlier counter-only design</h3>
+          <p>No capped configuration beat the same-hardware plain router in saturation throughput or matched-load latency.</p>
+          <table style="margin-top:13px">
+            <tr><th>Representative cell</th><th>Δ throughput</th></tr>
+            <tr><td>v=4 · x-opposite · tight cap</td><td class="bad">−22.0%</td></tr>
+            <tr><td>v=3 · x-opposite · cap 2</td><td class="bad">−32.7%</td></tr>
+            <tr><td>never-binding cap anchors</td><td>bit-identical tie</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box blue grow">
+          <h3>What this establishes</h3>
+          <p>A counter cannot move a physical landing limit. Tightening permission without sharing real slots is only throttling.</p>
+          <div class="flow" style="margin:24px 0"><div class="node">permission-only<br><span class="bad">tie / loss</span></div><div class="arrow">→</div><div class="node">physical Pool<br><span class="good">new hypothesis</span></div></div>
+          <ul>
+            <li>The old data motivates the 2W1R physical Pool.</li>
+            <li>It is not evidence that STARVE or 2W1R improves performance.</li>
+            <li>The 2W1R evaluation must be run on its own implementation.</li>
+          </ul>
+        </div>
+        <div class="callout">This negative result is useful: it prevents us from attributing future gains to bookkeeping or unequal physical capacity.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-9">
+    <div class="header"><span class="num">09 / 10</span><span class="tag orange" style="margin:0">Evaluation</span><h2>Prepared 2W1R Experiment Matrix</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="box blue">
+          <h3>Equal-storage policy arms</h3>
+          <table>
+            <tr><th>Arm</th><th>RES / Pool</th><th>Purpose</th></tr>
+            <tr><td>PRIV</td><td>4 private / side</td><td>primary baseline</td></tr>
+            <tr><td>RTS-a / RR-a / STV-a</td><td>r=2, P=4</td><td>robust layout</td></tr>
+            <tr><td>RTS-b / RR-b / STV-b</td><td>r=1, P=6</td><td>aggressive layout</td></tr>
+          </table>
+        </div>
+        <div class="box green grow">
+          <h3>Matrix</h3>
+          <ul>
+            <li>4×4×4 Torus3D · vnet 0 · 10,000 cycles</li>
+            <li>link latency L ∈ {1, 8}</li>
+            <li>x-opposite, tornado, transpose, neighbor, uniform</li>
+            <li>injection 0.05 → 1.00 in 0.05 steps</li>
+            <li><span class="hi">7 arms × 2 L × 5 patterns × 20 rates = 1,400 runs</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box orange grow">
+          <h3>Pre-registered expectations</h3>
+          <ul>
+            <li><span class="purple-text">Purity:</span> RTS-a and RTS-b should match PRIV when ownership never migrates.</li>
+            <li><span class="hi">L=1:</span> little or no win; buffer capacity is not the bottleneck.</li>
+            <li><span class="good">L=8 + tornado:</span> STARVE should benefit from persistent directional skew.</li>
+            <li><span class="bad">L=8 + x-opposite:</span> shared read contention and cross-direction interference should be exposed.</li>
+            <li><span class="warn">RR:</span> may park credit at an idle side and should underperform STARVE.</li>
+          </ul>
+        </div>
+        <div class="box purple"><h3>Report</h3><p>Saturation throughput, matched-load latency, per-direction fairness, credit migrations/returns, Pool read utilization, and simultaneous-write activity.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-10">
+    <div class="header"><span class="num">10 / 10</span><h2>Takeaway: The Deck Is Ready; the 2W1R Result Is Not Yet</h2></div>
+    <div class="cols">
+      <div class="col" style="flex:1.08">
+        <div class="box green grow">
+          <span class="tag green">Clear story</span>
+          <h3 style="text-transform:none;letter-spacing:0;font-size:21px">Architecture → implementation → evaluation, with no mixed-generation evidence.</h3>
+          <ul style="margin-top:15px">
+            <li><strong>Architecture:</strong> three opposing-port pools per router; RES protects private adaptive + escape capacity.</li>
+            <li><strong>Datapath:</strong> 2W accepts simultaneous paired arrivals; 1R serializes pooled drain.</li>
+            <li><strong>Policy:</strong> STARVE directs released credits toward demand; surplus return recovers parked ownership.</li>
+            <li><strong>Control evidence:</strong> 1,700 older runs prove counter-only sharing cannot create a physical benefit.</li>
+            <li><strong>Open evidence:</strong> the 1,400-run 2W1R matrix must still be executed.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box blue"><span class="tag blue">1 · implement</span><p>Land dynamic owner state, 2W write acceptance, 1R arbitration, and the voluntary return flag on the current clean design branch.</p></div>
+        <div class="box orange"><span class="tag orange">2 · validate</span><p>Run purity anchors and directed simultaneous E/W arrival tests before trusting performance data.</p></div>
+        <div class="box purple"><span class="tag blue">3 · evaluate</span><p>Execute the 1,400-run matrix, then add burst length and owner-return threshold sensitivity.</p></div>
+        <div class="callout">Do not claim a 2W1R speedup yet. The current slide deck presents a testable design and an honest evidence boundary.</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</div>
+
+<div id="controls">
+  <button id="prev">← Prev</button>
+  <div id="progress"></div>
+  <button id="next">Next →</button>
+  <span id="label" style="min-width:64px;text-align:center"></span>
+</div>
+
+<script>
+  const deck = document.getElementById('deck');
+  const slides = [...document.querySelectorAll('.slide')];
+  const progress = document.getElementById('progress');
+  const label = document.getElementById('label');
+  let current = 0;
+
+  slides.forEach((_, index) => {
+    const dot = document.createElement('span');
+    dot.className = 'dot' + (index === 0 ? ' active' : '');
+    dot.addEventListener('click', () => go(index));
+    progress.appendChild(dot);
+  });
+
+  function fitDeck() {
+    const scale = Math.min((window.innerWidth - 24) / 1200,
+                           (window.innerHeight - 70) / 675, 1);
+    deck.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  }
+
+  function go(index) {
+    slides[current].classList.remove('active');
+    progress.children[current].classList.remove('active');
+    current = (index + slides.length) % slides.length;
+    slides[current].classList.add('active');
+    progress.children[current].classList.add('active');
+    label.textContent = `${current + 1} / ${slides.length}`;
+  }
+
+  document.getElementById('prev').addEventListener('click', () => go(current - 1));
+  document.getElementById('next').addEventListener('click', () => go(current + 1));
+  document.addEventListener('keydown', event => {
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(event.key)) go(current + 1);
+    if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) go(current - 1);
+    if (event.key === 'Home') go(0);
+    if (event.key === 'End') go(slides.length - 1);
+  });
+  window.addEventListener('resize', fitDeck);
+  fitDeck();
+  go(0);
+</script>
+</body>
+</html>

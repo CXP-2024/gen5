@@ -197,7 +197,8 @@ RoutingUnit::outportCompute(RouteInfo route, int inport,
         case TORUS_3D_DOR_: outport =
             outportCompute3DDOR(route, inport, inport_dirn); break;
         case TORUS_3D_ADAPTIVE_: outport =
-            outportCompute3DAdaptive(route, invc, false).outport; break;
+            outportCompute3DAdaptive(
+                route, invc, false, inport_dirn).outport; break;
         case MESH_3D_XYZ_: outport =
             outportCompute3DXYZ(route); break;
         default: outport =
@@ -380,7 +381,8 @@ RoutingUnit::outportCompute3DXYZ(RouteInfo route)
 
 AdaptiveRouteDecision
 RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
-                                      bool require_available)
+                                      bool require_available,
+                                      PortDirection inport_dirn)
 {
     const int size_x = m_router->get_net_ptr()->getTorusX();
     const int size_y = m_router->get_net_ptr()->getTorusY();
@@ -388,9 +390,8 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
     const int vcs_per_vnet = m_router->get_vc_per_vnet();
     const int vnet = invc / vcs_per_vnet;
     const int escape_vcs = m_router->get_net_ptr()->getEscapeVCs();
-    const int adaptive_vcs = vcs_per_vnet - escape_vcs;
-    const bool input_escape = escape_vcs > 0 &&
-        invc % vcs_per_vnet >= adaptive_vcs;
+    const bool input_escape = m_router->get_net_ptr()->isEscapeVCAt(
+        invc, inport_dirn == "Local");
 
     const int current_id = m_router->get_id();
     const int destination_id = route.dest_router;
@@ -420,17 +421,8 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
         return lookupRoutingTable(route.vnet, route.net_dest);
     };
     auto hasClassVC = [&](int outport, bool escape) {
-        const PortDirection outdir =
-            m_router->getOutputUnit(outport)->get_direction();
-        if (m_router->get_net_ptr()->dpPhysGoverns(vnet, outdir)) {
-            return escape ? m_router->dpPhysHasEscapeVC(outport, vnet) :
-                            m_router->dpPhysAdaptiveFreeCount(
-                                outport, vnet) > 0;
-        }
-        const int first_offset = escape ? adaptive_vcs : 0;
-        const int count = escape ? escape_vcs : adaptive_vcs;
-        return m_router->getOutputUnit(outport)->has_free_vc(
-            vnet, first_offset, count);
+        return m_router->getOutputUnit(outport)->has_free_vc_class(
+            vnet, escape);
     };
 
     if (input_escape) {
@@ -450,7 +442,6 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
     }
 
     std::vector<int> candidates;
-    std::vector<PortDirection> candidate_dirns;
     auto addMinimalDirections = [&](int current, int destination, int size,
                                     PortDirection positive,
                                     PortDirection negative) {
@@ -460,14 +451,10 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
             (destination - current + size) % size;
         const int negative_hops =
             (current - destination + size) % size;
-        if (positive_hops <= negative_hops) {
+        if (positive_hops <= negative_hops)
             candidates.push_back(outportForDirection(positive));
-            candidate_dirns.push_back(positive);
-        }
-        if (negative_hops <= positive_hops) {
+        if (negative_hops <= positive_hops)
             candidates.push_back(outportForDirection(negative));
-            candidate_dirns.push_back(negative);
-        }
     };
 
     addMinimalDirections(
@@ -480,24 +467,10 @@ RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
 
     int best_credits = -1;
     std::vector<int> best_outports;
-    auto *net = m_router->get_net_ptr();
-    for (size_t i = 0; i < candidates.size(); i++) {
-        const int outport = candidates[i];
-        const int credits = net->dpPhysGoverns(vnet, candidate_dirns[i]) ?
-            m_router->dpPhysAdaptiveFreeCount(outport, vnet) :
-            m_router->getOutputUnit(outport)->free_vc_credit_count(
-                vnet, 0, adaptive_vcs);
+    for (const int outport : candidates) {
+        const int credits = m_router->getOutputUnit(outport)->
+            free_vc_credit_count_class(vnet, false);
         if (require_available && credits == 0)
-            continue;
-        // DP: skip outports whose downstream dimension pair is at its
-        // pool cap so the packet falls through to the escape path;
-        // waiting on a capped adaptive window would sidestep the escape
-        // premise of Duato's protocol.
-        if (require_available && net->dpGoverns(vnet) &&
-            net->dpPoolFull(
-                net->cbsDownstreamRouter(current_id, candidate_dirns[i]),
-                GarnetNetwork::cbsOppositeDirn(candidate_dirns[i]),
-                vnet))
             continue;
         if (credits > best_credits) {
             best_credits = credits;

@@ -1,0 +1,7 @@
+link_latency,pattern,mode,sat_throughput,sat_rate,delta_vs_priv_pct,matched_rate,matched_packet_latency,direction_fairness_at_sat,grants_migrated_at_sat,credits_returned_at_sat,pool_full_blocks_at_sat,borrowed_peak_at_sat,grant_queue_max_at_sat,return_conflicts_at_sat
+1,torus3d_xbiased,PRIV,0.298290625,0.6,0.0,0.6,7.0,nan,0.0,0.0,0.0,0.0,nan,0.0
+1,torus3d_xbiased,STV-a,0.298290625,0.6,0.0,0.6,7.122668,0.024372190815374218,193814.0,862971.0,0.0,1.0,7.0,486496.0
+1,torus3d_xbiased,PRESS-a,0.298290625,0.6,0.0,0.6,7.06729,0.013209829386299974,3117.0,861939.0,0.0,1.0,7.0,467406.0
+8,torus3d_xbiased,PRIV,0.15714375,0.6,0.0,0.25,34.165043,nan,0.0,0.0,0.0,0.0,nan,0.0
+8,torus3d_xbiased,STV-a,0.157115625,0.6,-0.0178976255816643,0.25,35.006377,0.0438434577016405,75423.0,202528.0,0.0,1.0,3.0,81210.0
+8,torus3d_xbiased,PRESS-a,0.15714375,0.6,0.0,0.25,34.449579,0.00027817517087903355,72.0,193221.0,0.0,1.0,3.0,78899.0

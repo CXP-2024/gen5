@@ -104,8 +104,13 @@ class Router : public BasicRouter, public Consumer
         return m_input_unit[port].get();
     }
 
+    InputUnit *getPairedInputUnit(int inport);
     InputUnit *getInputUnitByDirection(const PortDirection &direction);
-    int getInportIdByDirection(const PortDirection &direction) const;
+    int countFlitsFor(int outport, int vnet) const;
+    void handleDpphysReturn(const PortDirection &owner_direction, int vc);
+    int dpphysPoolOwner(int pair, int vnet, int pool_slot) const;
+    void setDpphysPoolOwner(int pair, int vnet, int pool_slot, int side);
+    int dpphysTakeRrSide(int pair, int vnet);
 
     OutputUnit*
     getOutputUnit(unsigned port)
@@ -122,11 +127,8 @@ class Router : public BasicRouter, public Consumer
     int route_compute(RouteInfo route, int inport, PortDirection direction,
                       int invc);
     AdaptiveRouteDecision route_compute_3d_adaptive(
-        RouteInfo route, int invc, bool require_available);
-    int dpPhysAdaptiveFreeCount(int outport, int vnet);
-    int dpPhysSelectAdaptiveVC(int outport, int vnet);
-    bool dpPhysHasEscapeVC(int outport, int vnet);
-    int dpPhysSelectEscapeVC(int outport, int vnet);
+        RouteInfo route, int invc, bool require_available,
+        PortDirection inport_dirn);
     void grant_switch(int inport, flit *t_flit);
     void schedule_wakeup(Cycles time);
 
@@ -164,6 +166,8 @@ class Router : public BasicRouter, public Consumer
 
     std::vector<std::shared_ptr<InputUnit>> m_input_unit;
     std::vector<std::shared_ptr<OutputUnit>> m_output_unit;
+    std::vector<std::vector<std::vector<int>>> m_dpphys_pool_owner;
+    std::vector<std::vector<bool>> m_dpphys_grant_rr;
 
     // Statistical variables required for power computations
     statistics::Scalar m_buffer_reads;

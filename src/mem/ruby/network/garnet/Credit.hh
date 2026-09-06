@@ -55,7 +55,8 @@ class Credit : public flit
 {
   public:
     Credit() {};
-    Credit(int vc, bool is_free_signal, Tick curTime);
+    Credit(int vc, bool is_free_signal, Tick curTime,
+           bool is_return = false);
 
     // Functions used by SerDes
     flit* serialize(int ser_id, int parts, uint32_t bWidth);
@@ -65,9 +66,11 @@ class Credit : public flit
     ~Credit() {};
 
     bool is_free_signal() { return m_is_free_signal; }
+    bool is_return() { return m_is_return; }
 
   private:
     bool m_is_free_signal;
+    bool m_is_return;
 };
 
 } // namespace garnet

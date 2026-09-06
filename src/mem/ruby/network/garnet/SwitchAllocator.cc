@@ -31,6 +31,8 @@
 
 #include "mem/ruby/network/garnet/SwitchAllocator.hh"
 
+#include <algorithm>
+
 #include "debug/RubyNetwork.hh"
 #include "mem/ruby/network/garnet/GarnetNetwork.hh"
 #include "mem/ruby/network/garnet/InputUnit.hh"
@@ -67,17 +69,12 @@ SwitchAllocator::init()
     m_port_requests.resize(m_num_inports);
     m_vc_winners.resize(m_num_inports);
     m_escape_requests.resize(m_num_inports);
-    m_request_source_inport.resize(m_num_inports);
-    m_dpphys_flat_winner.resize(m_num_inports);
-    m_dpphys_bank_rr.assign(3, std::vector<int>(4, 0));
 
     for (int i = 0; i < m_num_inports; i++) {
         m_round_robin_invc[i] = 0;
         m_port_requests[i] = -1;
         m_vc_winners[i] = -1;
         m_escape_requests[i] = false;
-        m_request_source_inport[i] = i;
-        m_dpphys_flat_winner[i] = -1;
     }
 
     for (int i = 0; i < m_num_outports; i++) {
@@ -117,147 +114,70 @@ SwitchAllocator::wakeup()
 void
 SwitchAllocator::arbitrate_inports()
 {
-    std::vector<bool> paired_inports(m_num_inports, false);
-    if (m_router->get_net_ptr()->isDPPhysEnabled())
-        arbitrate_dp_phys_inports(paired_inports);
-
     // Select a VC from each input in a round robin manner
     // Independent arbiter at each input port
     for (int inport = 0; inport < m_num_inports; inport++) {
-        if (m_port_requests[inport] >= 0)
-            continue;
         int invc = m_round_robin_invc[inport];
 
         for (int invc_iter = 0; invc_iter < m_num_vcs; invc_iter++) {
-            const int vnet = get_vnet(invc);
-            auto *net = m_router->get_net_ptr();
-            auto *input = m_router->getInputUnit(inport);
-            if (!(paired_inports[inport] &&
-                  net->dpPhysGoverns(vnet, input->get_direction())) &&
-                try_request(inport, invc, inport))
-                break;
+            auto input_unit = m_router->getInputUnit(inport);
+
+            if (input_unit->need_stage(invc, SA_, curTick())) {
+                // This flit is in SA stage
+
+                int outport = input_unit->get_outport(invc);
+                bool wormhole_control =
+                    m_router->get_net_ptr()->isWormhole() &&
+                    m_router->get_net_ptr()->get_vnet_type(
+                        get_vnet(invc)) == CTRL_VNET_;
+                if (wormhole_control)
+                    outport = input_unit->peekTopFlit(invc)->get_outport();
+                int outvc = input_unit->get_outvc(invc);
+                bool route_available = true;
+                bool escape_request = false;
+
+                if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
+                    if (outvc == -1) {
+                        AdaptiveRouteDecision decision =
+                            m_router->route_compute_3d_adaptive(
+                                input_unit->peekTopFlit(invc)->get_route(),
+                                invc, true, input_unit->get_direction());
+                        route_available = decision.outport != -1;
+                        if (route_available) {
+                            outport = decision.outport;
+                            escape_request = decision.escape;
+                            input_unit->grant_outport(invc, outport);
+                        }
+                    } else {
+                        const bool outport_local =
+                            m_router->getOutputUnit(outport)->
+                                get_direction() == "Local";
+                        escape_request = m_router->get_net_ptr()->
+                            isEscapeVCAt(outvc, outport_local);
+                    }
+                }
+
+                // check if the flit in this InputVC is allowed to be sent
+                // send_allowed conditions described in that function.
+                bool make_request = route_available &&
+                    send_allowed(inport, invc, outport, outvc,
+                                 escape_request);
+
+                if (make_request) {
+                    m_input_arbiter_activity++;
+                    m_port_requests[inport] = outport;
+                    m_vc_winners[inport] = invc;
+                    m_escape_requests[inport] = escape_request;
+
+                    break; // got one vc winner for this port
+                }
+            }
 
             invc++;
             if (invc >= m_num_vcs)
                 invc = 0;
         }
     }
-}
-
-// The paired-pool organization has two read banks: the selected direction's
-// private RES bank and one shared POOL bank. Opposing directions use opposite
-// phases, so exactly one side can query POOL each cycle. A pool candidate is
-// selected across both physical InputUnits and travels through the crossbar
-// lane belonging to its true ingress direction; this models a central 1R pool
-// even when the backing slot is physically hosted by the opposite InputUnit.
-void
-SwitchAllocator::arbitrate_dp_phys_inports(
-    std::vector<bool> &paired_inports)
-{
-    auto *net = m_router->get_net_ptr();
-    static const PortDirection directions[6] = {
-        "East", "West", "North", "South", "Up", "Down"
-    };
-    const int pool_side =
-        (static_cast<uint64_t>(m_router->curCycle()) & 1) == 0 ? 1 : 0;
-    const int flat_count = 2 * m_num_vcs;
-
-    for (int pair = 0; pair < 3; ++pair) {
-        const int pair_inports[2] = {
-            m_router->getInportIdByDirection(directions[pair * 2]),
-            m_router->getInportIdByDirection(directions[pair * 2 + 1])
-        };
-        assert(pair_inports[0] >= 0 && pair_inports[1] >= 0);
-        paired_inports[pair_inports[0]] = true;
-        paired_inports[pair_inports[1]] = true;
-
-        for (int side = 0; side < 2; ++side) {
-            const bool pool_turn = side == pool_side;
-            const int bank = pool_turn ? 1 : 0;
-            const int request_inport = pair_inports[side];
-            int flat = m_dpphys_bank_rr[pair][side * 2 + bank];
-
-            for (int iter = 0; iter < flat_count; ++iter) {
-                const int source_inport =
-                    pair_inports[flat / m_num_vcs];
-                const int invc = flat % m_num_vcs;
-                auto *input = m_router->getInputUnit(source_inport);
-                const int vnet = get_vnet(invc);
-                const bool ready = input->need_stage(invc, SA_, curTick());
-                if (ready &&
-                    net->dpPhysGoverns(vnet, input->get_direction())) {
-                    const int true_d = GarnetNetwork::dpPhysDirnIndex(
-                        input->get_true_direction(invc));
-                    const bool pooled = net->dpPhysPhysicalPooledOffset(
-                        invc % m_vc_per_vnet);
-                    if (true_d == pair * 2 + side &&
-                        pooled == pool_turn &&
-                        try_request(source_inport, invc, request_inport)) {
-                        m_dpphys_flat_winner[request_inport] = flat;
-                        break;
-                    }
-                }
-                flat = (flat + 1) % flat_count;
-            }
-        }
-    }
-}
-
-bool
-SwitchAllocator::try_request(int source_inport, int invc,
-                             int request_inport)
-{
-    auto input_unit = m_router->getInputUnit(source_inport);
-    if (!input_unit->need_stage(invc, SA_, curTick()))
-        return false;
-
-    int outport = input_unit->get_outport(invc);
-    const int vnet = get_vnet(invc);
-    bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
-        m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
-    if (wormhole_control)
-        outport = input_unit->peekTopFlit(invc)->get_outport();
-    const int outvc = input_unit->get_outvc(invc);
-    bool route_available = true;
-    bool escape_request = false;
-
-    if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
-        if (outvc == -1) {
-            AdaptiveRouteDecision decision =
-                m_router->route_compute_3d_adaptive(
-                    input_unit->peekTopFlit(invc)->get_route(), invc, true);
-            route_available = decision.outport != -1;
-            if (route_available) {
-                outport = decision.outport;
-                escape_request = decision.escape;
-                input_unit->grant_outport(invc, outport);
-            }
-        } else {
-            const int escape_vcs =
-                m_router->get_net_ptr()->getEscapeVCs();
-            const int output_vcs =
-                m_router->getOutputUnit(outport)->getVcsPerVnet();
-            const bool dpphys = m_router->get_net_ptr()->dpPhysGoverns(
-                vnet, m_router->getOutputUnit(outport)->get_direction());
-            const int escape_begin = dpphys ?
-                m_router->get_net_ptr()->getDPPhysPrivateVCs() +
-                    m_router->get_net_ptr()->getDPPhysPoolVCs() :
-                m_vc_per_vnet - escape_vcs;
-            escape_request = escape_vcs > 0 &&
-                outvc % output_vcs >= escape_begin;
-        }
-    }
-
-    if (!route_available ||
-        !send_allowed(source_inport, invc, outport, outvc, escape_request))
-        return false;
-
-    m_input_arbiter_activity++;
-    m_port_requests[request_inport] = outport;
-    m_vc_winners[request_inport] = invc;
-    m_escape_requests[request_inport] = escape_request;
-    m_request_source_inport[request_inport] = source_inport;
-    return true;
 }
 
 /*
@@ -289,8 +209,7 @@ SwitchAllocator::arbitrate_outports()
             // inport has a request this cycle for outport
             if (m_port_requests[inport] == outport) {
                 auto output_unit = m_router->getOutputUnit(outport);
-                const int source_inport = m_request_source_inport[inport];
-                auto input_unit = m_router->getInputUnit(source_inport);
+                auto input_unit = m_router->getInputUnit(inport);
 
                 // grant this outport to this inport
                 int invc = m_vc_winners[inport];
@@ -299,8 +218,7 @@ SwitchAllocator::arbitrate_outports()
                 if (outvc == -1) {
                     // VC Allocation - select any free VC from outport
                     outvc = vc_allocate(
-                        outport, source_inport, invc,
-                        m_escape_requests[inport]);
+                        outport, inport, invc, m_escape_requests[inport]);
                 }
 
                 // remove flit from Input VC
@@ -333,23 +251,12 @@ SwitchAllocator::arbitrate_outports()
 
                 if (m_router->get_net_ptr()->isTorus3DAdaptive() &&
                     output_unit->get_direction() != "Local") {
-                    auto *net = m_router->get_net_ptr();
-                    const int escape_vcs =
-                        net->getEscapeVCs();
-                    const int adaptive_vcs = m_vc_per_vnet - escape_vcs;
-                    const bool dpphys = net->dpPhysGoverns(
-                        get_vnet(invc), output_unit->get_direction());
-                    const int output_offset = outvc %
-                        output_unit->getVcsPerVnet();
-                    const bool output_escape = dpphys ?
-                        output_offset >=
-                            static_cast<int>(net->getDPPhysPrivateVCs() +
-                                             net->getDPPhysPoolVCs()) :
-                        escape_vcs > 0 &&
-                            output_offset >= adaptive_vcs;
+                    const bool output_escape =
+                        m_router->get_net_ptr()->isEscapeVCAt(
+                            outvc, false);
                     const bool input_escape =
-                        escape_vcs > 0 &&
-                        invc % m_vc_per_vnet >= adaptive_vcs;
+                        m_router->get_net_ptr()->isEscapeVCAt(invc,
+                            input_unit->get_direction() == "Local");
                     if (output_escape)
                         m_router->get_net_ptr()->increment_escape_hop();
                     else
@@ -361,6 +268,19 @@ SwitchAllocator::arbitrate_outports()
                         m_router->get_net_ptr()->
                             increment_escape_transition();
                     }
+                }
+
+                if (m_router->get_net_ptr()->isDPPhys() &&
+                    output_unit->get_direction() == "Local" &&
+                    (t_flit->get_type() == TAIL_ ||
+                     t_flit->get_type() == HEAD_TAIL_)) {
+                    InputUnit *arrival = input_unit;
+                    if (input_unit->get_direction() != "Local") {
+                        arrival = m_router->getInputUnit(
+                            input_unit->arrivalInport(invc));
+                    }
+                    m_router->get_net_ptr()->incrementDpphysReceived(
+                        arrival->get_direction());
                 }
 
                 // decrement credit in outvc
@@ -381,23 +301,10 @@ SwitchAllocator::arbitrate_outports()
                             GarnetNetwork::cbsOppositeDirn(outport_dirn);
                         int down_router = net->cbsDownstreamRouter(
                             m_router->get_id(), outport_dirn);
-                        // Under DP the bubble lives in the dedicated
-                        // window: displacement fires when the consumed
-                        // slot and the vacated slot are both dedicated
-                        // and no dedicated slot stays free downstream.
-                        const bool dp = net->isDPEnabled();
-                        const int dp_r =
-                            dp ? (int)net->getDPReserve() : 0;
-                        const bool bubble_consumed = dp ?
-                            (outvc % m_vc_per_vnet < dp_r &&
-                             invc % m_vc_per_vnet < dp_r &&
-                             output_unit->free_vc_credit_count(
-                                 cbs_vnet, 0, dp_r) == 0) :
-                            output_unit->count_free_vcs(cbs_vnet) == 0;
                         if (input_unit->get_direction() == down_inport &&
                             net->cbsHasMark(down_router, down_inport,
                                             cbs_vnet) &&
-                            bubble_consumed) {
+                            output_unit->count_free_vcs(cbs_vnet) == 0) {
                             net->cbsMoveMark(down_router, down_inport,
                                 m_router->get_id(),
                                 input_unit->get_direction(), cbs_vnet);
@@ -407,8 +314,6 @@ SwitchAllocator::arbitrate_outports()
 
                 // flit ready for Switch Traversal
                 t_flit->advance_stage(ST_, curTick());
-                // `inport` is the true-direction crossbar lane. For a pool
-                // flit, `input_unit` may be the opposite physical host.
                 m_router->grant_switch(inport, t_flit);
                 m_output_arbiter_activity++;
 
@@ -428,15 +333,15 @@ SwitchAllocator::arbitrate_outports()
                         // HEAD_TAIL packets drain, but route the next flit
                         // independently.
                         input_unit->set_outvc(invc, -1);
-                        input_unit->increment_credit(invc, false, curTick());
+                        grantOnRelease(input_unit, inport, invc, false);
                     } else {
                         input_unit->set_vc_idle(invc, curTick());
-                        input_unit->increment_credit(invc, true, curTick());
+                        grantOnRelease(input_unit, inport, invc, true);
                     }
                 } else {
                     // Send a credit back
                     // but do not indicate that the VC is idle
-                    input_unit->increment_credit(invc, false, curTick());
+                    grantOnRelease(input_unit, inport, invc, false);
                 }
 
                 // remove this request
@@ -451,28 +356,9 @@ SwitchAllocator::arbitrate_outports()
                 // We do it here to keep it fair.
                 // Only the VC which got switch traversal
                 // is updated.
-                m_round_robin_invc[source_inport] = invc + 1;
-                if (m_round_robin_invc[source_inport] >= m_num_vcs)
-                    m_round_robin_invc[source_inport] = 0;
-
-                const int flat_winner = m_dpphys_flat_winner[inport];
-                if (flat_winner >= 0) {
-                    auto *net = m_router->get_net_ptr();
-                    const int true_d = GarnetNetwork::dpPhysDirnIndex(
-                        input_unit->get_true_direction(invc));
-                    assert(true_d >= 0);
-                    const int pair = true_d / 2;
-                    const int side = true_d % 2;
-                    const bool pooled = net->dpPhysPhysicalPooledOffset(
-                        invc % m_vc_per_vnet);
-                    const int bank = pooled ? 1 : 0;
-                    m_dpphys_bank_rr[pair][side * 2 + bank] =
-                        (flat_winner + 1) % (2 * m_num_vcs);
-                    if (pooled)
-                        net->increment_dp_phys_pool_read(true_d);
-                    else
-                        net->increment_dp_phys_reserved_read(true_d);
-                }
+                m_round_robin_invc[inport] = invc + 1;
+                if (m_round_robin_invc[inport] >= m_num_vcs)
+                    m_round_robin_invc[inport] = 0;
 
 
                 break; // got a input winner for this outport
@@ -485,6 +371,170 @@ SwitchAllocator::arbitrate_outports()
     }
 }
 
+void
+SwitchAllocator::grantOnRelease(InputUnit *input_unit, int inport, int invc,
+                                bool free_signal)
+{
+    auto *net = m_router->get_net_ptr();
+    if (!net->isDPPhys() || input_unit->get_direction() == "Local") {
+        input_unit->increment_credit(invc, free_signal, curTick());
+        return;
+    }
+
+    const int arrival = input_unit->arrivalInport(invc);
+    assert(arrival >= 0 && arrival < m_num_inports);
+    InputUnit *target = m_router->getInputUnit(arrival);
+    const int offset = invc % m_vc_per_vnet;
+
+    if (free_signal && net->dpphysIsPoolOffset(offset)) {
+        grantPoolCredit(arrival, invc);
+        return;
+    }
+
+    target->increment_credit(invc, free_signal, curTick());
+}
+
+void
+SwitchAllocator::handleDpphysReturn(
+    const PortDirection &owner_direction, int vc)
+{
+    auto *net = m_router->get_net_ptr();
+    assert(net->dpphysPolicy() == "starve" ||
+           net->dpphysPolicy() == "pressure");
+    assert(net->dpphysIsPoolOffset(vc % m_vc_per_vnet));
+    InputUnit *owner =
+        m_router->getInputUnitByDirection(owner_direction);
+
+    const int offset = vc % m_vc_per_vnet;
+    const int home_side = net->dpphysHomeSideOfOffset(offset);
+    InputUnit *physical = owner;
+    if (GarnetNetwork::dpphysSideOfInportDirn(
+            owner->get_direction()) != home_side) {
+        physical = m_router->getPairedInputUnit(owner->get_id());
+    }
+    assert(physical->is_vc_idle(vc));
+    grantPoolCredit(owner->get_id(), vc);
+}
+
+void
+SwitchAllocator::grantPoolCredit(int owner_inport, int vc)
+{
+    auto *net = m_router->get_net_ptr();
+    InputUnit *target = m_router->getInputUnit(owner_inport);
+    const int offset = vc % m_vc_per_vnet;
+    const int vnet = get_vnet(vc);
+    const PortDirection owner_dirn = target->get_direction();
+    const int pair = GarnetNetwork::dpphysPairOfDirn(owner_dirn);
+    const int owner_side =
+        GarnetNetwork::dpphysSideOfInportDirn(owner_dirn);
+    const int pool_slot = offset - 2 * net->dpphysR();
+    assert(pair >= 0 && owner_side >= 0);
+    assert(net->dpphysIsPoolOffset(offset));
+    assert(m_router->dpphysPoolOwner(pair, vnet, pool_slot) ==
+           owner_side);
+
+    int owner_count[2] = {0, 0};
+    for (int slot = 0; slot < net->dpphysP(); ++slot) {
+        const int owner = m_router->dpphysPoolOwner(pair, vnet, slot);
+        assert(owner == 0 || owner == 1);
+        owner_count[owner]++;
+    }
+    assert(owner_count[0] + owner_count[1] == net->dpphysP());
+
+    int target_side = owner_side;
+    if (net->dpphysPolicy() == "forced") {
+        target_side = 1 - owner_side;
+    } else if (net->dpphysPolicy() == "rr") {
+        target_side = m_router->dpphysTakeRrSide(pair, vnet);
+    } else if (net->dpphysPolicy() == "starve" ||
+               net->dpphysPolicy() == "pressure") {
+        InputUnit *side_units[2];
+        side_units[owner_side] = target;
+        side_units[1 - owner_side] =
+            m_router->getPairedInputUnit(owner_inport);
+
+        const int vc_base = vnet * m_vc_per_vnet;
+        const int reserve = net->dpphysR();
+        const int pool = net->dpphysP();
+        int free_slots[2] = {0, 0};
+        for (int side = 0; side < 2; ++side) {
+            for (int reserve_slot = 0;
+                 reserve_slot < reserve; ++reserve_slot) {
+                const int candidate =
+                    vc_base + side * reserve + reserve_slot;
+                if (candidate != vc &&
+                    side_units[side]->is_vc_idle(candidate)) {
+                    free_slots[side]++;
+                }
+            }
+        }
+        for (int slot = 0; slot < pool; ++slot) {
+            const int owner =
+                m_router->dpphysPoolOwner(pair, vnet, slot);
+            assert(owner == 0 || owner == 1);
+            const int candidate = vc_base + 2 * reserve + slot;
+            const int home = net->dpphysHomeSideOfOffset(
+                2 * reserve + slot);
+            if (candidate != vc &&
+                side_units[home]->is_vc_idle(candidate)) {
+                free_slots[owner]++;
+            }
+        }
+
+        if (net->dpphysPolicy() == "pressure") {
+            int reserve_busy[2] = {0, 0};
+            for (int side = 0; side < 2; ++side) {
+                for (int reserve_slot = 0;
+                     reserve_slot < reserve; ++reserve_slot) {
+                    const int candidate =
+                        vc_base + side * reserve + reserve_slot;
+                    if (!side_units[side]->is_vc_idle(candidate))
+                        reserve_busy[side]++;
+                }
+            }
+
+            const int peer_side = 1 - owner_side;
+            // A blocked peer overrides stickiness.  Otherwise move the
+            // credit only toward strictly greater reserved pressure; ties
+            // keep the last owner to avoid ownership ping-pong.
+            if ((free_slots[peer_side] == 0 &&
+                 free_slots[owner_side] > 0) ||
+                reserve_busy[peer_side] > reserve_busy[owner_side]) {
+                target_side = peer_side;
+            }
+        } else if (free_slots[0] == 0 && free_slots[1] > 0) {
+            target_side = 0;
+        } else if (free_slots[1] == 0 && free_slots[0] > 0) {
+            target_side = 1;
+        } else {
+            target_side = m_router->dpphysTakeRrSide(pair, vnet);
+        }
+    }
+
+    if (target_side != owner_side &&
+        owner_count[target_side] >= net->dpphysCap()) {
+        target_side = owner_side;
+    }
+
+    if (target_side != owner_side) {
+        target = m_router->getPairedInputUnit(owner_inport);
+        m_router->setDpphysPoolOwner(
+            pair, vnet, pool_slot, target_side);
+        net->incrementDpphysGrantsMigrated();
+        owner_count[owner_side]--;
+        owner_count[target_side]++;
+    }
+
+    assert(owner_count[0] + owner_count[1] == net->dpphysP());
+    assert(owner_count[0] <= net->dpphysCap());
+    assert(owner_count[1] <= net->dpphysCap());
+    const int half = net->dpphysP() / 2;
+    net->updateDpphysBorrowedPeak(
+        std::max(std::max(0, owner_count[0] - half),
+                 std::max(0, owner_count[1] - half)));
+    target->increment_credit(vc, true, curTick());
+}
+
 // CBS applies to hops that stay inside the torus (non-Local outports) on
 // ctrl vnets, where every packet is a single flit and a buffer slot is
 // exactly one VC.
@@ -495,63 +545,6 @@ SwitchAllocator::cbs_governs(int vnet, int outport)
     return net->isCBSEnabled() &&
            net->get_vnet_type(vnet) == CTRL_VNET_ &&
            m_router->getOutputUnit(outport)->get_direction() != "Local";
-}
-
-// DP applies to the same hops as CBS: non-Local outports on ctrl vnets.
-bool
-SwitchAllocator::dp_governs(int vnet, int outport)
-{
-    auto *net = m_router->get_net_ptr();
-    return net->isDPEnabled() &&
-           net->get_vnet_type(vnet) == CTRL_VNET_ &&
-           m_router->getOutputUnit(outport)->get_direction() != "Local";
-}
-
-// DP on Torus3D DOR: decide which windows at `outport` may admit the flit
-// waiting in (inport, invc). The pooled window [dp_reserve, V) is open when
-// it has a free VC and the downstream dimension pair is under its cap. The
-// dedicated window [0, dp_reserve) runs CBS: ring entry next to the
-// critical bubble needs two free dedicated slots, and in-ring transit may
-// fill the last dedicated slot at a marked inport only when the mover
-// itself sits in a dedicated VC, so the mark lands on the dedicated slot
-// it vacates.
-void
-SwitchAllocator::dp_cbs_admission(int vnet, int inport, int invc, int outport,
-                                  bool &shared_ok, bool &dedicated_ok,
-                                  bool record_stats)
-{
-    auto *net = m_router->get_net_ptr();
-    auto output_unit = m_router->getOutputUnit(outport);
-    const int r = net->getDPReserve();
-    const int pooled = m_vc_per_vnet - r;
-
-    const PortDirection outport_dirn = output_unit->get_direction();
-    const PortDirection down_inport =
-        GarnetNetwork::cbsOppositeDirn(outport_dirn);
-    const int down_router =
-        net->cbsDownstreamRouter(m_router->get_id(), outport_dirn);
-    const bool marked = net->cbsHasMark(down_router, down_inport, vnet);
-    const bool ring_entry =
-        m_router->getInputUnit(inport)->get_direction() != down_inport;
-
-    const bool pool_full = net->dpPoolFull(down_router, down_inport, vnet);
-    const bool shared_free = output_unit->has_free_vc(vnet, r, pooled);
-    shared_ok = shared_free && !pool_full;
-
-    const int ded_free = output_unit->free_vc_credit_count(vnet, 0, r);
-    if (ring_entry) {
-        dedicated_ok = ded_free >= (marked ? 2 : 1);
-    } else {
-        dedicated_ok = ded_free >= 2 ||
-            (ded_free == 1 && (!marked || invc % m_vc_per_vnet < r));
-    }
-
-    if (record_stats && !shared_ok && !dedicated_ok) {
-        if (shared_free && pool_full)
-            net->increment_dp_pool_block();
-        if (ring_entry && marked && ded_free == 1)
-            net->increment_cbs_entry_block();
-    }
 }
 
 /*
@@ -588,47 +581,14 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc,
 
         bool output_available = false;
         if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
-            auto *net = m_router->get_net_ptr();
-            const int escape_vcs = net->getEscapeVCs();
-            const int adaptive_vcs = m_vc_per_vnet - escape_vcs;
-            const bool dpphys = net->dpPhysGoverns(
-                vnet, output_unit->get_direction());
-            if (dpphys) {
-                output_available = escape_request ?
-                    m_router->dpPhysHasEscapeVC(outport, vnet) :
-                    m_router->dpPhysAdaptiveFreeCount(outport, vnet) > 0;
-            } else {
-                const int first_offset = escape_request ? adaptive_vcs : 0;
-                const int count = escape_request ? escape_vcs : adaptive_vcs;
-                output_available = output_unit->has_free_vc(
-                    vnet, first_offset, count);
+            output_available = output_unit->has_free_vc_class(
+                vnet, escape_request);
+            if (!output_available &&
+                m_router->get_net_ptr()->isDPPhys() &&
+                output_unit->get_direction() != "Local" &&
+                !escape_request) {
+                m_router->get_net_ptr()->incrementDpphysPoolFullBlock();
             }
-
-            // DP: adaptive-class admission also respects the downstream
-            // dimension-pair pool; escape VCs stay exempt. Routing already
-            // skips pool-full outports, so this is a belt check.
-            if (output_available && !escape_request &&
-                dp_governs(vnet, outport)) {
-                auto *net = m_router->get_net_ptr();
-                const PortDirection outport_dirn =
-                    output_unit->get_direction();
-                if (net->dpPoolFull(
-                        net->cbsDownstreamRouter(m_router->get_id(),
-                                                 outport_dirn),
-                        GarnetNetwork::cbsOppositeDirn(outport_dirn),
-                        vnet)) {
-                    output_available = false;
-                    net->increment_dp_pool_block();
-                }
-            }
-        } else if (dp_governs(vnet, outport)) {
-            // DP on DOR: the flit may take a pooled VC (pair under its
-            // cap) or a dedicated VC (per CBS rules on the dedicated
-            // window); see dp_cbs_admission.
-            bool shared_ok, dedicated_ok;
-            dp_cbs_admission(vnet, inport, invc, outport,
-                             shared_ok, dedicated_ok, true);
-            output_available = shared_ok || dedicated_ok;
         } else {
             bool wormhole_control =
                 m_router->get_net_ptr()->isWormhole() &&
@@ -715,33 +675,8 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc,
     int vnet = get_vnet(invc);
     int outvc = -1;
     if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
-        auto *net = m_router->get_net_ptr();
-        const int escape_vcs = net->getEscapeVCs();
-        const int adaptive_vcs = m_vc_per_vnet - escape_vcs;
-        const PortDirection outdir =
-            m_router->getOutputUnit(outport)->get_direction();
-        if (net->dpPhysGoverns(vnet, outdir)) {
-            outvc = escape_request ?
-                m_router->dpPhysSelectEscapeVC(outport, vnet) :
-                m_router->dpPhysSelectAdaptiveVC(outport, vnet);
-        } else {
-            const int first_offset = escape_request ? adaptive_vcs : 0;
-            const int count = escape_request ? escape_vcs : adaptive_vcs;
-            outvc = m_router->getOutputUnit(outport)->select_free_vc(
-                vnet, first_offset, count);
-        }
-    } else if (dp_governs(vnet, outport)) {
-        // Shared-first: spend pool headroom before the dedicated reserve
-        // so the CBS bubbles keep their mobility.
-        auto output_unit = m_router->getOutputUnit(outport);
-        const int r = m_router->get_net_ptr()->getDPReserve();
-        bool shared_ok, dedicated_ok;
-        dp_cbs_admission(vnet, inport, invc, outport,
-                         shared_ok, dedicated_ok, false);
-        if (shared_ok)
-            outvc = output_unit->select_free_vc(vnet, r, m_vc_per_vnet - r);
-        if (outvc == -1 && dedicated_ok)
-            outvc = output_unit->select_free_vc(vnet, 0, r);
+        outvc = m_router->getOutputUnit(outport)->select_free_vc_class(
+            vnet, escape_request);
     } else {
         bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
             m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
@@ -751,21 +686,6 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc,
 
     // has to get a valid VC since it checked before performing SA
     assert(outvc != -1);
-
-    // DP: count the granted VC against its downstream dimension pool
-    // (dpNoteAlloc ignores non-pooled offsets, vnets, and directions).
-    auto *net = m_router->get_net_ptr();
-    if (net->isDPEnabled()) {
-        const PortDirection outport_dirn =
-            m_router->getOutputUnit(outport)->get_direction();
-        if (outport_dirn != "Local") {
-            net->dpNoteAlloc(
-                net->cbsDownstreamRouter(m_router->get_id(), outport_dirn),
-                GarnetNetwork::cbsOppositeDirn(outport_dirn),
-                vnet, outvc % m_vc_per_vnet);
-        }
-    }
-
     m_router->getInputUnit(inport)->grant_outvc(invc, outvc);
     return outvc;
 }
@@ -806,12 +726,7 @@ void
 SwitchAllocator::clear_request_vector()
 {
     std::fill(m_port_requests.begin(), m_port_requests.end(), -1);
-    std::fill(m_vc_winners.begin(), m_vc_winners.end(), -1);
     std::fill(m_escape_requests.begin(), m_escape_requests.end(), false);
-    std::fill(m_request_source_inport.begin(),
-              m_request_source_inport.end(), -1);
-    std::fill(m_dpphys_flat_winner.begin(),
-              m_dpphys_flat_winner.end(), -1);
 }
 
 void

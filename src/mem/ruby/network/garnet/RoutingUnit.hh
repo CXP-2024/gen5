@@ -86,7 +86,8 @@ class RoutingUnit
     int outportCompute3DXYZ(RouteInfo route);
 
     AdaptiveRouteDecision outportCompute3DAdaptive(
-        RouteInfo route, int invc, bool require_available);
+        RouteInfo route, int invc, bool require_available,
+        PortDirection inport_dirn);
 
     // Returns true if vnet is present in the vector
     // of vnets or if the vector supports all vnets.

@@ -58,33 +58,22 @@ class GarnetNetwork(RubyNetwork):
         False,
         "critical bubble scheme flow control on Torus3D rings (ctrl vnets)",
     )
-    enable_dp = Param.Bool(
-        False,
-        "dimension pool flow control: opposing inports of one dimension "
-        "share their pooled VCs under a joint occupancy cap (ctrl vnets)",
-    )
-    dp_reserve = Param.UInt32(
-        2, "dedicated (non-pooled) VCs per inport for the CBS substrate"
-    )
-    dp_shared_cap = Param.UInt32(
-        0, "joint cap on occupied pooled VCs across one dimension pair"
-    )
-    enable_dpphys = Param.Bool(
-        False,
-        "equal-physical paired VC pools for opposing torus directions",
-    )
-    dpphys_private_vcs = Param.UInt32(
-        1, "private adaptive VCs permanently retained by each direction"
-    )
-    dpphys_pool_vcs = Param.UInt32(
-        4, "physical VC slots shared by each opposing direction pair"
-    )
-    dpphys_owner_cap = Param.UInt32(
-        3, "maximum shared-pool credits owned by either direction"
-    )
     dpphys_policy = Param.String(
-        "pressure",
-        "pool-credit policy: rts, rr, or pressure",
+        "",
+        "DP-Phys pooled-VC policy for adaptive torus routing; empty "
+        "string disables",
+    )
+    dpphys_r = Param.UInt32(
+        2, "DP-Phys reserved VCs per side (includes the escape VC)"
+    )
+    dpphys_cap = Param.UInt32(
+        0, "DP-Phys maximum pool credits per side; zero selects P"
+    )
+    dpphys_return_base = Param.Float(
+        0.25, "DP-Phys return timeout for g>=2, in RTT multiples"
+    )
+    dpphys_return_t1 = Param.Float(
+        2.0, "DP-Phys final-credit return timeout, in RTT multiples"
     )
     routing_algorithm = Param.Int(
         0,

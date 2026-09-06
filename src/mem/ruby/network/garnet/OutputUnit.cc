@@ -31,9 +31,14 @@
 
 #include "mem/ruby/network/garnet/OutputUnit.hh"
 
+#include <algorithm>
+#include <cmath>
+
 #include "debug/RubyNetwork.hh"
 #include "mem/ruby/network/garnet/Credit.hh"
 #include "mem/ruby/network/garnet/CreditLink.hh"
+#include "mem/ruby/network/garnet/GarnetNetwork.hh"
+#include "mem/ruby/network/garnet/InputUnit.hh"
 #include "mem/ruby/network/garnet/Router.hh"
 #include "mem/ruby/network/garnet/flitBuffer.hh"
 
@@ -55,6 +60,21 @@ OutputUnit::OutputUnit(int id, PortDirection direction, Router *router,
     outVcState.reserve(m_num_vcs);
     for (int i = 0; i < m_num_vcs; i++) {
         outVcState.emplace_back(i, m_router->get_net_ptr(), consumerVcs);
+    }
+    m_dpphys_return_wait.assign(m_router->get_num_vnets(), 0);
+
+    auto *net = m_router->get_net_ptr();
+    if (net->isDPPhys() && m_direction != "Local") {
+        const int side =
+            GarnetNetwork::dpphysSideOfOutportDirn(m_direction);
+        assert(side >= 0);
+        for (int vc = 0; vc < m_num_vcs; ++vc) {
+            const int offset = vc % m_vc_per_vnet;
+            if (!net->dpphysOffsetAllowedAt(offset, side)) {
+                while (outVcState[vc].get_credit_count() > 0)
+                    outVcState[vc].decrement_credit();
+            }
+        }
     }
 }
 
@@ -121,6 +141,69 @@ OutputUnit::free_vc_credit_count(int vnet, int first_offset, int count)
     }
 
     return credits;
+}
+
+// DP-Phys: the VC ids this port may use for one class, in
+// availability order (own reserve first, then the side's pool half).
+std::vector<int>
+OutputUnit::dpphys_offsets(bool escape)
+{
+    auto *net = m_router->get_net_ptr();
+    const bool local = m_direction == "Local";
+    const int side = local ? 0 :
+        GarnetNetwork::dpphysSideOfOutportDirn(m_direction);
+    return net->dpphysOrderedOffsets(escape, side, local);
+}
+
+// Class-based selectors: resolve this port's VC layout (baseline
+// contiguous windows, or the DP-Phys pair-global id space) and visit
+// the class members in availability order.
+bool
+OutputUnit::has_free_vc_class(int vnet, bool escape)
+{
+    return free_vc_credit_count_class(vnet, escape) > 0;
+}
+
+int
+OutputUnit::free_vc_credit_count_class(int vnet, bool escape)
+{
+    auto *net = m_router->get_net_ptr();
+    if (!net->isDPPhys()) {
+        const auto window = escape ? net->escapeWindow()
+                                   : net->adaptiveWindow();
+        return free_vc_credit_count(vnet, window.first, window.second);
+    }
+
+    int credits = 0;
+    const int vc_base = vnet * m_vc_per_vnet;
+    for (const int offset : dpphys_offsets(escape)) {
+        const int vc = vc_base + offset;
+        if (is_vc_idle(vc, curTick()))
+            credits += outVcState[vc].get_credit_count();
+    }
+    return credits;
+}
+
+int
+OutputUnit::select_free_vc_class(int vnet, bool escape)
+{
+    auto *net = m_router->get_net_ptr();
+    if (!net->isDPPhys()) {
+        const auto window = escape ? net->escapeWindow()
+                                   : net->adaptiveWindow();
+        return select_free_vc(vnet, window.first, window.second);
+    }
+
+    const int vc_base = vnet * m_vc_per_vnet;
+    for (const int offset : dpphys_offsets(escape)) {
+        const int vc = vc_base + offset;
+        if (is_vc_idle(vc, curTick()) &&
+            outVcState[vc].get_credit_count() > 0) {
+            outVcState[vc].setState(ACTIVE_, curTick());
+            return vc;
+        }
+    }
+    return -1;
 }
 
 // Number of idle (free) VCs of this vnet at the downstream input port.
@@ -203,22 +286,17 @@ OutputUnit::wakeup()
 {
     if (m_credit_link->isReady(curTick())) {
         Credit *t_credit = (Credit*) m_credit_link->consumeLink();
-        increment_credit(t_credit->get_vc());
+        if (t_credit->is_return()) {
+            const auto &policy =
+                m_router->get_net_ptr()->dpphysPolicy();
+            assert(policy == "starve" || policy == "pressure");
+            m_router->handleDpphysReturn(
+                m_direction, t_credit->get_vc());
+        } else {
+            increment_credit(t_credit->get_vc());
 
-        if (t_credit->is_free_signal()) {
-            set_vc_state(IDLE_, t_credit->get_vc(), curTick());
-
-            // DP: the freed VC is an input VC at the downstream router;
-            // release its pooled-occupancy reservation if it was pooled.
-            GarnetNetwork *net = m_router->get_net_ptr();
-            if (net->isDPEnabled() && m_direction != "Local") {
-                const int vc = t_credit->get_vc();
-                net->dpNoteFree(
-                    net->cbsDownstreamRouter(m_router->get_id(),
-                                             m_direction),
-                    GarnetNetwork::cbsOppositeDirn(m_direction),
-                    vc / m_vc_per_vnet, vc % m_vc_per_vnet);
-            }
+            if (t_credit->is_free_signal())
+                set_vc_state(IDLE_, t_credit->get_vc(), curTick());
         }
 
         delete t_credit;
@@ -227,6 +305,74 @@ OutputUnit::wakeup()
             scheduleEvent(Cycles(1));
         }
     }
+}
+
+bool
+OutputUnit::tryDpphysReturn()
+{
+    auto *net = m_router->get_net_ptr();
+    const auto &policy = net->dpphysPolicy();
+    if ((policy != "starve" && policy != "pressure") ||
+        m_direction == "Local")
+        return false;
+
+    bool needs_wakeup = false;
+    bool returned = false;
+    const int pool_begin = 2 * net->dpphysR();
+    const int pool_end = pool_begin + net->dpphysP();
+    const int link_latency = m_credit_link->getLatency();
+    const int rtt = 2 * link_latency + 1;
+
+    for (int vnet = 0; vnet < m_router->get_num_vnets(); ++vnet) {
+        // The pair-global design transfers one whole single-slot VC with
+        // one credit.  The evaluation injects on the control vnet.
+        if (net->get_vnet_type(vnet) != CTRL_VNET_) {
+            m_dpphys_return_wait[vnet] = 0;
+            continue;
+        }
+
+        int credits_held = 0;
+        int return_vc = -1;
+        const int vc_base = vnet * m_vc_per_vnet;
+        for (int offset = pool_begin; offset < pool_end; ++offset) {
+            const int vc = vc_base + offset;
+            if (is_vc_idle(vc, curTick()) &&
+                outVcState[vc].get_credit_count() > 0) {
+                credits_held++;
+                return_vc = vc;
+            }
+        }
+
+        const int flits_queued = m_router->countFlitsFor(m_id, vnet);
+        if (credits_held == 0 || credits_held <= flits_queued) {
+            m_dpphys_return_wait[vnet] = 0;
+            continue;
+        }
+
+        const double timeout = credits_held >= 2 ?
+            net->dpphysReturnBase() : net->dpphysReturnT1();
+        if (std::isinf(timeout)) {
+            m_dpphys_return_wait[vnet] = 0;
+            continue;
+        }
+        const int threshold = std::max(
+            1, static_cast<int>(timeout * rtt));
+        m_dpphys_return_wait[vnet]++;
+        if (!returned && m_dpphys_return_wait[vnet] >= threshold) {
+            assert(return_vc >= 0);
+            decrement_credit(return_vc);
+            m_router->getInputUnitByDirection(m_direction)->
+                enqueueDpphysReturn(return_vc, curTick());
+            net->incrementDpphysCreditReturned();
+            m_dpphys_return_wait[vnet] = 0;
+            returned = true;
+            credits_held--;
+        }
+        if (credits_held > flits_queued)
+            needs_wakeup = true;
+    }
+
+    return needs_wakeup;
 }
 
 flitBuffer*

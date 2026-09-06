@@ -67,6 +67,7 @@ class SwitchAllocator : public Consumer
                       bool escape_request);
     int vc_allocate(int outport, int inport, int invc,
                     bool escape_request);
+    void handleDpphysReturn(const PortDirection &owner_direction, int vc);
 
     inline double
     get_input_arbiter_activity()
@@ -83,12 +84,9 @@ class SwitchAllocator : public Consumer
 
   private:
     bool cbs_governs(int vnet, int outport);
-    bool dp_governs(int vnet, int outport);
-    bool try_request(int source_inport, int invc, int request_inport);
-    void arbitrate_dp_phys_inports(std::vector<bool> &paired_inports);
-    void dp_cbs_admission(int vnet, int inport, int invc, int outport,
-                          bool &shared_ok, bool &dedicated_ok,
-                          bool record_stats);
+    void grantOnRelease(InputUnit *input_unit, int inport, int invc,
+                        bool free_signal);
+    void grantPoolCredit(int owner_inport, int vc);
 
     int m_num_inports, m_num_outports;
     int m_num_vcs, m_vc_per_vnet;
@@ -101,10 +99,6 @@ class SwitchAllocator : public Consumer
     std::vector<int> m_port_requests;
     std::vector<int> m_vc_winners;
     std::vector<bool> m_escape_requests;
-    std::vector<int> m_request_source_inport;
-    std::vector<int> m_dpphys_flat_winner;
-    // [dimension pair][side * 2 + bank], bank 0=RES and bank 1=POOL.
-    std::vector<std::vector<int>> m_dpphys_bank_rr;
 };
 
 } // namespace garnet

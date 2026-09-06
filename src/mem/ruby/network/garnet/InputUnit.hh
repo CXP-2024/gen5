@@ -60,14 +60,21 @@ class InputUnit : public Consumer
 
     void wakeup();
     void print(std::ostream& out) const {};
+    void depositFlit(int vc, flit *t_flit, int outport,
+                     int arrival_inport);
+    void enqueueDpphysReturn(int vc, Tick curTime);
+    int countActiveForOutport(int outport, int vnet) const;
+
+    int get_id() const { return m_id; }
+
+    int
+    arrivalInport(int vc) const
+    {
+        assert(vc >= 0 && vc < m_dpphys_arrival_inport.size());
+        return m_dpphys_arrival_inport[vc];
+    }
 
     inline PortDirection get_direction() { return m_direction; }
-
-    inline PortDirection
-    get_true_direction(int vc) const
-    {
-        return virtualChannels[vc].get_true_direction();
-    }
 
     inline void
     set_vc_idle(int vc, Tick curTime)
@@ -118,9 +125,6 @@ class InputUnit : public Consumer
     }
 
     void increment_credit(int in_vc, bool free_signal, Tick curTime);
-    void enqueue_credit(int upstream_vc, bool free_signal, Tick curTime);
-
-    int count_active_vcs(int vnet, int first_offset, int count) const;
 
     inline flit*
     peekTopFlit(int vc)
@@ -144,6 +148,12 @@ class InputUnit : public Consumer
     isReady(int invc, Tick curTime)
     {
         return virtualChannels[invc].isReady(curTime);
+    }
+
+    inline bool
+    is_vc_idle(int invc) const
+    {
+        return virtualChannels[invc].get_state() == IDLE_;
     }
 
     flitBuffer* getCreditQueue() { return &creditQueue; }
@@ -173,10 +183,6 @@ class InputUnit : public Consumer
     void resetStats();
 
   private:
-    void accept_flit(flit *t_flit, int physical_vc,
-                     const PortDirection &true_direction,
-                     int credit_inport, int upstream_vc);
-
     Router *m_router;
     int m_id;
     PortDirection m_direction;
@@ -187,6 +193,7 @@ class InputUnit : public Consumer
 
     // Input Virtual channels
     std::vector<VirtualChannel> virtualChannels;
+    std::vector<int> m_dpphys_arrival_inport;
 
     // Statistical variables
     std::vector<double> m_num_buffer_writes;
