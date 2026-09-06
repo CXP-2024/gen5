@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DP-Phys — Direction-Paired Buffer Pooling</title>
+<title>Tidal — Direction-Paired Buffer Pooling</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -56,7 +56,7 @@
   }
   .slide.active { display: flex; }
   .slide::after {
-    content: "DP-Phys · preliminary results";
+    content: "Tidal · preliminary results";
     position: absolute;
     right: 28px;
     bottom: 15px;
@@ -182,6 +182,9 @@
     font-size: 13px;
   }
   .arrow { color: var(--green); font-size: 23px; font-weight: 700; }
+  .flow.tight { gap: 5px; }
+  .flow.tight .node { min-width: 0; padding: 8px 9px; font-size: 12px; }
+  .flow.tight .arrow { font-size: 16px; }
   .bank {
     padding: 12px;
     border: 1px solid var(--border);
@@ -295,6 +298,13 @@
   .mini-slots { display: flex; justify-content: center; gap: 3px; }
   .mini-slot { display: grid; width: 25px; height: 26px; place-items: center; border: 1px solid; border-radius: 4px; font-size: 8px; font-weight: 800; }
   .dot.active { background: var(--blue); }
+
+  /* ── Present mode: fullscreen, PPT-like ── */
+  body.present { background: #000; }
+  body.present #stage { inset: 0; }
+  body.present #deck { border: 0; border-radius: 0; box-shadow: none; }
+  body.present #controls { display: none; }
+  body.present { cursor: none; }
 </style>
 </head>
 <body>
@@ -305,7 +315,7 @@
     <div style="display:grid;grid-template-columns:1.02fr .98fr;align-items:center;gap:38px;height:100%">
       <div>
         <div class="eyebrow">Architecture · Implementation · Evaluation</div>
-        <h1>DP-Phys: Direction-Paired Buffer Pooling</h1>
+        <h1>Tidal: Direction-Paired Buffer Pooling</h1>
         <p class="subtitle">Turn stranded per-direction capacity into a physical shared Pool—without changing total storage.</p>
         <div class="pills">
           <span class="pill">RES: private + escape</span>
@@ -329,25 +339,58 @@
         <div class="box blue grow">
           <span class="tag blue">C1 · long credit loop</span>
           <h3 style="text-transform:none;letter-spacing:0;font-size:18px">A free slot is unusable until its credit returns</h3>
-          <div class="flow" style="margin:28px 0 25px">
+          <div class="flow tight" style="margin:42px 0 34px">
             <div class="node">allocate VC</div><div class="arrow">→</div>
-            <div class="node">send flit</div><div class="arrow">→</div>
-            <div class="node">free slot</div><div class="arrow">→</div>
-            <div class="node">credit returns</div>
+            <div class="node">flit in flight<br><span class="muted">L cycles</span></div><div class="arrow">→</div>
+            <div class="node">slot freed</div><div class="arrow">→</div>
+            <div class="node">credit in flight<br><span class="muted">L cycles</span></div>
           </div>
-          <p>With link latency <span class="hi">L=8</span>, the credit loop is long enough that a hot input can run out of usable VCs even while its opposite input owns idle storage.</p>
+          <div style="margin:2px 0 8px;text-align:center;font-size:22px;font-weight:750">
+            credit RTT ≈ 2L + pipe ≈ <span class="hi">17 cycles</span> @ L=8
+          </div>
+          <p class="muted" style="text-align:center;font-size:15px">long links: chiplet / die-to-die hops</p>
+          <p style="margin-top:26px;text-align:center;font-size:19px">
+            4 slots × 1 flit per RTT ⇒ <span class="bad">≤ 0.24 flits/cycle</span><br>
+            <span class="muted" style="font-size:14px">capped even with zero contention</span>
+          </p>
         </div>
       </div>
       <div class="col">
         <div class="box green grow">
           <span class="tag green">C2 · directional skew</span>
-          <h3 style="text-transform:none;letter-spacing:0;font-size:18px">Opposing inputs rarely need peak capacity together</h3>
-          <div class="figure-card" style="height:245px;margin:13px 0 15px"><img src="assets/dpphys_pair_pool_concept.jpg" alt="Opposing inputs share one central physical pool"></div>
-          <p>Private buffers lock the split at 4/4. A paired Pool can expose a safe 3/1 ownership split without adding a single data slot.</p>
+          <h3 style="text-transform:none;letter-spacing:0;font-size:18px">One direction starves while the other's buffers sit empty</h3>
+          <div style="display:flex;align-items:center;justify-content:center;gap:9px;margin:44px 0 30px">
+            <div style="color:var(--red);font-size:19px;font-weight:800;line-height:.85">→<br>→<br>→</div>
+            <div class="bank" style="border-color:rgba(220,60,60,.5);padding:9px">
+              <div class="bank-title" style="color:var(--red);font-weight:750;margin-bottom:6px">E-in · hot</div>
+              <div class="slots" style="gap:3px">
+                <span class="slot" style="width:34px;height:32px;border-color:var(--red);color:var(--red);background:rgba(220,60,60,.15)">F</span>
+                <span class="slot" style="width:34px;height:32px;border-color:var(--red);color:var(--red);background:rgba(220,60,60,.15)">F</span>
+                <span class="slot" style="width:34px;height:32px;border-color:var(--red);color:var(--red);background:rgba(220,60,60,.15)">F</span>
+                <span class="slot" style="width:34px;height:32px;border-color:var(--red);color:var(--red);background:rgba(220,60,60,.15)">F</span>
+              </div>
+              <div style="margin-top:6px;text-align:center;color:var(--red);font-size:11px;font-weight:700">4/4 full · blocked</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+              <div style="height:66px;border-left:3px dashed var(--muted)"></div>
+              <div style="color:var(--muted);font-size:10px;font-weight:750;text-align:center">private<br>wall</div>
+            </div>
+            <div class="bank" style="padding:9px">
+              <div class="bank-title" style="margin-bottom:6px">W-in · idle</div>
+              <div class="slots" style="gap:3px">
+                <span class="slot" style="width:34px;height:32px;border-style:dashed;border-color:#b9c4d2;color:#b9c4d2">–</span>
+                <span class="slot" style="width:34px;height:32px;border-style:dashed;border-color:#b9c4d2;color:#b9c4d2">–</span>
+                <span class="slot" style="width:34px;height:32px;border-style:dashed;border-color:#b9c4d2;color:#b9c4d2">–</span>
+                <span class="slot" style="width:34px;height:32px;border-style:dashed;border-color:#b9c4d2;color:#b9c4d2">–</span>
+              </div>
+              <div style="margin-top:6px;text-align:center;color:var(--muted);font-size:11px">0/4 in use</div>
+            </div>
+          </div>
+          <p style="text-align:center;font-size:18px">Tornado-class traffic heats one direction only.<br>
+          With private buffers the waste is <strong>structural</strong> — <span class="good">no policy can move a slot across the wall.</span></p>
         </div>
       </div>
     </div>
-    <div class="callout">Design question: can <strong>one shared 2W1R bank</strong> absorb simultaneous E/W arrivals, then drain through one read port, while elastic capacity offsets the reduced read bandwidth?</div>
   </section>
 
   <section class="slide" id="slide-3">
@@ -378,145 +421,232 @@
         </div>
       </div>
     </div>
-    <div style="display:flex;justify-content:space-around;color:var(--green);font-size:28px;line-height:36px"><span>↓</span><span>↓</span><span>↓</span></div>
-    <div style="height:185px;border:2px solid var(--blue);border-radius:17px;display:grid;place-items:center;background:radial-gradient(circle,rgba(37,99,235,.08),transparent 67%)">
-      <div style="text-align:center"><div style="font-size:29px;font-weight:800">Router datapath</div><div class="muted" style="font-size:13px;margin-top:7px">route computation · VC allocation · switch allocation · crossbar</div><div style="display:flex;justify-content:center;gap:7px;margin-top:17px"><span class="tag blue">three pool arbiters</span><span class="tag green">one owner table / pair</span></div></div>
+    <div style="margin:12px 0 2px;text-align:center;font-size:19px;font-weight:750">
+      per pair: <span class="hi">2 RES</span> + <span class="good">4 POOL</span> + <span class="hi">2 RES</span> = 8 slots = 4 + 4 private
+      <span class="tag green" style="margin:0 0 0 12px;vertical-align:2px">zero added storage</span>
     </div>
-    <div class="callout" style="margin-top:12px">Membership follows the <strong>actual input direction</strong>, not the chosen output. A West-in flit may occupy E/W Pool and later leave through North.</div>
+    <div style="display:flex;justify-content:space-around;color:var(--green);font-size:20px;line-height:22px"><span>↓</span><span>↓</span><span>↓</span></div>
+    <div style="height:46px;flex:none;border:2px solid var(--blue);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:14px;background:rgba(37,99,235,.05)">
+      <span style="font-size:16px;font-weight:800">Shared router datapath</span>
+      <span class="muted" style="font-size:13px">RC · VA · SA · crossbar — unchanged</span>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:30px;margin-top:8px;min-height:0">
+      <svg viewBox="0 0 470 190" style="width:400px;flex:none;max-height:100%">
+        <defs>
+          <marker id="m-or" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#d97706"/>
+          </marker>
+        </defs>
+        <rect x="240" y="40" width="190" height="140" rx="12" fill="#f7f9fc" stroke="#ccd6e3" stroke-width="1.5"/>
+        <text x="418" y="172" text-anchor="end" font-size="11" fill="#607087">router</text>
+        <rect x="275" y="95" width="120" height="46" rx="8" fill="rgba(7,155,131,.08)" stroke="#079b83" stroke-width="1.5"/>
+        <text x="335" y="122" text-anchor="middle" font-size="12" font-weight="700" fill="#079b83">E/W POOL</text>
+        <line x1="30" y1="118" x2="266" y2="118" stroke="#d97706" stroke-width="3" marker-end="url(#m-or)"/>
+        <text x="30" y="103" font-size="13" font-weight="750" fill="#d97706">W-in flit</text>
+        <line x1="335" y1="92" x2="335" y2="16" stroke="#d97706" stroke-width="3" stroke-dasharray="7,5" marker-end="url(#m-or)"/>
+        <text x="348" y="26" font-size="13" font-weight="750" fill="#d97706">N-out</text>
+      </svg>
+      <div style="max-width:420px">
+        <p style="font-size:17px"><strong>Pool membership follows the input direction</strong> — never the chosen output.</p>
+        <p class="muted" style="font-size:14px;margin-top:9px">A West-in flit occupies the E/W pool, then may leave through North: X-in → Y-out stays legal, routing freedom untouched.</p>
+      </div>
+    </div>
   </section>
 
   <section class="slide" id="slide-4">
-    <div class="header"><span class="num">04 / 10</span><span class="tag green" style="margin:0">Architecture</span><h2>Why the Shared Pool Is 2W1R</h2></div>
+    <div class="header"><span class="num"></span><span class="tag blue" style="margin:0">Implementation · 1 / 3</span><h2>Deadlock Prevention: Safety Is Pinned in RES</h2></div>
     <div class="cols">
-      <div class="col" style="flex:1.18">
-        <div class="box green grow">
-          <h3>Two arrivals must never be rejected</h3>
-          <div class="figure-card" style="height:267px;margin:13px 0 14px">
-            <img src="assets/dpphys_2w1r_flow.png" alt="Two writes enter a four-slot shared pool and one read drains to the switch">
-            <span class="figure-label" style="left:31px;top:20px;color:var(--blue)">write 0 · E</span>
-            <span class="figure-label" style="right:31px;top:20px;color:var(--green)">write 1 · W</span>
-            <span class="figure-label" style="left:50%;bottom:13px;transform:translateX(-50%);color:var(--orange)">single shared read</span>
+      <div class="col" style="flex:1.12">
+        <div class="box purple grow">
+          <h3>Escape VC lives in the reserved region</h3>
+          <div style="display:flex;justify-content:center;align-items:stretch;gap:8px;margin:26px 0 16px">
+            <div class="pair-region res" style="border:2px solid var(--purple);background:rgba(124,58,237,.05);padding:10px 12px">
+              <div class="mini-label" style="color:var(--purple)">E · RES — pinned</div>
+              <div class="mini-slots">
+                <span class="mini-slot private" style="width:36px;height:34px;font-size:9px">PRI</span>
+                <span class="mini-slot escape" style="width:36px;height:34px;font-size:9px;box-shadow:0 0 0 3px rgba(124,58,237,.28)">ESC</span>
+              </div>
+            </div>
+            <div class="pair-region shared" style="opacity:.4;padding:10px 12px">
+              <div class="mini-label">POOL — free to migrate</div>
+              <div class="mini-slots">
+                <span class="mini-slot pool" style="width:36px;height:34px">P</span>
+                <span class="mini-slot pool" style="width:36px;height:34px">P</span>
+                <span class="mini-slot pool" style="width:36px;height:34px">P</span>
+                <span class="mini-slot pool" style="width:36px;height:34px">P</span>
+              </div>
+            </div>
+            <div class="pair-region res" style="border:2px solid var(--purple);background:rgba(124,58,237,.05);padding:10px 12px">
+              <div class="mini-label" style="color:var(--purple)">W · RES — pinned</div>
+              <div class="mini-slots">
+                <span class="mini-slot private" style="width:36px;height:34px;font-size:9px">PRI</span>
+                <span class="mini-slot escape" style="width:36px;height:34px;font-size:9px;box-shadow:0 0 0 3px rgba(124,58,237,.28)">ESC</span>
+              </div>
+            </div>
           </div>
-          <div class="metrics">
-            <div class="metric"><div class="big-number good">2W</div><div class="label">E and W may deposit in the same cycle</div></div>
-            <div class="metric"><div class="big-number hi">1R</div><div class="label">one pooled flit drains per pair per cycle</div></div>
-          </div>
-          <p style="margin-top:17px">Input links are credit-controlled but an arriving flit cannot be sent back. Two write paths preserve lossless simultaneous arrival; one read port is shared by an E/W request arbiter.</p>
+          <p style="font-size:16px;text-align:center">Blocked adaptive packet → always drains via <span class="purple-text">ESC</span>, routed in deterministic XYZ order</p>
+          <p class="muted" style="font-size:14px;text-align:center;margin-top:8px">escape capacity is storage that never moves — no grant decision can starve it</p>
         </div>
       </div>
       <div class="col">
         <div class="box blue">
-          <h3>Read-side trade</h3>
-          <p>Two private input banks may drain independently. The Pool exposes only one shared read, so E and W contend when both have ready pooled flits.</p>
+          <h3>CBS — wrap-around rings never fill</h3>
+          <div style="display:flex;justify-content:center;margin:8px 0 6px">
+            <svg viewBox="0 0 240 124" style="width:230px">
+              <defs>
+                <marker id="m-gr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L7,3 L0,6 Z" fill="#079b83"/>
+                </marker>
+              </defs>
+              <rect x="20" y="12" width="44" height="26" rx="6" fill="#eef3f8" stroke="#ccd6e3"/>
+              <rect x="176" y="12" width="44" height="26" rx="6" fill="#eef3f8" stroke="#ccd6e3"/>
+              <rect x="176" y="84" width="44" height="26" rx="6" fill="#eef3f8" stroke="#ccd6e3"/>
+              <rect x="20" y="84" width="44" height="26" rx="6" fill="#eef3f8" stroke="#ccd6e3"/>
+              <line x1="70" y1="25" x2="168" y2="25" stroke="#079b83" stroke-width="2.5" marker-end="url(#m-gr)"/>
+              <line x1="198" y1="44" x2="198" y2="76" stroke="#079b83" stroke-width="2.5" marker-end="url(#m-gr)"/>
+              <line x1="170" y1="97" x2="72" y2="97" stroke="#079b83" stroke-width="2.5" marker-end="url(#m-gr)"/>
+              <line x1="42" y1="78" x2="42" y2="46" stroke="#079b83" stroke-width="2.5" marker-end="url(#m-gr)"/>
+              <circle cx="120" cy="25" r="10" fill="rgba(7,155,131,.15)" stroke="#079b83" stroke-width="2"/>
+              <text x="120" y="52" text-anchor="middle" font-size="11" font-weight="700" fill="#079b83">critical bubble</text>
+            </svg>
+          </div>
+          <p style="font-size:14px">Ring-entry flits may not consume the marked free slot — the directed ring always keeps one bubble, so it can never completely fill.</p>
         </div>
-        <div class="box green">
-          <h3>Capacity-side gain</h3>
-          <p>The hot side can occupy slots that would be stranded behind the opposite input's private wall. Under one-sided demand, the shared read is not a bottleneck.</p>
-        </div>
-        <div class="box orange">
-          <h3>Honest hardware boundary</h3>
-          <p>2W1R is an implementation assumption, not a free resource. SRAM/register-file area, write-port energy, central wiring and read arbitration must be measured separately from gem5.</p>
+        <div class="box green grow">
+          <h3>The pool cannot break either layer</h3>
+          <p style="font-size:15px">Migration reshuffles only the 4 pool slots. RES — private + escape — is <strong>physically excluded</strong>, so the baseline deadlock proof transfers verbatim.</p>
         </div>
       </div>
     </div>
+    <div class="callout">Any grant policy is safe by construction — aggressiveness is a <strong>performance</strong> question, never a <strong>correctness</strong> question.</div>
   </section>
 
   <section class="slide" id="slide-5">
-    <div class="header"><span class="num">05 / 10</span><span class="tag blue" style="margin:0">Implementation</span><h2>Pool-Credit Grant: Demand-Aware STARVE vs. Blind RR</h2></div>
+    <div class="header"><span class="num"></span><span class="tag blue" style="margin:0">Implementation · 2 / 3</span><h2>Pool-Credit Grant: STARVE — the Credit Follows Starvation</h2></div>
     <div class="cols">
-      <div class="col">
-        <div class="box blue"><span class="tag blue">Credit meaning</span><p>Each free Pool slot has exactly one upstream owner. Holding its credit means that side may place one adaptive packet into the shared storage.</p></div>
-        <div class="box green"><span class="tag green">STARVE rule</span><p>On a Pool release, grant the credit to a side with no usable free Pool credit. If both sides are equally eligible, use round-robin.</p></div>
-        <div class="box purple"><span class="tag orange">Reserved credit</span><p>One private adaptive VC and one escape VC remain outside the Pool. Escape capacity never migrates, so safety does not depend on the grant policy.</p></div>
+      <div class="col" style="flex:1.35">
+        <div class="box green grow">
+          <h3>On every pool release, who gets the freed credit?</h3>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 600 230" style="width:560px">
+              <defs>
+                <marker id="m-stv" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+                  <path d="M0,0 L8,3.5 L0,7 Z" fill="#079b83"/>
+                </marker>
+              </defs>
+              <!-- E upstream: starving -->
+              <rect x="14" y="62" width="152" height="100" rx="10" fill="rgba(220,60,60,.06)" stroke="#dc3c3c" stroke-width="2"/>
+              <text x="90" y="88" text-anchor="middle" font-size="14" font-weight="750" fill="#172033">E upstream</text>
+              <text x="90" y="115" text-anchor="middle" font-size="13" fill="#dc3c3c" font-weight="700">free credits: 0</text>
+              <text x="90" y="140" text-anchor="middle" font-size="15" font-weight="800" fill="#dc3c3c">STARVING</text>
+              <!-- W upstream: satisfied -->
+              <rect x="434" y="62" width="152" height="100" rx="10" fill="rgba(37,99,235,.05)" stroke="#2563eb" stroke-width="2"/>
+              <text x="510" y="88" text-anchor="middle" font-size="14" font-weight="750" fill="#172033">W upstream</text>
+              <text x="510" y="115" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">free credits: 2</text>
+              <text x="510" y="140" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">satisfied</text>
+              <!-- router pool center -->
+              <rect x="232" y="52" width="136" height="120" rx="10" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+              <text x="300" y="76" text-anchor="middle" font-size="13" font-weight="750" fill="#2563eb">router pool</text>
+              <rect x="256" y="92" width="88" height="38" rx="7" fill="rgba(7,155,131,.13)" stroke="#079b83" stroke-width="2"/>
+              <text x="300" y="115" text-anchor="middle" font-size="12" font-weight="750" fill="#079b83">slot freed</text>
+              <text x="300" y="196" text-anchor="middle" font-size="12" font-weight="600" fill="#172033">flit departs ⇒ credit released</text>
+              <!-- grant arrow to E -->
+              <line x1="228" y1="112" x2="178" y2="112" stroke="#079b83" stroke-width="4" marker-end="url(#m-stv)"/>
+              <text x="203" y="97" text-anchor="middle" font-size="13" font-weight="800" fill="#079b83">grant</text>
+              <!-- rejected direction -->
+              <line x1="372" y1="112" x2="424" y2="112" stroke="#465569" stroke-width="2.5" stroke-dasharray="6,5"/>
+              <text x="398" y="99" text-anchor="middle" font-size="16" font-weight="800" fill="#465569">✕</text>
+            </svg>
+          </div>
+          <div style="text-align:center;font-size:18px;font-weight:750;margin-top:4px">
+            a side has <span class="bad">0 free credits</span> → <span class="good">grant it</span>&nbsp;&nbsp;·&nbsp;&nbsp;<span style="font-weight:650">otherwise → round-robin</span>
+          </div>
+        </div>
       </div>
       <div class="col">
+        <div class="box blue">
+          <h3>Credit = ownership</h3>
+          <p style="font-size:14px">Holding a pool slot's credit = the right to land one flit there. Granting <em>is</em> migration — no owner table broadcast.</p>
+        </div>
         <div class="box grow">
-          <h3>Same 2W1R hardware, different ownership decisions</h3>
+          <h3>Control arms · same hardware</h3>
           <table>
-            <tr><th>Policy</th><th>Information</th><th>Expected role</th></tr>
-            <tr><td>RTS</td><td>last sender only</td><td>static/purity anchor</td></tr>
-            <tr><td>RR</td><td>none</td><td>traffic-oblivious control</td></tr>
-            <tr><td class="good">STARVE</td><td>free-credit demand</td><td>move credit toward blocked side</td></tr>
+            <tr><th>Arm</th><th>Info used</th></tr>
+            <tr><td>RTS</td><td>last sender</td></tr>
+            <tr><td>RR</td><td>none — blind</td></tr>
+            <tr><td class="good">STARVE</td><td class="good">starvation flag</td></tr>
           </table>
-          <div style="margin-top:24px;display:flex;align-items:center;justify-content:center;gap:10px">
-            <div class="node">initial<br><span class="hi">2 / 2</span></div><div class="arrow">→</div>
-            <div class="node">West hot<br><span class="good">3 / 1</span></div><div class="arrow">→</div>
-            <div class="node">West sustained<br><span class="purple-text">reuse credit</span></div>
-          </div>
-          <div class="callout" style="margin-top:25px">The research question is policy, not extra capacity: all arms keep the same 8 physical slots per direction pair.</div>
+          <p style="font-size:14px;margin-top:10px">All arms: identical 8 slots / pair — any performance gap is pure policy.</p>
+        </div>
+        <div class="box purple">
+          <p style="font-size:14px"><code>g_E + g_W = P</code> — credits conserved, one owner per free slot.</p>
         </div>
       </div>
     </div>
   </section>
 
   <section class="slide" id="slide-6">
-    <div class="header"><span class="num">06 / 10</span><span class="tag blue" style="margin:0">Implementation</span><h2>Credit Return: Recover Stranded Ownership Without Revocation</h2></div>
+    <div class="header"><span class="num"></span><span class="tag blue" style="margin:0">Implementation · 3 / 3</span><h2>Credit Return: Surplus Flows Back in Two Tiers</h2></div>
     <div class="cols">
+      <div class="col" style="flex:1.35">
+        <div class="box orange grow">
+          <h3>Holder-initiated return · the last credit is sticky</h3>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 600 230" style="width:560px">
+              <defs>
+                <marker id="m-ret" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+                  <path d="M0,0 L8,3.5 L0,7 Z" fill="#d97706"/>
+                </marker>
+                <marker id="m-rgr" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+                  <path d="M0,0 L8,3.5 L0,7 Z" fill="#079b83"/>
+                </marker>
+              </defs>
+              <!-- E upstream: starving -->
+              <rect x="14" y="62" width="152" height="100" rx="10" fill="rgba(220,60,60,.06)" stroke="#dc3c3c" stroke-width="2"/>
+              <text x="90" y="88" text-anchor="middle" font-size="14" font-weight="750" fill="#172033">E upstream</text>
+              <text x="90" y="115" text-anchor="middle" font-size="13" fill="#dc3c3c" font-weight="700">free credits: 0</text>
+              <text x="90" y="140" text-anchor="middle" font-size="15" font-weight="800" fill="#dc3c3c">STARVING</text>
+              <!-- W upstream: idle holder -->
+              <rect x="434" y="62" width="152" height="100" rx="10" fill="rgba(217,119,6,.06)" stroke="#d97706" stroke-width="2"/>
+              <text x="510" y="88" text-anchor="middle" font-size="14" font-weight="750" fill="#172033">W upstream · idle</text>
+              <text x="510" y="115" text-anchor="middle" font-size="13" font-weight="700" fill="#d97706">held 3 · queued 0</text>
+              <text x="510" y="140" text-anchor="middle" font-size="15" font-weight="800" fill="#d97706">SURPLUS</text>
+              <!-- router pool center -->
+              <rect x="232" y="52" width="136" height="120" rx="10" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+              <text x="300" y="76" text-anchor="middle" font-size="13" font-weight="750" fill="#2563eb">router pool</text>
+              <rect x="256" y="92" width="88" height="38" rx="7" fill="rgba(217,119,6,.13)" stroke="#d97706" stroke-width="2"/>
+              <text x="300" y="107" text-anchor="middle" font-size="11" font-weight="750" fill="#d97706">synthetic</text>
+              <text x="300" y="121" text-anchor="middle" font-size="11" font-weight="750" fill="#d97706">release</text>
+              <text x="300" y="196" text-anchor="middle" font-size="12" font-weight="600" fill="#172033">reverse credit link · one extra return-flag bit</text>
+              <!-- step 1: W returns its surplus credit -->
+              <circle cx="403" cy="86" r="10" fill="rgba(217,119,6,.12)" stroke="#d97706" stroke-width="1.5"/>
+              <text x="403" y="90" text-anchor="middle" font-size="11" font-weight="800" fill="#d97706">1</text>
+              <line x1="430" y1="112" x2="378" y2="112" stroke="#d97706" stroke-width="4" marker-end="url(#m-ret)"/>
+              <text x="403" y="135" text-anchor="middle" font-size="12" font-weight="750" fill="#d97706">return</text>
+              <!-- step 2: router re-grants toward starving E -->
+              <circle cx="203" cy="86" r="10" fill="rgba(7,155,131,.12)" stroke="#079b83" stroke-width="1.5"/>
+              <text x="203" y="90" text-anchor="middle" font-size="11" font-weight="800" fill="#079b83">2</text>
+              <line x1="228" y1="112" x2="178" y2="112" stroke="#079b83" stroke-width="4" marker-end="url(#m-rgr)"/>
+              <text x="203" y="135" text-anchor="middle" font-size="12" font-weight="750" fill="#079b83">grant</text>
+            </svg>
+          </div>
+          <div style="text-align:center;font-size:18px;font-weight:750;margin-top:4px">
+            <span class="warn">≥ 2 held</span> → <span class="good">return fast</span>&nbsp;&nbsp;·&nbsp;&nbsp;<span class="hi">last one</span> → <span style="font-weight:650">hold long (insurance)</span>
+          </div>
+        </div>
+      </div>
       <div class="col">
         <div class="box red">
-          <h3>Release-only grants can freeze</h3>
-          <p>If West is idle, its Pool slots do not release—and therefore generate no event that could move ownership to hot East. The need for migration rises exactly when release traffic disappears.</p>
+          <h3>Why grants alone freeze</h3>
+          <p style="font-size:14px">An idle side releases nothing — no event exists to move its credits. The need for migration peaks exactly when release traffic disappears.</p>
         </div>
-        <div class="box blue grow">
-          <h3>Holder-initiated return</h3>
-          <div class="flow" style="margin:18px 0"><div class="node">holder sees<br>surplus credit</div><div class="arrow">→</div><div class="node">return flag on<br>credit link</div><div class="arrow">→</div><div class="node">router re-grants<br>with STARVE</div></div>
-          <p>The owner returns voluntarily; the router never revokes a credit that may already be promised to an in-flight flit.</p>
-        </div>
-      </div>
-      <div class="col">
-        <div class="box green">
+        <div class="box grow">
           <h3>Surplus detector</h3>
-          <p><code>credits_held &gt; flits_queued</code>, sustained for a threshold. A starving sender owns no spare credit, so it cannot mistakenly return capacity merely because it is silent.</p>
+          <p style="font-size:14px"><code>credits_held &gt; flits_queued</code>, sustained over a threshold. A starving side holds no surplus — it can never give capacity away by mistake.</p>
         </div>
-        <div class="box purple grow">
-          <h3>Two-tier stickiness</h3>
-          <table>
-            <tr><th>Credits held</th><th>Return delay</th><th>Reason</th></tr>
-            <tr><td>2 or more</td><td>short</td><td>clear surplus; release quickly</td></tr>
-            <tr><td>last one</td><td>long</td><td>insurance for the next packet/burst</td></tr>
-          </table>
-          <p style="margin-top:15px">This directly tests the intuition: do not park many Pool credits locally, but keep the final one long enough to exploit temporal locality.</p>
-        </div>
-      </div>
-    </div>
-    <div class="callout">Transport proposal: reuse the reverse credit link with one return flag and demultiplex it as a synthetic release event.</div>
-  </section>
-
-  <section class="slide" id="slide-7">
-    <div class="header"><span class="num">07 / 10</span><span class="tag blue" style="margin:0">Implementation</span><h2>Garnet Mapping and Current Repository Status</h2></div>
-    <div class="cols">
-      <div class="col">
-        <div class="box blue">
-          <h3>Datapath placement</h3>
-          <ul>
-            <li>Pool is indexed by the packet's true input direction pair—not by its next output.</li>
-            <li>A West-in packet can occupy the E/W Pool and leave through North: X-in → Y-out remains legal.</li>
-            <li>Escape traffic maps only to the private reserved region.</li>
-          </ul>
-        </div>
-        <div class="box green grow">
-          <h3>Safety contracts</h3>
-          <ul>
-            <li><code>g_E + g_W = P</code>: no Pool credit is created or lost.</li>
-            <li>One free slot has one owner; ownership may move only while the slot is safe to grant.</li>
-            <li>Reserved escape capacity is physically excluded from migration.</li>
-            <li>2W accepts both directional arrivals; 1R arbitration serializes Pool drain.</li>
-          </ul>
-        </div>
-      </div>
-      <div class="col">
-        <div class="box orange grow">
-          <h3>What exists in the remote commit</h3>
-          <table>
-            <tr><th>Artifact</th><th>Status</th></tr>
-            <tr><td>Architecture/design document</td><td class="good">defined</td></tr>
-            <tr><td>M1 helper refactor script</td><td class="good">prepared</td></tr>
-            <tr><td>M2 pair-global VC layout script</td><td class="good">prepared</td></tr>
-            <tr><td>Dynamic STARVE ownership</td><td class="warn">not yet validated</td></tr>
-            <tr><td>2W1R Pool arbitration</td><td class="warn">not yet validated</td></tr>
-            <tr><td>Voluntary return channel</td><td class="warn">not yet validated</td></tr>
-          </table>
-          <p class="muted" style="margin-top:16px;font-size:13px">The slides therefore separate proposed behavior from measured results. The later 1R1W branch is intentionally excluded from this deck.</p>
+        <div class="box purple">
+          <h3>No revocation</h3>
+          <p style="font-size:14px">The router never pulls a credit back — it may be promised to an in-flight flit. Returns arrive as a <strong>synthetic release</strong>, re-granted by the same STARVE rule.</p>
         </div>
       </div>
     </div>
@@ -630,6 +760,7 @@
   <div id="progress"></div>
   <button id="next">Next →</button>
   <span id="label" style="min-width:64px;text-align:center"></span>
+  <button id="present">⛶ Present&nbsp;<span style="opacity:.6">F</span></button>
 </div>
 
 <script>
@@ -639,7 +770,9 @@
   const label = document.getElementById('label');
   let current = 0;
 
-  slides.forEach((_, index) => {
+  slides.forEach((slide, index) => {
+    const num = slide.querySelector('.num');
+    if (num) num.textContent = `${String(index + 1).padStart(2, '0')} / ${slides.length}`;
     const dot = document.createElement('span');
     dot.className = 'dot' + (index === 0 ? ' active' : '');
     dot.addEventListener('click', () => go(index));
@@ -647,10 +780,24 @@
   });
 
   function fitDeck() {
-    const scale = Math.min((window.innerWidth - 24) / 1200,
-                           (window.innerHeight - 70) / 675, 1);
+    const present = document.body.classList.contains('present');
+    const availW = window.innerWidth - (present ? 0 : 24);
+    const availH = window.innerHeight - (present ? 0 : 70);
+    const scale = Math.min(availW / 1200, availH / 675);
     deck.style.transform = `translate(-50%, -50%) scale(${scale})`;
   }
+
+  function togglePresent() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+  document.addEventListener('fullscreenchange', () => {
+    document.body.classList.toggle('present', !!document.fullscreenElement);
+    fitDeck();
+  });
 
   function go(index) {
     slides[current].classList.remove('active');
@@ -663,11 +810,13 @@
 
   document.getElementById('prev').addEventListener('click', () => go(current - 1));
   document.getElementById('next').addEventListener('click', () => go(current + 1));
+  document.getElementById('present').addEventListener('click', togglePresent);
   document.addEventListener('keydown', event => {
     if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(event.key)) go(current + 1);
     if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) go(current - 1);
     if (event.key === 'Home') go(0);
     if (event.key === 'End') go(slides.length - 1);
+    if (event.key === 'f' || event.key === 'F') togglePresent();
   });
   window.addEventListener('resize', fitDeck);
   fitDeck();
