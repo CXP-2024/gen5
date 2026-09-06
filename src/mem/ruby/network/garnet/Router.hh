@@ -105,6 +105,9 @@ class Router : public BasicRouter, public Consumer
     }
 
     InputUnit *getPairedInputUnit(int inport);
+    InputUnit *getInputUnitByDirection(const PortDirection &direction);
+    int countFlitsFor(int outport, int vnet) const;
+    void handleDpphysReturn(const PortDirection &owner_direction, int vc);
     int dpphysPoolOwner(int pair, int vnet, int pool_slot) const;
     void setDpphysPoolOwner(int pair, int vnet, int pool_slot, int side);
     int dpphysTakeRrSide(int pair, int vnet);

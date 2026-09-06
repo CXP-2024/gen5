@@ -252,6 +252,34 @@ InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime)
     m_credit_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
 }
 
+void
+InputUnit::enqueueDpphysReturn(int vc, Tick curTime)
+{
+    assert(m_router->get_net_ptr()->isDPPhys());
+    assert(m_direction != "Local");
+    if (!creditQueue.isEmpty()) {
+        m_router->get_net_ptr()->incrementDpphysReturnCreditConflict();
+    }
+    Credit *t_credit = new Credit(vc, false, curTime, true);
+    creditQueue.insert(t_credit);
+    m_credit_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
+}
+
+int
+InputUnit::countActiveForOutport(int outport, int vnet) const
+{
+    assert(vnet >= 0 && vnet < m_router->get_num_vnets());
+    int count = 0;
+    const int vc_base = vnet * m_vc_per_vnet;
+    for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; ++vc) {
+        if (virtualChannels[vc].get_state() == ACTIVE_ &&
+            virtualChannels[vc].get_outport() == outport) {
+            count++;
+        }
+    }
+    return count;
+}
+
 bool
 InputUnit::functionalRead(Packet *pkt, WriteMask &mask)
 {

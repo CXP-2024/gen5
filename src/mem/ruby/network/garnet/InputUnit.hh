@@ -62,6 +62,10 @@ class InputUnit : public Consumer
     void print(std::ostream& out) const {};
     void depositFlit(int vc, flit *t_flit, int outport,
                      int arrival_inport);
+    void enqueueDpphysReturn(int vc, Tick curTime);
+    int countActiveForOutport(int outport, int vnet) const;
+
+    int get_id() const { return m_id; }
 
     int
     arrivalInport(int vc) const
@@ -147,7 +151,7 @@ class InputUnit : public Consumer
     }
 
     inline bool
-    is_vc_idle(int invc)
+    is_vc_idle(int invc) const
     {
         return virtualChannels[invc].get_state() == IDLE_;
     }

@@ -62,6 +62,7 @@ class OutputUnit : public Consumer
     void set_out_link(NetworkLink *link);
     void set_credit_link(CreditLink *credit_link);
     void wakeup();
+    bool tryDpphysReturn();
     flitBuffer* getOutQueue();
     void print(std::ostream& out) const {};
     void decrement_credit(int out_vc);
@@ -130,6 +131,7 @@ class OutputUnit : public Consumer
     flitBuffer outBuffer;
     // vc state of downstream router
     std::vector<OutVcState> outVcState;
+    std::vector<int> m_dpphys_return_wait;
 };
 
 } // namespace garnet

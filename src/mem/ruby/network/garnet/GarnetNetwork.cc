@@ -869,6 +869,12 @@ GarnetNetwork::regStats()
         .unit(count)
         .flags(statistics::pdf | statistics::oneline |
                statistics::nozero);
+    m_dpphys_credits_returned
+        .name(name() + ".dpphys_credits_returned")
+        .unit(count);
+    m_dpphys_return_credit_conflicts
+        .name(name() + ".dpphys_return_credit_conflicts")
+        .unit(count);
 
     // Links
     m_total_ext_in_link_utilization

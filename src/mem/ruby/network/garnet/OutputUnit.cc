@@ -31,10 +31,13 @@
 
 #include "mem/ruby/network/garnet/OutputUnit.hh"
 
+#include <algorithm>
+
 #include "debug/RubyNetwork.hh"
 #include "mem/ruby/network/garnet/Credit.hh"
 #include "mem/ruby/network/garnet/CreditLink.hh"
 #include "mem/ruby/network/garnet/GarnetNetwork.hh"
+#include "mem/ruby/network/garnet/InputUnit.hh"
 #include "mem/ruby/network/garnet/Router.hh"
 #include "mem/ruby/network/garnet/flitBuffer.hh"
 
@@ -57,6 +60,7 @@ OutputUnit::OutputUnit(int id, PortDirection direction, Router *router,
     for (int i = 0; i < m_num_vcs; i++) {
         outVcState.emplace_back(i, m_router->get_net_ptr(), consumerVcs);
     }
+    m_dpphys_return_wait.assign(m_router->get_num_vnets(), 0);
 
     auto *net = m_router->get_net_ptr();
     if (net->isDPPhys() && m_direction != "Local") {
@@ -281,10 +285,16 @@ OutputUnit::wakeup()
 {
     if (m_credit_link->isReady(curTick())) {
         Credit *t_credit = (Credit*) m_credit_link->consumeLink();
-        increment_credit(t_credit->get_vc());
+        if (t_credit->is_return()) {
+            assert(m_router->get_net_ptr()->dpphysPolicy() == "starve");
+            m_router->handleDpphysReturn(
+                m_direction, t_credit->get_vc());
+        } else {
+            increment_credit(t_credit->get_vc());
 
-        if (t_credit->is_free_signal())
-            set_vc_state(IDLE_, t_credit->get_vc(), curTick());
+            if (t_credit->is_free_signal())
+                set_vc_state(IDLE_, t_credit->get_vc(), curTick());
+        }
 
         delete t_credit;
 
@@ -292,6 +302,66 @@ OutputUnit::wakeup()
             scheduleEvent(Cycles(1));
         }
     }
+}
+
+bool
+OutputUnit::tryDpphysReturn()
+{
+    auto *net = m_router->get_net_ptr();
+    if (net->dpphysPolicy() != "starve" || m_direction == "Local")
+        return false;
+
+    bool needs_wakeup = false;
+    bool returned = false;
+    const int pool_begin = 2 * net->dpphysR();
+    const int pool_end = pool_begin + net->dpphysP();
+    const int link_latency = m_credit_link->getLatency();
+    const int rtt = 2 * link_latency + 1;
+
+    for (int vnet = 0; vnet < m_router->get_num_vnets(); ++vnet) {
+        // The pair-global design transfers one whole single-slot VC with
+        // one credit.  The evaluation injects on the control vnet.
+        if (net->get_vnet_type(vnet) != CTRL_VNET_) {
+            m_dpphys_return_wait[vnet] = 0;
+            continue;
+        }
+
+        int credits_held = 0;
+        int return_vc = -1;
+        const int vc_base = vnet * m_vc_per_vnet;
+        for (int offset = pool_begin; offset < pool_end; ++offset) {
+            const int vc = vc_base + offset;
+            if (is_vc_idle(vc, curTick()) &&
+                outVcState[vc].get_credit_count() > 0) {
+                credits_held++;
+                return_vc = vc;
+            }
+        }
+
+        const int flits_queued = m_router->countFlitsFor(m_id, vnet);
+        if (credits_held == 0 || credits_held <= flits_queued) {
+            m_dpphys_return_wait[vnet] = 0;
+            continue;
+        }
+
+        const int threshold = credits_held >= 2 ?
+            std::max(1, rtt / 4) : 2 * rtt;
+        m_dpphys_return_wait[vnet]++;
+        if (!returned && m_dpphys_return_wait[vnet] >= threshold) {
+            assert(return_vc >= 0);
+            decrement_credit(return_vc);
+            m_router->getInputUnitByDirection(m_direction)->
+                enqueueDpphysReturn(return_vc, curTick());
+            net->incrementDpphysCreditReturned();
+            m_dpphys_return_wait[vnet] = 0;
+            returned = true;
+            credits_held--;
+        }
+        if (credits_held > flits_queued)
+            needs_wakeup = true;
+    }
+
+    return needs_wakeup;
 }
 
 flitBuffer*

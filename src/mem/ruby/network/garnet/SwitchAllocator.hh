@@ -67,6 +67,7 @@ class SwitchAllocator : public Consumer
                       bool escape_request);
     int vc_allocate(int outport, int inport, int invc,
                     bool escape_request);
+    void handleDpphysReturn(const PortDirection &owner_direction, int vc);
 
     inline double
     get_input_arbiter_activity()
@@ -85,6 +86,7 @@ class SwitchAllocator : public Consumer
     bool cbs_governs(int vnet, int outport);
     void grantOnRelease(InputUnit *input_unit, int inport, int invc,
                         bool free_signal);
+    void grantPoolCredit(int owner_inport, int vc);
 
     int m_num_inports, m_num_outports;
     int m_num_vcs, m_vc_per_vnet;

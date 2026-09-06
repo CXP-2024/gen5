@@ -143,6 +143,14 @@ class GarnetNetwork : public Network
     {
         m_dpphys_grant_queue_depth.sample(depth);
     }
+    void incrementDpphysCreditReturned()
+    {
+        m_dpphys_credits_returned++;
+    }
+    void incrementDpphysReturnCreditConflict()
+    {
+        m_dpphys_return_credit_conflicts++;
+    }
 
     // for network
     uint32_t getNiFlitSize() const { return m_ni_flit_size; }
@@ -315,6 +323,8 @@ class GarnetNetwork : public Network
     statistics::Scalar m_cbs_mark_moves;
     statistics::Scalar m_dpphys_grants_migrated;
     statistics::Distribution m_dpphys_grant_queue_depth;
+    statistics::Scalar m_dpphys_credits_returned;
+    statistics::Scalar m_dpphys_return_credit_conflicts;
 
     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;

@@ -67,6 +67,7 @@ class NetworkLink : public ClockedObject, public Consumer
     link_type getType() { return m_type; }
     void print(std::ostream& out) const {}
     int get_id() const { return m_id; }
+    Cycles getLatency() const { return m_latency; }
     flitBuffer *getBuffer() { return &linkBuffer;}
     virtual void wakeup();
 

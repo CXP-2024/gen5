@@ -107,6 +107,14 @@ Router::wakeup()
         m_output_unit[outport]->wakeup();
     }
 
+    bool return_timer_active = false;
+    for (int outport = 0; outport < m_output_unit.size(); outport++) {
+        return_timer_active |=
+            m_output_unit[outport]->tryDpphysReturn();
+    }
+    if (return_timer_active)
+        schedule_wakeup(Cycles(1));
+
     // Switch Allocation
     switchAllocator.wakeup();
 
@@ -188,6 +196,31 @@ Router::getPairedInputUnit(int inport)
     }
     panic("Router %d has no paired input for %s", m_id,
           getInportDirection(inport));
+}
+
+InputUnit *
+Router::getInputUnitByDirection(const PortDirection &direction)
+{
+    for (const auto &input : m_input_unit) {
+        if (input->get_direction() == direction)
+            return input.get();
+    }
+    panic("Router %d has no input for %s", m_id, direction);
+}
+
+int
+Router::countFlitsFor(int outport, int vnet) const
+{
+    int count = 0;
+    for (const auto &input : m_input_unit)
+        count += input->countActiveForOutport(outport, vnet);
+    return count;
+}
+
+void
+Router::handleDpphysReturn(const PortDirection &owner_direction, int vc)
+{
+    switchAllocator.handleDpphysReturn(owner_direction, vc);
 }
 
 int

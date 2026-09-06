@@ -58,11 +58,11 @@ class VirtualChannel
     void set_outvc(int outvc)               { m_output_vc = outvc; }
     inline int get_outvc()                  { return m_output_vc; }
     void set_outport(int outport)           { m_output_port = outport; };
-    inline int get_outport()                  { return m_output_port; }
+    inline int get_outport() const            { return m_output_port; }
 
     inline Tick get_enqueue_time()          { return m_enqueue_time; }
     inline void set_enqueue_time(Tick time) { m_enqueue_time = time; }
-    inline VC_state_type get_state()        { return m_vc_state.first; }
+    inline VC_state_type get_state() const  { return m_vc_state.first; }
 
     inline bool
     isReady(Tick curTime)
