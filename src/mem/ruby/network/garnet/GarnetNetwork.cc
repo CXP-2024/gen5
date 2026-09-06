@@ -152,15 +152,13 @@ GarnetNetwork::isEscapeVCAt(int vc, bool local_port) const
     return offset == r - 1 || offset == 2 * r - 1;
 }
 
-// The VC ids a port may use for one class, in availability order: own
-// reserve first, then the side's home pool half, ascending -- mirrors
-// the baseline availability order under the static policy.
+// The VC ids a port may use for one class, in availability order.  A
+// DP-Phys output owns its reserve and may own credits for any pool id.
 std::vector<int>
 GarnetNetwork::dpphysOrderedOffsets(bool escape, int side, bool local) const
 {
     assert(isDPPhys());
     const int r = (int)m_dpphys_r;
-    const int half = dpphysP() / 2;
     std::vector<int> offsets;
     if (local) {
         const int budget = dpphysSideBudget();
@@ -179,8 +177,8 @@ GarnetNetwork::dpphysOrderedOffsets(bool escape, int side, bool local) const
     }
     for (int i = 0; i < r - 1; i++)
         offsets.push_back(side * r + i);
-    for (int i = 0; i < half; i++)
-        offsets.push_back(2 * r + side * half + i);
+    for (int i = 0; i < dpphysP(); i++)
+        offsets.push_back(2 * r + i);
     return offsets;
 }
 
@@ -199,6 +197,36 @@ GarnetNetwork::dpphysOffsetAllowedAt(int offset, int side) const
         return true;
     const int pool_base = 2 * r + side * half;
     return offset >= pool_base && offset < pool_base + half;
+}
+
+bool
+GarnetNetwork::dpphysIsPoolOffset(int offset) const
+{
+    const int pool_begin = 2 * (int)m_dpphys_r;
+    return offset >= pool_begin && offset < pool_begin + dpphysP();
+}
+
+int
+GarnetNetwork::dpphysHomeSideOfOffset(int offset) const
+{
+    assert(isDPPhys());
+    const int r = (int)m_dpphys_r;
+    if (offset < 2 * r)
+        return offset / r;
+    assert(dpphysIsPoolOffset(offset));
+    return (offset - 2 * r) / (dpphysP() / 2);
+}
+
+int
+GarnetNetwork::dpphysPairOfDirn(const PortDirection &dirn)
+{
+    if (dirn == "East" || dirn == "West")
+        return 0;
+    if (dirn == "North" || dirn == "South")
+        return 1;
+    if (dirn == "Up" || dirn == "Down")
+        return 2;
+    return -1;
 }
 
 // VCs an NI may inject into per vnet: the adaptive class of the Local
@@ -259,8 +287,10 @@ GarnetNetwork::init()
         fatal_if(!isTorus3DAdaptive(),
             "--dpphys-policy requires Torus3D adaptive routing "
             "(--routing-algorithm=4)");
-        fatal_if(m_dpphys_policy != "static",
-            "unimplemented --dpphys-policy '%s' (available: static)",
+        fatal_if(m_dpphys_policy != "static" &&
+                 m_dpphys_policy != "forced",
+            "unimplemented --dpphys-policy '%s' "
+            "(available: static, forced)",
             m_dpphys_policy);
         fatal_if(m_escape_vcs != 1,
             "DP-Phys requires --escape-vcs=1: each side's reserve holds "
@@ -827,6 +857,9 @@ GarnetNetwork::regStats()
         .unit(count);
     m_cbs_mark_moves
         .name(name() + ".cbs_mark_moves")
+        .unit(count);
+    m_dpphys_grants_migrated
+        .name(name() + ".dpphys_grants_migrated")
         .unit(count);
 
     // Links

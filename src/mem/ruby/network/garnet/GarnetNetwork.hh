@@ -131,7 +131,14 @@ class GarnetNetwork : public Network
     std::vector<int> dpphysOrderedOffsets(bool escape, int side,
                                           bool local) const;
     bool dpphysOffsetAllowedAt(int offset, int side) const;
+    bool dpphysIsPoolOffset(int offset) const;
+    int dpphysHomeSideOfOffset(int offset) const;
+    static int dpphysPairOfDirn(const PortDirection &dirn);
     int injectionVCs() const;
+    void incrementDpphysGrantsMigrated()
+    {
+        m_dpphys_grants_migrated++;
+    }
 
     // for network
     uint32_t getNiFlitSize() const { return m_ni_flit_size; }
@@ -302,6 +309,7 @@ class GarnetNetwork : public Network
     statistics::Scalar m_escape_transitions;
     statistics::Scalar m_cbs_entry_blocks;
     statistics::Scalar m_cbs_mark_moves;
+    statistics::Scalar m_dpphys_grants_migrated;
 
     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;

@@ -61,6 +61,58 @@ InputUnit::InputUnit(int id, PortDirection direction, Router *router)
     for (int i=0; i < m_num_vcs; i++) {
         virtualChannels.emplace_back();
     }
+    m_dpphys_arrival_inport.assign(m_num_vcs, m_id);
+}
+
+void
+InputUnit::depositFlit(int vc, flit *t_flit, int outport,
+                       int arrival_inport)
+{
+    auto *net = m_router->get_net_ptr();
+    assert(net->isDPPhys());
+    assert(m_direction != "Local");
+
+    const int offset = vc % m_vc_per_vnet;
+    const int side =
+        GarnetNetwork::dpphysSideOfInportDirn(m_direction);
+    assert(net->dpphysHomeSideOfOffset(offset) == side);
+
+    const int vnet = vc / m_vc_per_vnet;
+    const bool is_head = t_flit->get_type() == HEAD_ ||
+        t_flit->get_type() == HEAD_TAIL_;
+    if (is_head) {
+        assert(virtualChannels[vc].get_state() == IDLE_);
+        set_vc_active(vc, curTick());
+        grant_outport(vc, outport);
+        m_dpphys_arrival_inport[vc] = arrival_inport;
+    } else {
+        assert(virtualChannels[vc].get_state() == ACTIVE_);
+        assert(m_dpphys_arrival_inport[vc] == arrival_inport);
+    }
+
+    virtualChannels[vc].insertFlit(t_flit);
+    m_num_buffer_writes[vnet]++;
+    m_num_buffer_reads[vnet]++;
+
+    if (is_head) {
+        int active = 0;
+        const int vc_base = vnet * m_vc_per_vnet;
+        for (int i = 0; i < m_vc_per_vnet; ++i) {
+            if (virtualChannels[vc_base + i].get_state() == ACTIVE_)
+                active++;
+        }
+        assert(active <= net->dpphysSideBudget());
+    }
+
+    const Cycles pipe_stages = m_router->get_pipe_stages();
+    if (pipe_stages == 1) {
+        t_flit->advance_stage(SA_, curTick());
+    } else {
+        assert(pipe_stages > 1);
+        const Cycles wait_time = pipe_stages - Cycles(1);
+        t_flit->advance_stage(SA_, m_router->clockEdge(wait_time));
+        m_router->schedule_wakeup(wait_time);
+    }
 }
 
 /*
@@ -89,11 +141,28 @@ InputUnit::wakeup()
 
         auto *net = m_router->get_net_ptr();
         if (net->isDPPhys() && m_direction != "Local") {
-            // DP-Phys P1: a flit may only arrive on a VC id owned by
-            // this input port's side of the pair.
-            assert(net->dpphysOffsetAllowedAt(
-                vc % m_vc_per_vnet,
-                GarnetNetwork::dpphysSideOfInportDirn(m_direction)));
+            const int offset = vc % m_vc_per_vnet;
+            const int arrival_side =
+                GarnetNetwork::dpphysSideOfInportDirn(m_direction);
+            assert(net->dpphysIsPoolOffset(offset) ||
+                   net->dpphysHomeSideOfOffset(offset) == arrival_side);
+
+            InputUnit *owner = this;
+            if (net->dpphysHomeSideOfOffset(offset) != arrival_side)
+                owner = m_router->getPairedInputUnit(m_id);
+
+            const bool is_head = t_flit->get_type() == HEAD_ ||
+                t_flit->get_type() == HEAD_TAIL_;
+            int outport = -1;
+            if (is_head) {
+                outport = m_router->route_compute(
+                    t_flit->get_route(), m_id, m_direction, vc);
+            }
+            owner->depositFlit(vc, t_flit, outport, m_id);
+
+            if (m_in_link->isReady(curTick()))
+                m_router->schedule_wakeup(Cycles(1));
+            return;
         }
 
         int vnet = vc/m_vc_per_vnet;

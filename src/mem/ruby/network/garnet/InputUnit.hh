@@ -60,6 +60,15 @@ class InputUnit : public Consumer
 
     void wakeup();
     void print(std::ostream& out) const {};
+    void depositFlit(int vc, flit *t_flit, int outport,
+                     int arrival_inport);
+
+    int
+    arrivalInport(int vc) const
+    {
+        assert(vc >= 0 && vc < m_dpphys_arrival_inport.size());
+        return m_dpphys_arrival_inport[vc];
+    }
 
     inline PortDirection get_direction() { return m_direction; }
 
@@ -174,6 +183,7 @@ class InputUnit : public Consumer
 
     // Input Virtual channels
     std::vector<VirtualChannel> virtualChannels;
+    std::vector<int> m_dpphys_arrival_inport;
 
     // Statistical variables
     std::vector<double> m_num_buffer_writes;

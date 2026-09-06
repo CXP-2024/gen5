@@ -64,6 +64,22 @@ Router::init()
 {
     BasicRouter::init();
 
+    if (m_network_ptr->isDPPhys()) {
+        const int pool = m_network_ptr->dpphysP();
+        const int base = 2 * m_network_ptr->dpphysR();
+        m_dpphys_pool_owner.assign(
+            3, std::vector<std::vector<int>>(
+                   m_virtual_networks, std::vector<int>(pool, 0)));
+        for (int pair = 0; pair < 3; ++pair) {
+            for (int vnet = 0; vnet < m_virtual_networks; ++vnet) {
+                for (int slot = 0; slot < pool; ++slot) {
+                    m_dpphys_pool_owner[pair][vnet][slot] =
+                        m_network_ptr->dpphysHomeSideOfOffset(base + slot);
+                }
+            }
+        }
+    }
+
     switchAllocator.init();
     crossbarSwitch.init();
 }
@@ -156,6 +172,41 @@ PortDirection
 Router::getInportDirection(int inport)
 {
     return m_input_unit[inport]->get_direction();
+}
+
+InputUnit *
+Router::getPairedInputUnit(int inport)
+{
+    assert(inport >= 0 && inport < m_input_unit.size());
+    const PortDirection opposite = GarnetNetwork::cbsOppositeDirn(
+        getInportDirection(inport));
+    for (const auto &input : m_input_unit) {
+        if (input->get_direction() == opposite)
+            return input.get();
+    }
+    panic("Router %d has no paired input for %s", m_id,
+          getInportDirection(inport));
+}
+
+int
+Router::dpphysPoolOwner(int pair, int vnet, int pool_slot) const
+{
+    assert(pair >= 0 && pair < m_dpphys_pool_owner.size());
+    assert(vnet >= 0 && vnet < m_dpphys_pool_owner[pair].size());
+    assert(pool_slot >= 0 &&
+           pool_slot < m_dpphys_pool_owner[pair][vnet].size());
+    return m_dpphys_pool_owner[pair][vnet][pool_slot];
+}
+
+void
+Router::setDpphysPoolOwner(int pair, int vnet, int pool_slot, int side)
+{
+    assert(side == 0 || side == 1);
+    assert(pair >= 0 && pair < m_dpphys_pool_owner.size());
+    assert(vnet >= 0 && vnet < m_dpphys_pool_owner[pair].size());
+    assert(pool_slot >= 0 &&
+           pool_slot < m_dpphys_pool_owner[pair][vnet].size());
+    m_dpphys_pool_owner[pair][vnet][pool_slot] = side;
 }
 
 int

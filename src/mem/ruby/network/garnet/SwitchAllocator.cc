@@ -318,15 +318,15 @@ SwitchAllocator::arbitrate_outports()
                         // HEAD_TAIL packets drain, but route the next flit
                         // independently.
                         input_unit->set_outvc(invc, -1);
-                        input_unit->increment_credit(invc, false, curTick());
+                        grantOnRelease(input_unit, inport, invc, false);
                     } else {
                         input_unit->set_vc_idle(invc, curTick());
-                        input_unit->increment_credit(invc, true, curTick());
+                        grantOnRelease(input_unit, inport, invc, true);
                     }
                 } else {
                     // Send a credit back
                     // but do not indicate that the VC is idle
-                    input_unit->increment_credit(invc, false, curTick());
+                    grantOnRelease(input_unit, inport, invc, false);
                 }
 
                 // remove this request
@@ -354,6 +354,46 @@ SwitchAllocator::arbitrate_outports()
                 inport = 0;
         }
     }
+}
+
+void
+SwitchAllocator::grantOnRelease(InputUnit *input_unit, int inport, int invc,
+                                bool free_signal)
+{
+    auto *net = m_router->get_net_ptr();
+    if (!net->isDPPhys() || input_unit->get_direction() == "Local") {
+        input_unit->increment_credit(invc, free_signal, curTick());
+        return;
+    }
+
+    const int arrival = input_unit->arrivalInport(invc);
+    assert(arrival >= 0 && arrival < m_num_inports);
+    InputUnit *target = m_router->getInputUnit(arrival);
+    const int offset = invc % m_vc_per_vnet;
+
+    if (free_signal && net->dpphysIsPoolOffset(offset)) {
+        const int vnet = get_vnet(invc);
+        const PortDirection arrival_dirn = target->get_direction();
+        const int pair = GarnetNetwork::dpphysPairOfDirn(arrival_dirn);
+        const int arrival_side =
+            GarnetNetwork::dpphysSideOfInportDirn(arrival_dirn);
+        const int pool_slot = offset - 2 * net->dpphysR();
+        assert(pair >= 0 && arrival_side >= 0);
+        assert(m_router->dpphysPoolOwner(pair, vnet, pool_slot) ==
+               arrival_side);
+
+        if (net->dpphysPolicy() == "forced") {
+            target = m_router->getPairedInputUnit(arrival);
+            const int target_side =
+                GarnetNetwork::dpphysSideOfInportDirn(
+                    target->get_direction());
+            m_router->setDpphysPoolOwner(
+                pair, vnet, pool_slot, target_side);
+            net->incrementDpphysGrantsMigrated();
+        }
+    }
+
+    target->increment_credit(invc, free_signal, curTick());
 }
 
 // CBS applies to hops that stay inside the torus (non-Local outports) on

@@ -57,6 +57,20 @@ OutputUnit::OutputUnit(int id, PortDirection direction, Router *router,
     for (int i = 0; i < m_num_vcs; i++) {
         outVcState.emplace_back(i, m_router->get_net_ptr(), consumerVcs);
     }
+
+    auto *net = m_router->get_net_ptr();
+    if (net->isDPPhys() && m_direction != "Local") {
+        const int side =
+            GarnetNetwork::dpphysSideOfOutportDirn(m_direction);
+        assert(side >= 0);
+        for (int vc = 0; vc < m_num_vcs; ++vc) {
+            const int offset = vc % m_vc_per_vnet;
+            if (!net->dpphysOffsetAllowedAt(offset, side)) {
+                while (outVcState[vc].get_credit_count() > 0)
+                    outVcState[vc].decrement_credit();
+            }
+        }
+    }
 }
 
 void
@@ -178,7 +192,8 @@ OutputUnit::select_free_vc_class(int vnet, bool escape)
     const int vc_base = vnet * m_vc_per_vnet;
     for (const int offset : dpphys_offsets(escape)) {
         const int vc = vc_base + offset;
-        if (is_vc_idle(vc, curTick())) {
+        if (is_vc_idle(vc, curTick()) &&
+            outVcState[vc].get_credit_count() > 0) {
             outVcState[vc].setState(ACTIVE_, curTick());
             return vc;
         }
