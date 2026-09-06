@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tidal Flow Control</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --accent: #58a6ff;
+    --accent2: #3fb950;
+    --accent3: #f78166;
+    --accent4: #d2a8ff;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --slide-w: 1200px;
+    --slide-h: 675px;
+  }
+
+  body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  #deck {
+    position: relative;
+    width: var(--slide-w);
+    height: var(--slide-h);
+    background: var(--bg);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 32px 80px rgba(0,0,0,.8);
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: 48px 60px 36px;
+  }
+  .slide.active { display: flex; }
+
+  h1 { font-size: 2.4rem; font-weight: 700; line-height: 1.2; color: var(--accent); }
+  h2 { font-size: 1.55rem; font-weight: 600; color: var(--text); }
+  h3 { font-size: 1rem; font-weight: 600; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .05em; }
+  p, li { font-size: .93rem; line-height: 1.6; color: var(--text); }
+  ul { padding-left: 1.2em; }
+  li { margin-bottom: 6px; }
+  code { font-family: "SFMono-Regular", Consolas, monospace; font-size: .87rem;
+         background: #21262d; border-radius: 4px; padding: 2px 6px; color: var(--accent4); }
+
+  .slide-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .slide-num {
+    font-size: .75rem; color: var(--muted);
+    background: var(--surface); border-radius: 20px;
+    padding: 3px 10px; letter-spacing: .04em; white-space: nowrap;
+  }
+
+  .cols { display: flex; gap: 28px; flex: 1; min-height: 0; }
+  .col  { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 18px; margin-bottom: 12px;
+  }
+  .box.accent { border-color: var(--accent); }
+  .box.green  { border-color: var(--accent2); }
+  .box.red    { border-color: var(--accent3); }
+  .box.purple { border-color: var(--accent4); }
+  .tag {
+    display: inline-block; font-size: .72rem; font-weight: 600;
+    border-radius: 4px; padding: 2px 8px; margin-bottom: 8px;
+    text-transform: uppercase; letter-spacing: .05em;
+  }
+  .tag.blue   { background: rgba(88,166,255,.15); color: var(--accent); }
+  .tag.green  { background: rgba(63,185,80,.15);  color: var(--accent2); }
+  .tag.red    { background: rgba(247,129,102,.15); color: var(--accent3); }
+  .tag.purple { background: rgba(210,168,255,.15); color: var(--accent4); }
+
+  table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  th { background: rgba(255,255,255,.03); color: var(--muted); font-weight: 600;
+       text-align: left; padding: 7px 11px; border-bottom: 1px solid var(--border); }
+  td { padding: 6px 11px; border-bottom: 1px solid #21262d; }
+  tr:last-child td { border-bottom: none; }
+  td code { font-size: .8rem; }
+
+  .eq {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: .9rem; color: var(--accent4);
+    background: #10141a; border-left: 3px solid var(--accent4);
+    padding: 10px 16px; border-radius: 0 6px 6px 0;
+    margin: 8px 0; white-space: pre; overflow-x: auto;
+  }
+
+  .vc-row { display: flex; gap: 4px; align-items: center; margin: 6px 0; }
+  .vc-cell {
+    width: 46px; height: 36px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .7rem; font-weight: 700;
+    border: 1.5px solid transparent;
+  }
+  .vc-res  { background: rgba(88,166,255,.18); border-color: var(--accent); color: var(--accent); }
+  .vc-esc  { background: rgba(210,168,255,.18); border-color: var(--accent4); color: var(--accent4); }
+  .vc-pool { background: rgba(63,185,80,.18); border-color: var(--accent2); color: var(--accent2); }
+
+  .hi  { color: var(--accent); font-weight: 600; }
+  .hi2 { color: var(--accent2); font-weight: 600; }
+  .hi3 { color: var(--accent3); font-weight: 600; }
+  .hi4 { color: var(--accent4); font-weight: 600; }
+
+  #slide-1 {
+    background: radial-gradient(ellipse at 20% 50%, rgba(88,166,255,.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(63,185,80,.06) 0%, transparent 55%),
+                var(--bg);
+    justify-content: center;
+    padding: 64px 80px;
+  }
+  #slide-1 .kicker { font-size: .85rem; color: var(--muted); letter-spacing: .1em;
+                     text-transform: uppercase; margin-bottom: 18px; }
+  #slide-1 h1 { font-size: 2.7rem; line-height: 1.15; margin-bottom: 20px; }
+  #slide-1 .subtitle { font-size: 1.1rem; color: var(--muted); margin-bottom: 40px; }
+  #slide-1 .pills { display: flex; gap: 10px; flex-wrap: wrap; }
+  #slide-1 .pill {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 5px 14px; font-size: .82rem; color: var(--muted);
+  }
+
+  #controls {
+    display: flex; align-items: center; gap: 20px;
+    margin-top: 16px; color: var(--muted); font-size: .82rem;
+  }
+  #progress { display: flex; gap: 5px; }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--border); transition: background .2s;
+  }
+  .dot.active { background: var(--accent); }
+  button {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 6px 16px;
+    cursor: pointer; font-size: .82rem; transition: border-color .15s;
+  }
+  button:hover { border-color: var(--accent); }
+
+  .placeholder-center {
+    display: flex; align-items: center; justify-content: center; flex: 1;
+  }
+  .placeholder-box {
+    max-width: 640px; width: 100%; text-align: center; padding: 44px;
+    background: var(--surface); border: 1px dashed var(--border); border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div id="deck">
+
+  <!-- ═══════════ SLIDE 1: Title ═══════════ -->
+  <div class="slide active" id="slide-1">
+    <div class="kicker">Lab4 · Topic 2 Flow Control · gem5 / Garnet</div>
+    <h1>Tidal: Reversible-Lane Buffer Sharing</h1>
+    <p class="subtitle">Like a tidal lane — same road, ownership follows demand</p>
+
+    <!-- Tidal lane diagram: two rush-hour states -->
+    <svg viewBox="0 0 1040 300" style="width:100%; max-width:1040px; margin:6px 0 28px">
+      <defs>
+        <marker id="arrE" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#f78166"/>
+        </marker>
+        <marker id="arrW" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#58a6ff"/>
+        </marker>
+      </defs>
+
+      <!-- ── Morning state ── -->
+      <text x="250" y="26" text-anchor="middle" font-size="15" fill="#8b949e">Morning rush — eastbound heavy</text>
+      <rect x="30" y="42" width="440" height="96" rx="8" fill="#161b22" stroke="#30363d"/>
+      <!-- lane dividers -->
+      <line x1="30" y1="74" x2="470" y2="74" stroke="#30363d" stroke-dasharray="6,6"/>
+      <line x1="30" y1="106" x2="470" y2="106" stroke="#30363d" stroke-dasharray="6,6"/>
+      <!-- lanes: 3 east, 1 west -->
+      <line x1="70" y1="58" x2="420" y2="58" stroke="#f78166" stroke-width="3" marker-end="url(#arrE)"/>
+      <line x1="70" y1="90" x2="420" y2="90" stroke="#f78166" stroke-width="3" marker-end="url(#arrE)"/>
+      <line x1="430" y1="122" x2="80" y2="122" stroke="#58a6ff" stroke-width="3" marker-end="url(#arrW)"/>
+      <text x="250" y="162" text-anchor="middle" font-size="13" fill="#f78166">E gets the shared lane</text>
+
+      <!-- swap arrows between states -->
+      <text x="520" y="95" text-anchor="middle" font-size="26" fill="#3fb950">⇄</text>
+
+      <!-- ── Evening state ── -->
+      <text x="790" y="26" text-anchor="middle" font-size="15" fill="#8b949e">Evening rush — westbound heavy</text>
+      <rect x="570" y="42" width="440" height="96" rx="8" fill="#161b22" stroke="#30363d"/>
+      <line x1="570" y1="74" x2="1010" y2="74" stroke="#30363d" stroke-dasharray="6,6"/>
+      <line x1="570" y1="106" x2="1010" y2="106" stroke="#30363d" stroke-dasharray="6,6"/>
+      <!-- lanes: 1 east, 3 west -->
+      <line x1="610" y1="58" x2="960" y2="58" stroke="#f78166" stroke-width="3" marker-end="url(#arrE)"/>
+      <line x1="970" y1="90" x2="620" y2="90" stroke="#58a6ff" stroke-width="3" marker-end="url(#arrW)"/>
+      <line x1="970" y1="122" x2="620" y2="122" stroke="#58a6ff" stroke-width="3" marker-end="url(#arrW)"/>
+      <text x="790" y="162" text-anchor="middle" font-size="13" fill="#58a6ff">W gets it back</text>
+
+      <!-- mapping line -->
+      <text x="520" y="205" text-anchor="middle" font-size="15" fill="#e6edf3">
+        lanes = <tspan fill="#3fb950" font-weight="bold">buffer slots</tspan> ·
+        direction = <tspan fill="#3fb950" font-weight="bold">opposing input ports {E, W}</tspan> ·
+        repainting = <tspan fill="#3fb950" font-weight="bold">credit ownership migration</tspan>
+      </text>
+      <text x="520" y="236" text-anchor="middle" font-size="14" fill="#8b949e">
+        No new lanes built — B_pair = 2v = 8 slots, unchanged
+      </text>
+    </svg>
+
+    <div class="pills">
+      <span class="pill">4×4×4 Torus3D</span>
+      <span class="pill">gem5 / Garnet</span>
+      <span class="pill">zero extra slots</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ SLIDE 2: Motivation ═══════════ -->
+  <div class="slide" id="slide-2">
+    <div class="slide-header">
+      <span class="slide-num">02 / 09</span>
+      <h2>Motivation: Two Structural Problems</h2>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="box accent" style="flex:1">
+          <div class="tag blue">Problem 1 — C1</div>
+          <h3 style="text-transform:none; letter-spacing:0">Credit round-trip caps throughput</h3>
+          <p>A buffer slot is unusable while its credit is in flight:</p>
+          <div class="eq">throughput ceiling = N / R_slot,
+R_slot ≈ RTT + queueing,  RTT ≈ 2L + 1</div>
+          <table style="margin-top:10px">
+            <tr><th>Link latency</th><th>RTT</th><th>Ceiling (N=4)</th></tr>
+            <tr><td>L = 1 (default)</td><td>3–4 cy</td><td>&gt; 1 — limited only near saturation</td></tr>
+            <tr><td><span class="hi">L = 8 (long link)</span></td><td>17–18 cy</td><td><span class="hi3">0.24 — limited even when idle</span></td></tr>
+          </table>
+          <p style="margin-top:10px">Long links (chiplet / D2D) make buffers the bottleneck at <em>every</em> load.
+          The textbook fix is <em>more buffers</em> — that costs area. <span class="hi">We add zero slots.</span></p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box green" style="flex:1">
+          <div class="tag green">Problem 2 — C2</div>
+          <h3 style="text-transform:none; letter-spacing:0">Directional demand asymmetry</h3>
+          <p>Tornado-like traffic heats one direction and leaves the opposite idle:</p>
+          <div style="display:flex; align-items:center; justify-content:center; gap:18px; margin:16px 0; font-size:.9rem">
+            <div style="text-align:center">
+              <div style="color:var(--accent3); font-weight:700; font-size:1.05rem">E-in: hot</div>
+              <div style="color:var(--muted); font-size:.8rem">starving for slots</div>
+            </div>
+            <div style="color:var(--muted); font-size:1.4rem">·</div>
+            <div style="text-align:center">
+              <div style="color:var(--muted); font-weight:700; font-size:1.05rem">W-in: idle</div>
+              <div style="color:var(--muted); font-size:.8rem">slots sit empty</div>
+            </div>
+          </div>
+          <p>With private buffers this waste is <strong>structural</strong>: no policy can move a slot across the wall.</p>
+          <p style="margin-top:10px">Question: can the busy side <span class="hi2">borrow the idle side's slots</span> —
+          without adding hardware, without touching deadlock freedom?</p>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:4px; padding:12px 18px; background:rgba(88,166,255,.07); border-radius:8px; text-align:center; font-size:.95rem">
+      Equal physical budget <code>B_pair = 2v = 8</code> — we migrate <span class="hi">ownership</span>, not capacity.
+    </div>
+  </div>
+
+  <!-- ═══════════ SLIDE 3: Architecture ═══════════ -->
+  <div class="slide" id="slide-3">
+    <div class="slide-header">
+      <span class="slide-num">03 / 09</span>
+      <h2>Architecture: Ownership Migration in an Opposing Port Pair</h2>
+    </div>
+    <div class="cols">
+      <div class="col" style="flex:1.15">
+        <div class="box accent">
+          <h3>The Sharing Method</h3>
+          <p>Per router, per dimension: pair the two opposing input units <code>{E-in, W-in}</code>. Split the 8 slots:</p>
+          <div style="display:flex; gap:28px; align-items:center; justify-content:center; padding:12px 0 4px">
+            <div>
+              <div style="text-align:center; font-size:.78rem; color:var(--muted); margin-bottom:5px">E-IU</div>
+              <div class="vc-row">
+                <div class="vc-cell vc-esc">esc</div>
+                <div class="vc-cell vc-res">rsv</div>
+                <div class="vc-cell vc-pool">pool</div>
+                <div class="vc-cell vc-pool">pool</div>
+              </div>
+            </div>
+            <div style="font-size:1.4rem; color:var(--accent2)">⇄</div>
+            <div>
+              <div style="text-align:center; font-size:.78rem; color:var(--muted); margin-bottom:5px">W-IU</div>
+              <div class="vc-row">
+                <div class="vc-cell vc-esc">esc</div>
+                <div class="vc-cell vc-res">rsv</div>
+                <div class="vc-cell vc-pool">pool</div>
+                <div class="vc-cell vc-pool">pool</div>
+              </div>
+            </div>
+          </div>
+          <ul style="margin-top:8px">
+            <li><span class="hi4">Reserved r=2 per side</span> (incl. escape VC) — owned permanently, never migrates</li>
+            <li><span class="hi2">Pool P=4</span> — each slot physically stays in its IU, but its <strong>ownership</strong> (which upstream may use it) migrates E ⇄ W</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Credit Semantics Untouched</h3>
+          <p>Upstream still sees only "my usable VC ids + credits" — one credit = free to send,
+          no double-key gate, no oversubscription. <span class="hi">The only change: pool ownership moves over time.</span></p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box green" style="flex:1">
+          <h3>Why It Helps — the Intuition</h3>
+          <p>The busy side's landing capacity becomes <strong>dynamic</strong>:</p>
+          <div class="eq">H_f = r + g_f   ∈  [r, r+P]
+private baseline:  H_f ≡ r + P/2  (constant)</div>
+          <p style="margin-top:10px">In the C1 regime throughput ∝ slots, so shifting all pool slots to the hot side lifts its ceiling:</p>
+          <div class="eq">(r+P) / (r+P/2)  =  6/4  =  1.5×</div>
+          <ul style="margin-top:10px">
+            <li><strong>Self-limiting:</strong> idle side's slots are only borrowable <em>because</em> it is idle — when it wakes up, its own traffic reclaims them</li>
+            <li><strong>Service bandwidth comes along:</strong> a borrowed slot is drained by the host IU's read port — the pair can momentarily send 2 flits/cycle</li>
+            <li>Sharing scope = <strong>dimension pair</strong>, exactly where tornado-class traffic guarantees anti-correlated demand (C2)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ SLIDE 4: Implementation — Safety ═══════════ -->
+  <div class="slide" id="slide-4">
+    <div class="slide-header">
+      <span class="slide-num">04 / 09</span>
+      <h2>Implementation ① — Safety: Three Layers of Deadlock Freedom</h2>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="box purple">
+          <div class="tag purple">Layer 1 — Escape VC</div>
+          <p>Adaptive routing may pick any minimal direction; one VC class per vnet is the <strong>escape class</strong>, routed by deterministic dimension-order (XYZ) routing. Any blocked packet can always fall into the escape network → the adaptive layer can never create a cycle that matters.</p>
+        </div>
+        <div class="box blue" style="border-color:var(--accent)">
+          <div class="tag blue">Layer 2 — CBS (Critical Bubble Scheme)</div>
+          <p>Torus wrap-around rings can still deadlock under DOR. CBS marks <strong>one critical bubble per directed ring</strong>: packets entering the ring may never consume the marked free slot; in-ring packets displace it upstream. The ring can never completely fill → no ring deadlock.</p>
+        </div>
+        <div class="box green">
+          <div class="tag green">Layer 3 — Credit Reservation (DP-Phys)</div>
+          <p>The escape VC lives in the <strong>reserved region</strong> — permanently owned, excluded from the migratable pool by construction. Migration can rearrange pool ownership arbitrarily; the escape network never notices.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box" style="flex:1">
+          <h3>Why the Proof Transfers Verbatim</h3>
+          <ul>
+            <li>Baseline deadlock-freedom = escape VC (layer 1) + CBS (layer 2), proven <em>before</em> DP-Phys exists</li>
+            <li>DP-Phys touches <strong>only pool slots</strong>; reserved slots (incl. escape) keep owner, position, and credit path unchanged</li>
+            <li>Forward progress of the escape network is independent of <code>g_f</code> — <span class="hi2">any grant policy, however aggressive, is a performance question, never a correctness question</span></li>
+          </ul>
+          <div class="eq" style="margin-top:14px">Invariants enforced at runtime:
+g_E + g_W == P          (no credit lost/created)
+per-IU active VCs ≤ r+P/2  (equal hardware)
+B_pair == 8 constant       (equal budget)
+Local port pinned to v=4   (no hidden buffer)</div>
+          <p style="margin-top:10px; color:var(--muted); font-size:.85rem">These invariants are the acceptance gate for every milestone — if any fires, the data is discarded.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ SLIDE 5: Implementation — Grant Policy ═══════════ -->
+  <div class="slide" id="slide-5">
+    <div class="slide-header">
+      <span class="slide-num">05 / 09</span>
+      <h2>Implementation ② — Credit Grant Policy</h2>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="box accent">
+          <h3>Grant = Release = Send</h3>
+          <p>When a flit leaves a pool slot, the router decides <em>in the same cycle</em> which upstream receives the freed credit. The credit itself carries ownership — no broadcast, no shared table for safety:</p>
+          <div class="eq">pool slot x owned by side f
+  ⟺  x's credit is held by f's upstream</div>
+          <p style="margin-top:8px">Normal path adds <span class="hi">zero latency</span> vs. a traditional credit return (same 1-hop signal). Safety is automatic: the router only grants slots that are genuinely empty.</p>
+        </div>
+        <div class="box green">
+          <div class="tag green">STARVE — demand-aware grant</div>
+          <div class="eq">free_E==0 ∧ free_W==0 → round-robin
+free_E==0             → grant E
+free_W==0             → grant W
+both free             → round-robin</div>
+          <p style="margin-top:8px"><code>free_f</code> = slots side <code>f</code> owns and has empty. Grant chases starvation.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box red">
+          <div class="tag red">RR — the deliberate control arm</div>
+          <p>Blind alternation, zero demand information. Analysis predicts a <strong>one-way ratchet</strong>:</p>
+          <div class="eq">E hot / W idle, g_E = g_W = 2:
+releases come only from E's slots
+→ every 2nd grant leaks to idle W
+→ g_E → 0, frozen; H_E = r only</div>
+          <p style="margin-top:8px">Busy side bleeds out, idle side never releases → never gives back. Prediction: <span class="hi3">RR &lt; PRIV</span>.</p>
+        </div>
+        <div class="box purple">
+          <h3>Why Keep a Bad Policy?</h3>
+          <p>Three arms on the <em>same</em> shared hardware:</p>
+          <table style="margin-top:6px">
+            <tr><th>Arm</th><th>Demand info</th><th>Prediction</th></tr>
+            <tr><td>PRIV (baseline)</td><td>—</td><td>reference</td></tr>
+            <tr><td>RR</td><td>none</td><td>&lt; PRIV</td></tr>
+            <tr><td>STARVE</td><td>full</td><td>&gt; PRIV</td></tr>
+          </table>
+          <p style="margin-top:8px">If both predictions hold, the gain is attributable to the <span class="hi">grant policy</span>, not to the shared hardware — two-sided evidence.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ SLIDE 6: Implementation — Return Policy ═══════════ -->
+  <div class="slide" id="slide-6">
+    <div class="slide-header">
+      <span class="slide-num">06 / 09</span>
+      <h2>Implementation ③ — Credit Return Policy</h2>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="box red">
+          <h3>Why Grants Alone Are Not Enough</h3>
+          <p>Grants fire only on <em>release events</em> — and releases only come from the side that has traffic:</p>
+          <div class="eq">tornado: E hot, W idle, g = 2/2
+E releases → free_E==0 → grant back to E
+W's few flits fit in reserved r
+   → W's pool slots never release
+→ ownership frozen at 50/50 forever</div>
+          <p style="margin-top:8px"><span class="hi3">Migration rate ∝ opposing traffic; migration necessity ∝ (1 − opposing traffic).</span> The directions are opposite — a structural defect that only an upstream-initiated <strong>return channel</strong> can fix.</p>
+        </div>
+        <div class="box">
+          <h3>Who Initiates — Information Split</h3>
+          <p>Router knows <em>demand</em> but not <em>safety</em> (whether upstream promised a credit to an in-flight flit). Upstream knows safety. So the <strong>holder</strong> returns voluntarily: 1-hop, no revoke/ack round-trip.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box accent">
+          <h3>Trigger: Surplus, Not Idleness</h3>
+          <div class="eq">credits_held > flits_queued
+   (sustained for T cycles)</div>
+          <p style="margin-top:8px">"Idle for T cycles" is a broken detector — a <em>starving</em> side also sends nothing, and would surrender credits at its hungriest. Under the surplus rule the starving side holds 0 credits and <strong>never triggers</strong>.</p>
+        </div>
+        <div class="box green">
+          <h3>Two-Tier Threshold — Last Slot Is Insurance</h3>
+          <table>
+            <tr><th>Holding g_f</th><th>Wait T</th><th>Rationale</th></tr>
+            <tr><td>≥ 2</td><td>RTT/4 (fast)</td><td>pure surplus — hand it over</td></tr>
+            <tr><td>= 1</td><td>2·RTT (slow)</td><td>wake-up insurance for own traffic</td></tr>
+          </table>
+          <p style="margin-top:8px">Marginal value reverses at the last slot: giving <code>2→1</code> trades −25% for +25%; giving <code>1→0</code> trades <span class="hi3">−33%</span> for +20%.</p>
+        </div>
+        <div class="box purple">
+          <p><strong>Transport:</strong> returned credit rides the <em>existing</em> reverse credit link (1 extra flag bit, zero new wires) and is treated by the router as a synthetic release event — same grant rule, one code path.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ SLIDE 7: Evaluation (placeholder) ═══════════ -->
+  <div class="slide" id="slide-7">
+    <div class="slide-header">
+      <span class="slide-num">07 / 09</span>
+      <h2>Evaluation</h2>
+    </div>
+    <div class="placeholder-center">
+      <div class="placeholder-box">
+        <p style="color:var(--muted); font-size:1.05rem; margin-bottom:14px">[ Results pending — experiment sweep not yet run ]</p>
+        <p style="color:var(--muted); font-size:.88rem">
+          Planned matrix: 5 arms (PRIV / RR-a / STV-a / RR-b / STV-b) × L ∈ {1, 8} ×<br>
+          5 traffic patterns × 20 injection rates = 1 000 runs<br><br>
+          Metrics: saturation throughput · saturation knee · matched-load latency ·<br>
+          per-direction fairness (xopposite) · mechanism liveness counters
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ SLIDE 8: Discussion ═══════════ -->
+  <div class="slide" id="slide-8">
+    <div class="slide-header">
+      <span class="slide-num">08 / 09</span>
+      <h2>Discussion: Novelty &amp; Limitations</h2>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="box green" style="flex:1">
+          <h3>Novelty</h3>
+          <ul>
+            <li style="margin-bottom:10px"><span class="hi2">Policy, not hardware.</span> Prior shared-buffer work (DAMQ, shared-SRAM routers) saves area — a <em>capacity</em> story. We fix the budget (<code>B_pair = 2v</code>, zero extra slots) and show the <strong>grant policy alone</strong> decides whether you beat or lose to a private baseline — with RR and STARVE bracketing PRIV from both sides on identical silicon.</li>
+            <li style="margin-bottom:10px"><span class="hi2">Opposing-port scope, bound to dimension semantics.</span> Sharing is placed exactly where torus traffic guarantees anti-correlated demand (C2) — not a whole-router merge for area's sake.</li>
+            <li><span class="hi2">Deadlock base fully isolated.</span> Escape VCs live in the never-migrating reserved region — safety proof transfers verbatim, so the policy layer is free to be aggressive. (Same reserved/pool split as Intel UPI's VN0/VNA credits.)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box red" style="flex:1">
+          <h3>Limitations</h3>
+          <ul>
+            <li style="margin-bottom:10px"><span class="hi3">Pool slots need 2W1R.</span> Two same-cycle arrivals can land in one IU (own link + cross-path), and credit flow control cannot reject — the pool region needs a second write port. Reads stay 1R: each slot is drained only by its host IU's allocator (static slot→port binding). Reserved region unaffected.</li>
+            <li style="margin-bottom:10px"><span class="hi3">Return traffic rides the credit network.</span> Returned credits borrow the reverse credit link; a 1-bit flag and demultiplexing at both ends. Transient by design (return domain is g ∈ {2,1}), but contention is measured and reported, not assumed away.</li>
+            <li style="margin-bottom:10px"><span class="hi3">gem5 models none of the circuit costs</span> (write port, wiring, timing). Results are an upper bound under an idealized zero-latency grant unit.</li>
+            <li><span class="hi3">Narrow applicability by design.</span> C1 is weak on 1-cycle-link meshes — the mechanism targets long credit loops / tiny buffers (chiplet, D2D). Deploying it elsewhere pays the cost without the gain.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ SLIDE 9: Division of Labor ═══════════ -->
+  <div class="slide" id="slide-9">
+    <div class="slide-header">
+      <span class="slide-num">09 / 09</span>
+      <h2>Division of Labor</h2>
+    </div>
+    <div class="placeholder-center">
+      <div class="placeholder-box">
+        <p style="color:var(--muted); font-size:1rem;">[ To be filled in ]</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<div id="controls">
+  <button id="btn-prev">← Prev</button>
+  <div id="progress"></div>
+  <button id="btn-next">Next →</button>
+  <span id="slide-label" style="min-width:60px; text-align:center"></span>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let cur = 0;
+
+  const progress = document.getElementById('progress');
+  const label = document.getElementById('slide-label');
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    progress.appendChild(d);
+  });
+
+  function goto(n) {
+    slides[cur].classList.remove('active');
+    progress.children[cur].classList.remove('active');
+    cur = (n + total) % total;
+    slides[cur].classList.add('active');
+    progress.children[cur].classList.add('active');
+    label.textContent = `${cur + 1} / ${total}`;
+  }
+
+  document.getElementById('btn-prev').addEventListener('click', () => goto(cur - 1));
+  document.getElementById('btn-next').addEventListener('click', () => goto(cur + 1));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') goto(cur + 1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                     goto(cur - 1);
+    if (e.key === 'Home') goto(0);
+    if (e.key === 'End')  goto(total - 1);
+  });
+
+  goto(0);
+</script>
+</body>
+</html>
