@@ -32,6 +32,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--summary", type=Path, default=TASK_DIR / "summary_dpphys.csv"
     )
+    parser.add_argument("--modes", nargs="+", choices=MODE_ORDER)
+    parser.add_argument("--link-latencies", nargs="+", type=int)
     return parser.parse_args()
 
 
@@ -69,6 +71,14 @@ def main() -> int:
     args = parse_args()
     with args.results.open(newline="", encoding="utf-8") as csv_file:
         rows = list(csv.DictReader(csv_file))
+    if args.modes:
+        rows = [row for row in rows if row["mode"] in args.modes]
+    if args.link_latencies:
+        rows = [
+            row
+            for row in rows
+            if int(row["link_latency"]) in args.link_latencies
+        ]
     table: dict[
         tuple[int, str, str], dict[float, dict[str, str]]
     ] = defaultdict(dict)

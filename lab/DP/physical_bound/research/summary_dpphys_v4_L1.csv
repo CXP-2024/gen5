@@ -1,0 +1,11 @@
+link_latency,pattern,mode,sat_throughput,sat_rate,delta_vs_priv_pct,matched_rate,matched_packet_latency,direction_fairness_at_sat,grants_migrated_at_sat,credits_returned_at_sat,pool_full_blocks_at_sat,borrowed_peak_at_sat,grant_queue_max_at_sat,return_conflicts_at_sat
+1,torus3d_neighbor,PRIV,0.499140625,1.0,0.0,0.65,7.0,nan,0.0,0.0,0.0,0.0,nan,0.0
+1,torus3d_neighbor,STV-b,0.371875,1.0,-25.49694787916732,0.65,27.463196,0.14024063146601273,1031648.0,1709648.0,0.0,2.0,12.0,1619488.0
+1,torus3d_tornado,PRIV,0.4988546875,1.0,0.0,0.6,11.732443,nan,0.0,0.0,0.0,0.0,nan,0.0
+1,torus3d_tornado,STV-b,0.3209125,1.0,-35.670144424572534,0.6,26.621857,0.06878986600540758,1072403.0,1336989.0,0.0,2.0,12.0,1081062.0
+1,torus3d_transpose,PRIV,0.4989234375,1.0,0.0,0.8,11.582148,nan,0.0,0.0,0.0,0.0,nan,0.0
+1,torus3d_transpose,STV-b,0.4377796875,1.0,-12.255136841511883,0.8,31.492699,0.9066030685365103,1053895.0,1212531.0,0.0,3.0,14.0,925833.0
+1,torus3d_xopposite,PRIV,0.499040625,1.0,0.0,0.8,9.43073,nan,0.0,0.0,0.0,0.0,nan,0.0
+1,torus3d_xopposite,STV-b,0.4140578125,0.95,-17.029237349163708,0.8,13.46255,0.9969410204635183,1086034.0,1633516.0,0.0,3.0,9.0,1572795.0
+1,uniform_random,PRIV,0.498878125,1.0,0.0,1.0,12.162183,nan,0.0,0.0,0.0,0.0,nan,0.0
+1,uniform_random,STV-b,0.498775,1.0,-0.020671381412040724,1.0,14.643195,0.9076051545645406,1234089.0,1367580.0,0.0,2.0,12.0,1251882.0
