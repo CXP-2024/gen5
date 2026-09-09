@@ -41,9 +41,7 @@ For the four-VC baseline and one-flit control traffic, four slots and an
 approximately 17-cycle credit loop at link latency (L=8) imply an analytic
 zero-contention input-credit limit of approximately:
 
-[
-4 / 17 \approx 0.24 \text{ flits/cycle}.
-]
+**Analytic input-credit limit:** 4 / 17 ≈ 0.24 flits/cycle.
 
 This limit is not always the first bottleneck. The 4×4×4 tornado workload, for
 example, reaches an output bottleneck before the analytic input-credit limit.
@@ -72,9 +70,7 @@ For every pair and control vnet, the physical layout is:
 Thus the proposed design and baseline both contain eight physical slots per
 direction pair:
 
-[
-2 \times (1\text{ private}+1\text{ escape}) + 4\text{ Pool} = 8.
-]
+**Equal-storage identity:** 2 × (1 private + 1 escape) + 4 Pool = 8.
 
 Pool membership follows the true input direction, not the selected output.
 For example, a flit entering from West may occupy the East/West Pool and later
@@ -119,9 +115,7 @@ Each of the four Pool slots has exactly one direction owner. Owning a Pool
 credit means that the upstream direction may reserve that slot for an incoming
 flit. Credits are conserved:
 
-[
-owner_0 + owner_1 = 4.
-]
+**Credit conservation:** owner_E + owner_W = 4.
 
 Private adaptive and escape credits stay with their original directions.
 
@@ -189,8 +183,8 @@ are:
 | `dpphys_pressure`, cap 3 | 2 RES + 4 Pool + 2 RES | proposed policy |
 | `dpphys_pressure`, cap 4 | 2 RES + 4 Pool + 2 RES | full-elasticity upper bound |
 
-The experiments use 4×4×4 or 8×4×4 Torus3D networks, link latency (L \in
-\{1,8\}), one-flit vnet-0 control packets, 10,000 simulated cycles for the
+The experiments use 4×4×4 or 8×4×4 Torus3D networks, link latencies L=1 and
+L=8, one-flit vnet-0 control packets, 10,000 simulated cycles for the
 main long runs, and three seeds per reported point. The 651-run main matrix
 comprises 120 broad validation runs, 96 policy runs, 72 owner-cap runs, 192
 direction-reversal runs, and 171 X-biased/VC-scale runs. A separate 48-run
@@ -281,30 +275,43 @@ replacement for private buffering.
 
 ## 6. Division of Labor
 
-The project was collaborative, and both contributors participated in writing
-and reviewing the final artifacts.
+The project was completed collaboratively, with an overall contribution split
+of **50% for Wang Liming and 50% for CXP-2024**. Both contributors participated
+in architecture discussions, implementation review, debugging, evaluation,
+interpretation, report writing, and slide preparation. The responsibilities
+below identify the areas each person primarily led; they do not represent
+isolated work packages.
 
-### Wang Liming
+### Wang Liming - 50%
 
-- proposed the original direction-paired Pool concept;
-- explored the earlier 1R2W organization and its trade-offs;
-- added and completed evaluation coverage across traffic patterns and
-  operating points;
-- contributed to result interpretation, the report, and the slides.
+- proposed the original direction-paired Pool concept and helped refine the
+  final research question;
+- implemented and tested the earlier 1R2W organization, providing the design
+  experience that motivated the lower-port 1R1W version;
+- developed traffic-pattern coverage and completed major parts of the
+  evaluation matrix;
+- reviewed the 1R1W behavior, Pool-credit policy results, and correctness
+  evidence;
+- co-analyzed the positive and negative results;
+- co-authored and revised the report, slides, and presentation narrative.
 
-### CXP-2024
+### CXP-2024 - 50%
 
-- developed the final 1R1W complementary-phase architecture;
-- designed the Pool-credit pressure, sticky-tie, cap-3, and on-demand-reclaim
-  mechanisms;
-- implemented and analyzed the 1R1W model and experiments;
-- contributed to the report, slides, and evidence review.
+- co-developed the direction-paired architecture and finalized the 1R1W
+  complementary-phase organization;
+- designed the Pool-credit ownership mechanism, including pressure grants,
+  sticky ties, owner cap 3, and on-demand reclaim;
+- implemented the final 1R1W mechanism and instrumentation in Garnet;
+- ran and analyzed major parts of the 1R1W evaluation and cross-checked the
+  reported data;
+- co-analyzed the positive and negative results;
+- co-authored and revised the report, slides, and presentation narrative.
 
-### Shared work
+### Shared Deliverables
 
-Architecture discussion, validation strategy, interpretation of positive and
-negative results, report integration, slide production, and presentation
-preparation were completed jointly.
+The following deliverables have joint 50/50 ownership: architecture decisions,
+debugging and correctness checks, experiment review, result interpretation,
+report integration, slide production, and presentation preparation.
 
 ## 7. Limitations and Next Steps
 
