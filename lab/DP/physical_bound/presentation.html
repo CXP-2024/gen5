@@ -213,15 +213,20 @@
     border: 1px solid var(--border);
     border-radius: 8px;
   }
-  .phase-grid > div { padding: 11px 14px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .phase-grid > div { padding: 6px 12px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .phase-grid > div:nth-child(3n) { border-right: 0; }
   .phase-grid > div:nth-last-child(-n+3) { border-bottom: 0; }
   .phase-head { color: var(--muted); background: var(--surface); font-size: 12px; }
   .phase-res { color: var(--blue); background: rgba(37,99,235,.07); font-weight: 700; }
   .phase-pool { color: var(--green); background: rgba(7,155,131,.07); font-weight: 700; }
+  .timeline { display: grid; grid-template-columns: 92px repeat(6, 1fr); gap: 5px; align-items: center; }
+  .cycle { padding: 7px 5px; border-radius: 6px; background: var(--surface2); text-align: center; font-size: 12px; font-weight: 750; }
+  .cycle.res { color: var(--blue); background: rgba(37,99,235,.09); }
+  .cycle.poolc { color: var(--green); background: rgba(7,155,131,.09); }
   .bar-row { display: grid; grid-template-columns: 150px 1fr 72px; align-items: center; gap: 10px; margin: 10px 0; }
   .bar-label { color: var(--muted); font-size: 13px; }
-  .bar-track { height: 25px; overflow: hidden; border-radius: 5px; background: #e9eef5; }
+  .bar-track { position: relative; height: 25px; overflow: hidden; border-radius: 5px; background: #e9eef5; }
+  .bar-track::after { content: ""; position: absolute; left: 83.33%; top: 0; bottom: 0; width: 2px; background: #8d9aad; }
   .bar { height: 100%; display: flex; align-items: center; padding-left: 9px; color: #172033; font-size: 11px; font-weight: 800; }
   .bar.base { background: #aab7c7; }
   .bar.win { background: linear-gradient(90deg, #62c7a9, #92dec3); }
@@ -298,6 +303,10 @@
   .mini-slots { display: flex; justify-content: center; gap: 3px; }
   .mini-slot { display: grid; width: 25px; height: 26px; place-items: center; border: 1px solid; border-radius: 4px; font-size: 8px; font-weight: 800; }
   .dot.active { background: var(--blue); }
+  .role-grid { display: grid; grid-template-columns: repeat(2, 1fr); grid-auto-rows: 1fr; gap: 12px; height: 100%; }
+  .role { padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  .role-name { margin-bottom: 9px; color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+  .role h3 { margin-bottom: 7px; font-size: 16px; text-transform: none; letter-spacing: 0; }
 
   /* ── Present mode: fullscreen, PPT-like ── */
   body.present { background: #000; }
@@ -314,16 +323,13 @@
   <section class="slide active" id="slide-1">
     <div style="display:grid;grid-template-columns:1.02fr .98fr;align-items:center;gap:38px;height:100%">
       <div>
-        <div class="eyebrow">Architecture · Implementation · Evaluation</div>
+        <div class="eyebrow">Architecture · Implementation · Evaluation · Team</div>
         <h1>Tidal: Direction-Paired Buffer Pooling</h1>
-        <p class="subtitle">Turn stranded per-direction capacity into a physical shared Pool—without changing total storage.</p>
-        <div class="pills">
-          <span class="pill">RES: private + escape</span>
-          <span class="pill">4 shared slots / pair</span>
-          <span class="pill">2 writes + 1 read</span>
-          <span class="pill">equal-storage baseline</span>
+        <p class="subtitle">Stranded directional capacity, re-served as one shared Pool.</p>
+        <div style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border:1px solid rgba(7,155,131,.35);border-radius:999px;background:rgba(7,155,131,.07)">
+          <span style="font-size:12px;font-weight:800;letter-spacing:.09em;color:var(--green)">NO ADDED BUFFER STORAGE</span>
+          <span style="color:var(--muted);font-size:13px">same 8 slots per pair · one Pool read + one Pool write / cycle</span>
         </div>
-        <div class="callout" style="margin-top:28px">One hot direction may temporarily use more than half of the pair's storage; safety-critical escape capacity never migrates.</div>
       </div>
       <div>
         <div class="figure-card" style="height:330px;border-color:rgba(7,155,131,.34)"><img src="assets/dpphys_pair_pool_concept.jpg" alt="East and West reserved buffers sharing a four-slot pool"></div>
@@ -339,7 +345,7 @@
         <div class="box blue grow">
           <span class="tag blue">C1 · long credit loop</span>
           <h3 style="text-transform:none;letter-spacing:0;font-size:18px">A free slot is unusable until its credit returns</h3>
-          <div class="flow tight" style="margin:42px 0 34px">
+          <div class="flow tight" style="margin:34px 0 26px">
             <div class="node">allocate VC</div><div class="arrow">→</div>
             <div class="node">flit in flight<br><span class="muted">L cycles</span></div><div class="arrow">→</div>
             <div class="node">slot freed</div><div class="arrow">→</div>
@@ -349,9 +355,11 @@
             credit RTT ≈ 2L + pipe ≈ <span class="hi">17 cycles</span> @ L=8
           </div>
           <p class="muted" style="text-align:center;font-size:15px">long links: chiplet / die-to-die hops</p>
-          <p style="margin-top:26px;text-align:center;font-size:19px">
-            4 slots × 1 flit per RTT ⇒ <span class="bad">≤ 0.24 flits/cycle</span><br>
-            <span class="muted" style="font-size:14px">capped even with zero contention</span>
+          <p style="margin-top:20px;text-align:center;font-size:19px">
+            4 slots × 1 flit per RTT ⇒ <span class="bad">≤ 0.24 flits/cycle per link</span><br>
+            <span class="muted" style="font-size:13px">analytic zero-contention cap — visible only when nothing else binds first:<br>
+            100% +X saturates private-v4 at ≈ 0.08 inj × 3 X-hops ≈ 0.24 flits/cycle per link<br>
+            (tornado 4×4×4 hides it behind an output bottleneck: sat 0.156 &lt; 0.24)</span>
           </p>
         </div>
       </div>
@@ -386,7 +394,7 @@
               <div style="margin-top:6px;text-align:center;color:var(--muted);font-size:11px">0/4 in use</div>
             </div>
           </div>
-          <p style="text-align:center;font-size:18px">Tornado-class traffic heats one direction only.<br>
+          <p style="text-align:center;font-size:18px">Tornado-class traffic keeps one side of each direction pair hotter.<br>
           With private buffers the waste is <strong>structural</strong> — <span class="good">no policy can move a slot across the wall.</span></p>
         </div>
       </div>
@@ -400,7 +408,7 @@
         <h3 style="text-align:center">E / W pair</h3>
         <div class="pair-strip">
           <div class="pair-region res"><div class="mini-label">E · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
-          <div class="pair-region shared"><div class="mini-label">POOL · 4 · 2W1R</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
+          <div class="pair-region shared"><div class="mini-label">POOL · 4 · 1R1W</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
           <div class="pair-region res"><div class="mini-label">W · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
         </div>
       </div>
@@ -408,7 +416,7 @@
         <h3 style="text-align:center">N / S pair</h3>
         <div class="pair-strip">
           <div class="pair-region res"><div class="mini-label">N · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
-          <div class="pair-region shared"><div class="mini-label">POOL · 4 · 2W1R</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
+          <div class="pair-region shared"><div class="mini-label">POOL · 4 · 1R1W</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
           <div class="pair-region res"><div class="mini-label">S · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
         </div>
       </div>
@@ -416,7 +424,7 @@
         <h3 style="text-align:center">U / D pair</h3>
         <div class="pair-strip">
           <div class="pair-region res"><div class="mini-label">U · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
-          <div class="pair-region shared"><div class="mini-label">POOL · 4 · 2W1R</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
+          <div class="pair-region shared"><div class="mini-label">POOL · 4 · 1R1W</div><div class="mini-slots"><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span><span class="mini-slot pool">P</span></div></div>
           <div class="pair-region res"><div class="mini-label">D · RES</div><div class="mini-slots"><span class="mini-slot private">PRI</span><span class="mini-slot escape">ESC</span></div></div>
         </div>
       </div>
@@ -428,7 +436,7 @@
     <div style="display:flex;justify-content:space-around;color:var(--green);font-size:20px;line-height:22px"><span>↓</span><span>↓</span><span>↓</span></div>
     <div style="height:46px;flex:none;border:2px solid var(--blue);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:14px;background:rgba(37,99,235,.05)">
       <span style="font-size:16px;font-weight:800">Shared router datapath</span>
-      <span class="muted" style="font-size:13px">RC · VA · SA · crossbar — unchanged</span>
+      <span class="muted" style="font-size:13px">RC · VA · crossbar unchanged; SA gains bank scheduling</span>
     </div>
     <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:30px;margin-top:8px;min-height:0">
       <svg viewBox="0 0 470 190" style="width:400px;flex:none;max-height:100%">
@@ -453,8 +461,66 @@
     </div>
   </section>
 
+  <section class="slide" id="slide-3b">
+    <div class="header"><span class="num"></span><span class="tag green" style="margin:0">Architecture</span><h2>Why One Read + One Write Port Is Enough</h2></div>
+    <div class="cols">
+      <div class="col" style="flex:1.15">
+        <div class="box red">
+          <h3>Naive sharing doubles the ports</h3>
+          <div style="display:flex;justify-content:center;margin:2px 0 0">
+            <svg viewBox="-20 0 560 132" style="width:470px">
+              <defs>
+                <marker id="m-wr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#d97706"/></marker>
+                <marker id="m-rd" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2563eb"/></marker>
+              </defs>
+              <rect x="205" y="28" width="110" height="66" rx="9" fill="rgba(7,155,131,.08)" stroke="#079b83" stroke-width="2"/>
+              <text x="260" y="66" text-anchor="middle" font-size="13" font-weight="750" fill="#079b83">POOL · 4</text>
+              <line x1="60" y1="45" x2="197" y2="45" stroke="#d97706" stroke-width="3" marker-end="url(#m-wr)"/>
+              <text x="58" y="49" text-anchor="end" font-size="12" font-weight="750" fill="#d97706">E-in write</text>
+              <line x1="60" y1="80" x2="197" y2="80" stroke="#d97706" stroke-width="3" marker-end="url(#m-wr)"/>
+              <text x="58" y="84" text-anchor="end" font-size="12" font-weight="750" fill="#d97706">W-in write</text>
+              <line x1="323" y1="45" x2="460" y2="45" stroke="#2563eb" stroke-width="3" marker-end="url(#m-rd)"/>
+              <text x="466" y="49" font-size="12" font-weight="750" fill="#2563eb">E drain read</text>
+              <line x1="323" y1="80" x2="460" y2="80" stroke="#2563eb" stroke-width="3" marker-end="url(#m-rd)"/>
+              <text x="466" y="84" font-size="12" font-weight="750" fill="#2563eb">W drain read</text>
+              <text x="260" y="122" text-anchor="middle" font-size="13" font-weight="800" fill="#dc3c3c">worst case, one cycle: 2 writes + 2 reads ⇒ 2R2W array</text>
+            </svg>
+          </div>
+          <p style="font-size:14px">A multi-ported buffer costs the very area and energy that sharing was supposed to save.</p>
+        </div>
+        <div class="box green grow">
+          <h3>Complementary phases — cycle parity is the arbiter</h3>
+          <div class="phase-grid" style="margin:4px 0 10px">
+            <div class="phase-head">Cycle phase</div><div class="phase-head">East serves</div><div class="phase-head">West serves</div>
+            <div class="phase-head">A · even</div><div class="phase-res">RES</div><div class="phase-pool">POOL</div>
+            <div class="phase-head">B · odd</div><div class="phase-pool">POOL</div><div class="phase-res">RES</div>
+          </div>
+          <div class="timeline"><div class="muted" style="font-size:12px">Pool user</div><div class="cycle poolc">W</div><div class="cycle poolc">E</div><div class="cycle poolc">W</div><div class="cycle poolc">E</div><div class="cycle poolc">W</div><div class="cycle poolc">E</div></div>
+          <div class="timeline" style="margin-top:5px"><div class="muted" style="font-size:12px">Other bank</div><div class="cycle res">E·RES</div><div class="cycle res">W·RES</div><div class="cycle res">E·RES</div><div class="cycle res">W·RES</div><div class="cycle res">E·RES</div><div class="cycle res">W·RES</div></div>
+          <p style="font-size:13px;margin-top:6px">Parity removes <strong>cross-direction Pool-read conflicts</strong>; ordinary VC/switch arbitration remains inside the selected bank.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box blue">
+          <h3>Read side</h3>
+          <p style="font-size:14px">At most one pooled flit from the pair enters switch allocation per cycle. It uses the crossbar port of its <strong>true ingress</strong> — the shared datapath needs no extra lane.</p>
+        </div>
+        <div class="box green">
+          <h3>Write side</h3>
+          <p style="font-size:14px">A per-pair write guard admits at most one adaptive flit into the Pool each cycle. The other arrival may use its RES when a reserved credit is free; otherwise it waits.</p>
+        </div>
+        <div class="box orange grow">
+          <h3>The phase tax</h3>
+          <p style="font-size:14px">A hot side is served by the Pool only <strong>every other cycle</strong>, and a cold side's unused phases are not work-conserving.</p>
+          <p style="font-size:14px;margin-top:10px">This is the <span class="bad">+2~3%</span> latency visible under balanced traffic — the price the skew win must repay.</p>
+        </div>
+      </div>
+    </div>
+    <div class="callout" style="font-size:13px">Equal buffers, <strong>1R1W Pool</strong>. Area and energy still require RTL synthesis of owner state, selectors, and wiring.</div>
+  </section>
+
   <section class="slide" id="slide-4">
-    <div class="header"><span class="num"></span><span class="tag blue" style="margin:0">Implementation · 1 / 3</span><h2>Deadlock Prevention: Safety Is Pinned in RES</h2></div>
+    <div class="header"><span class="num"></span><span class="tag blue" style="margin:0">Implementation · 1 / 3</span><h2>Safety by Construction: Pinned Escape + Phased Pool</h2></div>
     <div class="cols">
       <div class="col" style="flex:1.12">
         <div class="box purple grow">
@@ -485,36 +551,17 @@
             </div>
           </div>
           <p style="font-size:16px;text-align:center">Blocked adaptive packet → always drains via <span class="purple-text">ESC</span>, routed in deterministic XYZ order</p>
-          <p class="muted" style="font-size:14px;text-align:center;margin-top:8px">escape capacity is storage that never moves — no grant decision can starve it</p>
+          <p style="font-size:14px;text-align:center;margin-top:8px">escape never takes wrap-around links — a deadlock-free subnetwork whose storage never moves</p>
         </div>
       </div>
       <div class="col">
-        <div class="box blue">
-          <h3>CBS — wrap-around rings never fill</h3>
-          <div style="display:flex;justify-content:center;margin:8px 0 6px">
-            <svg viewBox="0 0 240 124" style="width:230px">
-              <defs>
-                <marker id="m-gr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                  <path d="M0,0 L7,3 L0,6 Z" fill="#079b83"/>
-                </marker>
-              </defs>
-              <rect x="20" y="12" width="44" height="26" rx="6" fill="#eef3f8" stroke="#ccd6e3"/>
-              <rect x="176" y="12" width="44" height="26" rx="6" fill="#eef3f8" stroke="#ccd6e3"/>
-              <rect x="176" y="84" width="44" height="26" rx="6" fill="#eef3f8" stroke="#ccd6e3"/>
-              <rect x="20" y="84" width="44" height="26" rx="6" fill="#eef3f8" stroke="#ccd6e3"/>
-              <line x1="70" y1="25" x2="168" y2="25" stroke="#079b83" stroke-width="2.5" marker-end="url(#m-gr)"/>
-              <line x1="198" y1="44" x2="198" y2="76" stroke="#079b83" stroke-width="2.5" marker-end="url(#m-gr)"/>
-              <line x1="170" y1="97" x2="72" y2="97" stroke="#079b83" stroke-width="2.5" marker-end="url(#m-gr)"/>
-              <line x1="42" y1="78" x2="42" y2="46" stroke="#079b83" stroke-width="2.5" marker-end="url(#m-gr)"/>
-              <circle cx="120" cy="25" r="10" fill="rgba(7,155,131,.15)" stroke="#079b83" stroke-width="2"/>
-              <text x="120" y="52" text-anchor="middle" font-size="11" font-weight="700" fill="#079b83">critical bubble</text>
-            </svg>
-          </div>
-          <p style="font-size:14px">Ring-entry flits may not consume the marked free slot — the directed ring always keeps one bubble, so it can never completely fill.</p>
+        <div class="box green">
+          <h3>Phase discipline holds under any policy</h3>
+          <p style="font-size:15px">The complementary schedule is deterministic parity — whoever owns the slots, only one direction touches the Pool per cycle, and every bank is examined every other cycle: service is <strong>delayed, never denied</strong>. Measured: <span class="good">0 read conflicts in all 651 runs</span>.</p>
         </div>
         <div class="box green grow">
-          <h3>The pool cannot break either layer</h3>
-          <p style="font-size:15px">Migration reshuffles only the 4 pool slots. RES — private + escape — is <strong>physically excluded</strong>, so the baseline deadlock proof transfers verbatim.</p>
+          <h3>The pool cannot break escape</h3>
+          <p style="font-size:15px">Migration reshuffles only the 4 pool slots. RES — private + escape — is <strong>physically excluded</strong>, so the non-wrapping escape network stays intact under any ownership state.</p>
         </div>
       </div>
     </div>
@@ -522,7 +569,7 @@
   </section>
 
   <section class="slide" id="slide-5">
-    <div class="header"><span class="num"></span><span class="tag blue" style="margin:0">Implementation · 2 / 3</span><h2>Pool-Credit Grant: STARVE — the Credit Follows Starvation</h2></div>
+    <div class="header"><span class="num"></span><span class="tag blue" style="margin:0">Implementation · 2 / 3</span><h2>Pool-Credit Grant: Pressure — the Credit Follows Demand</h2></div>
     <div class="cols">
       <div class="col" style="flex:1.35">
         <div class="box green grow">
@@ -534,16 +581,16 @@
                   <path d="M0,0 L8,3.5 L0,7 Z" fill="#079b83"/>
                 </marker>
               </defs>
-              <!-- E upstream: starving -->
+              <!-- E upstream: pressured -->
               <rect x="14" y="62" width="152" height="100" rx="10" fill="rgba(220,60,60,.06)" stroke="#dc3c3c" stroke-width="2"/>
               <text x="90" y="88" text-anchor="middle" font-size="14" font-weight="750" fill="#172033">E upstream</text>
-              <text x="90" y="115" text-anchor="middle" font-size="13" fill="#dc3c3c" font-weight="700">free credits: 0</text>
-              <text x="90" y="140" text-anchor="middle" font-size="15" font-weight="800" fill="#dc3c3c">STARVING</text>
-              <!-- W upstream: satisfied -->
+              <text x="90" y="115" text-anchor="middle" font-size="13" fill="#dc3c3c" font-weight="700">RES 2/2 occupied</text>
+              <text x="90" y="140" text-anchor="middle" font-size="15" font-weight="800" fill="#dc3c3c">PRESSURED</text>
+              <!-- W upstream: relaxed -->
               <rect x="434" y="62" width="152" height="100" rx="10" fill="rgba(37,99,235,.05)" stroke="#2563eb" stroke-width="2"/>
               <text x="510" y="88" text-anchor="middle" font-size="14" font-weight="750" fill="#172033">W upstream</text>
-              <text x="510" y="115" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">free credits: 2</text>
-              <text x="510" y="140" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">satisfied</text>
+              <text x="510" y="115" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">RES 0/2 occupied</text>
+              <text x="510" y="140" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">relaxed</text>
               <!-- router pool center -->
               <rect x="232" y="52" width="136" height="120" rx="10" fill="#fff" stroke="#2563eb" stroke-width="2"/>
               <text x="300" y="76" text-anchor="middle" font-size="13" font-weight="750" fill="#2563eb">router pool</text>
@@ -559,7 +606,7 @@
             </svg>
           </div>
           <div style="text-align:center;font-size:18px;font-weight:750;margin-top:4px">
-            a side has <span class="bad">0 free credits</span> → <span class="good">grant it</span>&nbsp;&nbsp;·&nbsp;&nbsp;<span style="font-weight:650">otherwise → round-robin</span>
+            release → <span class="good">side with the fuller RES</span>&nbsp;&nbsp;·&nbsp;&nbsp;tie → <span class="hi">last owner keeps it</span> <span style="font-weight:650">(sticky)</span>
           </div>
         </div>
       </div>
@@ -571,26 +618,30 @@
         <div class="box grow">
           <h3>Control arms · same hardware</h3>
           <table>
-            <tr><th>Arm</th><th>Info used</th></tr>
-            <tr><td>RTS</td><td>last sender</td></tr>
-            <tr><td>RR</td><td>none — blind</td></tr>
-            <tr><td class="good">STARVE</td><td class="good">starvation flag</td></tr>
+            <tr><th>Arm</th><th>Grant rule</th></tr>
+            <tr><td>RTS</td><td>never migrates ≡ private</td></tr>
+            <tr><td>owner-RR</td><td>blind rotation</td></tr>
+            <tr><td class="good">pressure</td><td class="good">fuller RES wins</td></tr>
           </table>
-          <p style="font-size:14px;margin-top:10px">All arms: identical 8 slots / pair — any performance gap is pure policy.</p>
+          <p style="font-size:14px;margin-top:10px">Blind owner-RR parks credits on the idle side — tornado L=8: <span class="bad">0.435× throughput · 3.181× latency</span>.</p>
+        </div>
+        <div class="box orange">
+          <h3>Owner cap 3</h3>
+          <p style="font-size:14px">The hot side owns at most <strong>3 of 4</strong> pool credits — the peer always keeps one. Cap 4 is reported only as a full-elasticity upper bound.</p>
         </div>
         <div class="box purple">
-          <p style="font-size:14px"><code>g_E + g_W = P</code> — credits conserved, one owner per free slot.</p>
+          <p style="font-size:14px"><code>own_E + own_W = 4</code> — credits conserved, one owner per slot, each side ≤ cap.</p>
         </div>
       </div>
     </div>
   </section>
 
   <section class="slide" id="slide-6">
-    <div class="header"><span class="num"></span><span class="tag blue" style="margin:0">Implementation · 3 / 3</span><h2>Credit Return: Surplus Flows Back in Two Tiers</h2></div>
+    <div class="header"><span class="num"></span><span class="tag blue" style="margin:0">Implementation · 3 / 3</span><h2>On-Demand Reclaim: An Idle Peer Credit Never Blocks You</h2></div>
     <div class="cols">
       <div class="col" style="flex:1.35">
         <div class="box orange grow">
-          <h3>Holder-initiated return · the last credit is sticky</h3>
+          <h3>Allocation-time reclaim · owner table flips in the same cycle</h3>
           <div style="flex:1;display:flex;align-items:center;justify-content:center">
             <svg viewBox="0 0 600 230" style="width:560px">
               <defs>
@@ -604,25 +655,25 @@
               <!-- E upstream: starving -->
               <rect x="14" y="62" width="152" height="100" rx="10" fill="rgba(220,60,60,.06)" stroke="#dc3c3c" stroke-width="2"/>
               <text x="90" y="88" text-anchor="middle" font-size="14" font-weight="750" fill="#172033">E upstream</text>
-              <text x="90" y="115" text-anchor="middle" font-size="13" fill="#dc3c3c" font-weight="700">free credits: 0</text>
+              <text x="90" y="115" text-anchor="middle" font-size="13" fill="#dc3c3c" font-weight="700">owned pool credits: 0</text>
               <text x="90" y="140" text-anchor="middle" font-size="15" font-weight="800" fill="#dc3c3c">STARVING</text>
-              <!-- W upstream: idle holder -->
+              <!-- W upstream: idle owner -->
               <rect x="434" y="62" width="152" height="100" rx="10" fill="rgba(217,119,6,.06)" stroke="#d97706" stroke-width="2"/>
               <text x="510" y="88" text-anchor="middle" font-size="14" font-weight="750" fill="#172033">W upstream · idle</text>
-              <text x="510" y="115" text-anchor="middle" font-size="13" font-weight="700" fill="#d97706">held 3 · queued 0</text>
+              <text x="510" y="115" text-anchor="middle" font-size="13" font-weight="700" fill="#d97706">owns 3 · slots idle</text>
               <text x="510" y="140" text-anchor="middle" font-size="15" font-weight="800" fill="#d97706">SURPLUS</text>
               <!-- router pool center -->
               <rect x="232" y="52" width="136" height="120" rx="10" fill="#fff" stroke="#2563eb" stroke-width="2"/>
               <text x="300" y="76" text-anchor="middle" font-size="13" font-weight="750" fill="#2563eb">router pool</text>
               <rect x="256" y="92" width="88" height="38" rx="7" fill="rgba(217,119,6,.13)" stroke="#d97706" stroke-width="2"/>
-              <text x="300" y="107" text-anchor="middle" font-size="11" font-weight="750" fill="#d97706">synthetic</text>
-              <text x="300" y="121" text-anchor="middle" font-size="11" font-weight="750" fill="#d97706">release</text>
-              <text x="300" y="196" text-anchor="middle" font-size="12" font-weight="600" fill="#172033">reverse credit link · one extra return-flag bit</text>
+              <text x="300" y="107" text-anchor="middle" font-size="11" font-weight="750" fill="#d97706">idle W-owned</text>
+              <text x="300" y="121" text-anchor="middle" font-size="11" font-weight="750" fill="#d97706">slot</text>
+              <text x="300" y="196" text-anchor="middle" font-size="12" font-weight="600" fill="#172033">owner table flips W → E — same cycle (0-delay model)</text>
               <!-- step 1: W returns its surplus credit -->
               <circle cx="403" cy="86" r="10" fill="rgba(217,119,6,.12)" stroke="#d97706" stroke-width="1.5"/>
               <text x="403" y="90" text-anchor="middle" font-size="11" font-weight="800" fill="#d97706">1</text>
               <line x1="430" y1="112" x2="378" y2="112" stroke="#d97706" stroke-width="4" marker-end="url(#m-ret)"/>
-              <text x="403" y="135" text-anchor="middle" font-size="12" font-weight="750" fill="#d97706">return</text>
+              <text x="403" y="135" text-anchor="middle" font-size="12" font-weight="750" fill="#d97706">reclaim</text>
               <!-- step 2: router re-grants toward starving E -->
               <circle cx="203" cy="86" r="10" fill="rgba(7,155,131,.12)" stroke="#079b83" stroke-width="1.5"/>
               <text x="203" y="90" text-anchor="middle" font-size="11" font-weight="800" fill="#079b83">2</text>
@@ -631,125 +682,178 @@
             </svg>
           </div>
           <div style="text-align:center;font-size:18px;font-weight:750;margin-top:4px">
-            <span class="warn">≥ 2 held</span> → <span class="good">return fast</span>&nbsp;&nbsp;·&nbsp;&nbsp;<span class="hi">last one</span> → <span style="font-weight:650">hold long (insurance)</span>
+            allocate: <span class="hi">RES</span> → <span class="good">owned pool</span> → <span class="warn">reclaim idle peer slot</span> → <span class="purple-text">escape</span>
           </div>
         </div>
       </div>
       <div class="col">
         <div class="box red">
-          <h3>Why grants alone freeze</h3>
-          <p style="font-size:14px">An idle side releases nothing — no event exists to move its credits. The need for migration peaks exactly when release traffic disappears.</p>
+          <h3>Why release-grants alone freeze</h3>
+          <p style="font-size:14px">An idle side releases nothing — no release event exists to move its credits. Reclaim acts at <strong>allocation time</strong>, exactly when demand appears.</p>
         </div>
         <div class="box grow">
-          <h3>Surplus detector</h3>
-          <p style="font-size:14px"><code>credits_held &gt; flits_queued</code>, sustained over a threshold. A starving side holds no surplus — it can never give capacity away by mistake.</p>
+          <h3>Reclaim condition — never revokes</h3>
+          <p style="font-size:14px"><code>peer slot idle</code> ∧ <code>requester &lt; cap 3</code>. A busy slot is never touched — an in-flight flit keeps its promised space.</p>
+          <p style="font-size:14px;margin-top:10px">Instrumented validation run (tornado L=8): ≈<span class="hi">0.5%</span> of pool allocations trigger a reclaim — mobility on demand, stability otherwise.</p>
         </div>
         <div class="box purple">
-          <h3>No revocation</h3>
-          <p style="font-size:14px">The router never pulls a credit back — it may be promised to an in-flight flit. Returns arrive as a <strong>synthetic release</strong>, re-granted by the same STARVE rule.</p>
+          <h3>Zero-delay caveat</h3>
+          <p style="font-size:14px">The owner-table flip is modeled at <strong>0 cycles</strong>. Reported gains are an optimistic upper bound until a one-cycle grant wire is added.</p>
         </div>
       </div>
     </div>
   </section>
 
   <section class="slide" id="slide-8">
-    <div class="header"><span class="num">08 / 10</span><span class="tag orange" style="margin:0">Evaluation</span><h2>Existing Data: A Negative Control, Not the 2W1R Result</h2></div>
+    <div class="header"><span class="num"></span><span class="tag orange" style="margin:0">Evaluation · 1 / 3</span><h2>Every Claim Is Paired Against Equal Physical Storage</h2></div>
     <div class="cols">
       <div class="col">
-        <div class="metrics">
-          <div class="metric"><div class="big-number hi">1700</div><div class="label">completed equal-physical control runs</div></div>
-          <div class="metric"><div class="big-number good">0</div><div class="label">deadlocks</div></div>
-        </div>
-        <div class="box red grow" style="margin-top:12px">
-          <h3>Result of the earlier counter-only design</h3>
-          <p>No capped configuration beat the same-hardware plain router in saturation throughput or matched-load latency.</p>
-          <table style="margin-top:13px">
-            <tr><th>Representative cell</th><th>Δ throughput</th></tr>
-            <tr><td>v=4 · x-opposite · tight cap</td><td class="bad">−22.0%</td></tr>
-            <tr><td>v=3 · x-opposite · cap 2</td><td class="bad">−32.7%</td></tr>
-            <tr><td>never-binding cap anchors</td><td>bit-identical tie</td></tr>
+        <div class="box blue grow">
+          <h3>Compared designs · same 8 slots / pair</h3>
+          <table style="margin-top:8px">
+            <tr><th>Arm</th><th>Per pair</th><th>Purpose</th></tr>
+            <tr><td>private-v4</td><td>4 + 4 private</td><td>fair baseline</td></tr>
+            <tr><td class="good">pressure cap 3</td><td>2 + 4 + 2</td><td class="good">safe proposal</td></tr>
+            <tr><td>pressure cap 4</td><td>2 + 4 + 2</td><td>elastic upper bound</td></tr>
+            <tr><td>owner-RR</td><td>2 + 4 + 2</td><td>policy control</td></tr>
+            <tr><td>RTS</td><td>2 + 4 + 2</td><td>purity anchor ≡ private</td></tr>
           </table>
+          <p style="font-size:14px;margin-top:12px">Any performance gap is <strong>pure policy</strong> — never extra buffers.</p>
         </div>
       </div>
       <div class="col">
-        <div class="box blue grow">
-          <h3>What this establishes</h3>
-          <p>A counter cannot move a physical landing limit. Tightening permission without sharing real slots is only throttling.</p>
-          <div class="flow" style="margin:24px 0"><div class="node">permission-only<br><span class="bad">tie / loss</span></div><div class="arrow">→</div><div class="node">physical Pool<br><span class="good">new hypothesis</span></div></div>
-          <ul>
-            <li>The old data motivates the 2W1R physical Pool.</li>
-            <li>It is not evidence that STARVE or 2W1R improves performance.</li>
-            <li>The 2W1R evaluation must be run on its own implementation.</li>
+        <div class="box green grow">
+          <h3>Workloads &amp; scale</h3>
+          <ul style="margin-top:8px">
+            <li><strong>4×4×4 Torus3D</strong> — uniform, tornado, x-opposite, E/W reversal.</li>
+            <li><strong>8×4×4 Torus3D</strong> — distributed 3-hop X-biased traffic, 50%→100% +X.</li>
+            <li>Link latency L ∈ {1, 8}; vnet 0 control traffic uses <strong>1-flit packets</strong>.</li>
+            <li>10,000 cycles · 3 seeds per point.</li>
+            <li>VC-scale ablation: 4 / 6 / 8 physical VCs, always vs equal private.</li>
           </ul>
         </div>
-        <div class="callout">This negative result is useful: it prevents us from attributing future gains to bookkeeping or unequal physical capacity.</div>
+      </div>
+      <div class="col">
+        <div class="box purple grow">
+          <h3>Structural evidence</h3>
+          <div class="metrics" style="margin:10px 0 12px">
+            <div class="metric"><div class="big-number hi">651</div><div class="label">completed main-matrix runs</div></div>
+            <div class="metric"><div class="big-number good">0</div><div class="label">deadlocks across all runs</div></div>
+          </div>
+          <ul>
+            <li class="good">Ownership conserved every cycle: Σ owners = pool size; no side exceeds cap 3.</li>
+            <li class="good">Cap-3 borrowed peak = 1 — the peer never loses its last credit.</li>
+            <li class="good">Direction counters confirm true-ingress routing.</li>
+          </ul>
+        </div>
       </div>
     </div>
+    <div class="callout">Safety was verified <strong>before</strong> performance: the phase schedule and pinned escape held in every run, including adversarial reversal traffic.</div>
   </section>
 
   <section class="slide" id="slide-9">
-    <div class="header"><span class="num">09 / 10</span><span class="tag orange" style="margin:0">Evaluation</span><h2>Prepared 2W1R Experiment Matrix</h2></div>
+    <div class="header"><span class="num"></span><span class="tag orange" style="margin:0">Evaluation · 2 / 3</span><h2>The Crossover: Skew Must Be Strong Enough to Pay the Phase Tax</h2></div>
     <div class="cols">
-      <div class="col">
-        <div class="box blue">
-          <h3>Equal-storage policy arms</h3>
-          <table>
-            <tr><th>Arm</th><th>RES / Pool</th><th>Purpose</th></tr>
-            <tr><td>PRIV</td><td>4 private / side</td><td>primary baseline</td></tr>
-            <tr><td>RTS-a / RR-a / STV-a</td><td>r=2, P=4</td><td>robust layout</td></tr>
-            <tr><td>RTS-b / RR-b / STV-b</td><td>r=1, P=6</td><td>aggressive layout</td></tr>
-          </table>
-        </div>
+      <div class="col" style="flex:1.12">
         <div class="box green grow">
-          <h3>Matrix</h3>
-          <ul>
-            <li>4×4×4 Torus3D · vnet 0 · 10,000 cycles</li>
-            <li>link latency L ∈ {1, 8}</li>
-            <li>x-opposite, tornado, transpose, neighbor, uniform</li>
-            <li>injection 0.05 → 1.00 in 0.05 steps</li>
-            <li><span class="hi">7 arms × 2 L × 5 patterns × 20 rates = 1,400 runs</span></li>
-          </ul>
+          <span class="tag green">8×4×4 · L=8 · inj 0.10 · 3 X hops · pressure cap 3</span>
+          <p style="font-size:13px;margin-bottom:12px">Network latency ratio vs private-v4 — <strong>lower is better</strong>; vertical marker = baseline 1.00.</p>
+          <div class="bar-row"><div class="bar-label">50% +X · balanced</div><div class="bar-track"><div class="bar loss" style="width:85.3%">phase tax</div></div><div class="bar-value bad">1.023×</div></div>
+          <div class="bar-row"><div class="bar-label">70% +X</div><div class="bar-track"><div class="bar loss" style="width:84.7%">phase tax</div></div><div class="bar-value bad">1.016×</div></div>
+          <div class="bar-row"><div class="bar-label">80% +X</div><div class="bar-track"><div class="bar base" style="width:83.4%">break-even</div></div><div class="bar-value">1.001×</div></div>
+          <div class="bar-row"><div class="bar-label">90% +X</div><div class="bar-track"><div class="bar win" style="width:75.7%">borrowing wins</div></div><div class="bar-value good">0.908×</div></div>
+          <div style="display:flex;justify-content:flex-end;margin:0 72px 0 0;color:var(--muted);font-size:11px">baseline 1.00 ↑</div>
+          <p style="font-size:15px;margin-top:14px;text-align:center"><strong>100% +X</strong> is above private saturation — latency ratios are invalid there; the valid metric is <span class="good">1.818× delivered throughput</span>.</p>
         </div>
       </div>
       <div class="col">
-        <div class="box orange grow">
-          <h3>Pre-registered expectations</h3>
-          <ul>
-            <li><span class="purple-text">Purity:</span> RTS-a and RTS-b should match PRIV when ownership never migrates.</li>
-            <li><span class="hi">L=1:</span> little or no win; buffer capacity is not the bottleneck.</li>
-            <li><span class="good">L=8 + tornado:</span> STARVE should benefit from persistent directional skew.</li>
-            <li><span class="bad">L=8 + x-opposite:</span> shared read contention and cross-direction interference should be exposed.</li>
-            <li><span class="warn">RR:</span> may park credit at an idle side and should underperform STARVE.</li>
-          </ul>
+        <div class="metrics">
+          <div class="metric"><div class="big-number good">−9.2%</div><div class="label">latency at 90/10, cap 3 (cap 4: −12.0%)</div></div>
+          <div class="metric"><div class="big-number good">+25%</div><div class="label">coarse stable rate: 0.08 → 0.10 (cap 4: 0.12)</div></div>
         </div>
-        <div class="box purple"><h3>Report</h3><p>Saturation throughput, matched-load latency, per-direction fairness, credit migrations/returns, Pool read utilization, and simultaneous-write activity.</p></div>
+        <div class="box blue" style="margin-top:12px">
+          <h3>Why it works</h3>
+          <p style="font-size:14px">Flows stay distributed across X rings, so the private design stalls on <strong>input credits</strong> first. One borrowed cold-side slot lifts that limit before the output link saturates.</p>
+        </div>
+        <div class="box purple grow">
+          <h3>Scale ablation · 6 &amp; 8 VCs</h3>
+          <p style="font-size:14px">More private VCs push the crossover to higher load — but near each new knee the pool again extends the stable range (6 VC: 0.12 → 0.15). Sharing is a <strong>near-saturation</strong> tool at every scale.</p>
+        </div>
       </div>
     </div>
   </section>
 
   <section class="slide" id="slide-10">
-    <div class="header"><span class="num">10 / 10</span><h2>Takeaway: The Deck Is Ready; the 2W1R Result Is Not Yet</h2></div>
+    <div class="header"><span class="num"></span><span class="tag orange" style="margin:0">Evaluation · 3 / 3</span><h2>Where Tidal Helps — and Where the Phase Tax Wins</h2></div>
     <div class="cols">
-      <div class="col" style="flex:1.08">
+      <div class="col">
         <div class="box green grow">
-          <span class="tag green">Clear story</span>
-          <h3 style="text-transform:none;letter-spacing:0;font-size:21px">Architecture → implementation → evaluation, with no mixed-generation evidence.</h3>
-          <ul style="margin-top:15px">
-            <li><strong>Architecture:</strong> three opposing-port pools per router; RES protects private adaptive + escape capacity.</li>
-            <li><strong>Datapath:</strong> 2W accepts simultaneous paired arrivals; 1R serializes pooled drain.</li>
-            <li><strong>Policy:</strong> STARVE directs released credits toward demand; surplus return recovers parked ownership.</li>
-            <li><strong>Control evidence:</strong> 1,700 older runs prove counter-only sharing cannot create a physical benefit.</li>
-            <li><strong>Open evidence:</strong> the 1,400-run 2W1R matrix must still be executed.</li>
+          <span class="tag green">Best case</span>
+          <h3 style="font-size:18px;text-transform:none;letter-spacing:0">Persistent one-direction pressure</h3>
+          <ul style="margin-top:10px">
+            <li><strong>X-biased 90/10:</strong> latency <span class="good">−9.2%</span> at equal storage.</li>
+            <li><strong>100% +X:</strong> <span class="good">1.818×</span> delivered throughput above private saturation.</li>
+            <li><strong>Long credit loop (L=8):</strong> borrowing has time to matter.</li>
           </ul>
         </div>
       </div>
       <div class="col">
-        <div class="box blue"><span class="tag blue">1 · implement</span><p>Land dynamic owner state, 2W write acceptance, 1R arbitration, and the voluntary return flag on the current clean design branch.</p></div>
-        <div class="box orange"><span class="tag orange">2 · validate</span><p>Run purity anchors and directed simultaneous E/W arrival tests before trusting performance data.</p></div>
-        <div class="box purple"><span class="tag blue">3 · evaluate</span><p>Execute the 1,400-run matrix, then add burst length and owner-return threshold sensitivity.</p></div>
-        <div class="callout">Do not claim a 2W1R speedup yet. The current slide deck presents a testable design and an honest evidence boundary.</div>
+        <div class="box blue grow">
+          <span class="tag blue">Small win</span>
+          <h3 style="font-size:18px;text-transform:none;letter-spacing:0">Tornado under high load</h3>
+          <ul style="margin-top:10px">
+            <li>L=8 link latency · 1-flit packets · inj 0.9.</li>
+            <li>Latency 49.37 → 46.97 cycles: <span class="good">−4.85%</span>.</li>
+            <li>Throughput unchanged — an output bottleneck caps the gain.</li>
+            <li>Cap 3 captures ~83% of the cap-4 benefit while borrowing only <strong>1</strong> slot.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box red grow">
+          <span class="tag red">No advantage</span>
+          <h3 style="font-size:18px;text-transform:none;letter-spacing:0">Balanced or fast-changing demand</h3>
+          <ul style="margin-top:10px">
+            <li><strong>Uniform L=8:</strong> latency <span class="bad">+3.2%</span> at inj 0.9.</li>
+            <li><strong>X-opposite:</strong> both sides fight for one pool, <span class="bad">+3~15%</span>.</li>
+            <li><strong>Short links (L=1):</strong> tornado <span class="bad">+25.1%</span> — no credit-loop slack to reclaim.</li>
+            <li><strong>Reversal every 16 cycles:</strong> <span class="bad">+7.8%</span> — ownership churns while old traffic drains.</li>
+          </ul>
+        </div>
       </div>
     </div>
+    <div class="callout"><strong>Honest read:</strong> Tidal is a specialization for sustained directional skew — not a universal replacement for private buffers. All gains assume the <strong>zero-delay owner grant</strong>; a one-cycle grant wire is the next experiment.</div>
+  </section>
+
+  <section class="slide" id="slide-11">
+    <div class="header"><span class="num"></span><span class="tag purple" style="margin:0">Division of Labor</span><h2>Overlapping Contributions, Two Main Design Phases</h2></div>
+    <div class="cols">
+      <div class="col">
+        <div class="box blue grow">
+          <span class="tag blue">Proposal &amp; early exploration</span>
+          <h3 style="font-size:21px;text-transform:none;letter-spacing:0">Wang Liming</h3>
+          <ul style="margin-top:16px">
+            <li>Originated the direction-paired pooling proposal.</li>
+            <li>Explored the earlier <strong>1R2W</strong> organization and its implementation trade-offs.</li>
+            <li>Expanded the evaluation coverage across traffic patterns and operating points.</li>
+            <li>Contributed to result interpretation, report writing, and slide preparation.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <div class="box green grow">
+          <span class="tag green">Final architecture &amp; policy</span>
+          <h3 style="font-size:21px;text-transform:none;letter-spacing:0">CXP-2024</h3>
+          <ul style="margin-top:16px">
+            <li>Developed the final <strong>1R1W</strong> complementary-phase architecture.</li>
+            <li>Designed Pool-credit ownership, pressure grants, sticky ties, cap 3, and on-demand reclaim.</li>
+            <li>Implemented the mechanism in Garnet and analyzed the 1R1W experiment results.</li>
+            <li>Contributed to report writing, slide preparation, and evidence review.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="callout"><strong>Shared work:</strong> architecture discussion, correctness checks, experiment review, report integration, slides, and presentation preparation. The work was collaborative rather than split into isolated modules.</div>
   </section>
 
 </div>
