@@ -1,0 +1,486 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{xspace}
+\usepackage[letterpaper,top=0.67in,bottom=0.72in,left=0.68in,right=0.68in,columnsep=0.24in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+
+\pgfplotsset{compat=1.17}
+\setlength{\parindent}{1em}
+\setlength{\parskip}{0pt}
+\setlength{\textfloatsep}{7pt plus 2pt minus 2pt}
+\setlength{\floatsep}{6pt plus 2pt minus 2pt}
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{3pt}
+\setlength{\belowcaptionskip}{0pt}
+\renewcommand{\arraystretch}{1.08}
+
+\definecolor{tidalblue}{HTML}{276FBF}
+\definecolor{tidalcyan}{HTML}{38A3A5}
+\definecolor{tidalorange}{HTML}{F08A4B}
+\definecolor{tidalgray}{HTML}{F2F4F7}
+\definecolor{tidaldark}{HTML}{25313C}
+
+\newcommand{\system}{\textsc{Tidal}\xspace}
+\newcommand{\res}{\textsc{res}\xspace}
+\newcommand{\pool}{\textsc{Pool}\xspace}
+\newcommand{\privatefour}{\textsc{private-v4}\xspace}
+\newcommand{\capthree}{\textsc{pressure-cap3}\xspace}
+
+\makeatletter
+\renewcommand\section{\@startsection{section}{1}{\z@}%
+  {-1.7ex plus -.4ex minus -.2ex}%
+  {.7ex plus .2ex}%
+  {\normalfont\large\bfseries}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+  {-1.2ex plus -.3ex minus -.2ex}%
+  {.45ex plus .15ex}%
+  {\normalfont\normalsize\bfseries}}
+\makeatother
+
+\begin{document}
+\hypersetup{
+  pdftitle={Tidal: Direction-Paired Virtual-Channel Buffer Pooling with a 1R1W Shared Pool},
+  pdfauthor={Changxun Pan and Liming Wang},
+  pdfkeywords={on-chip networks, virtual channels, shared buffers, Garnet, gem5}
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\begin{center}
+  {\LARGE\bfseries Tidal: Direction-Paired Virtual-Channel Buffer Pooling\\
+  with a 1R1W Shared Pool\par}
+  \vspace{0.55em}
+  {\large Changxun Pan \qquad Liming Wang\par}
+  \vspace{0.2em}
+  {\small Equal contribution: 50\% each\par}
+\end{center}
+\vspace{-0.2em}
+\begin{abstract}
+Conventional on-chip routers bind virtual-channel (VC) storage to individual
+input directions. This organization strands storage when one direction is
+congested and its opposite peer is idle. \system reorganizes the same eight
+VC slots per opposing-direction pair into two two-slot reserved regions and a
+four-slot shared \pool. Each direction retains one private adaptive VC and one
+private escape VC. The \pool provides only one read and one write service per
+cycle; alternating read phases let one side inspect its reserved region while
+the other inspects the \pool. Four conserved \pool credits control admission.
+A pressure policy moves released credits toward the side with fuller reserved
+storage, keeps the previous owner on ties, caps ownership at three, and
+reclaims only idle peer-owned slots on demand.
+
+We implement the design in gem5 Garnet and evaluate an equal-storage
+four-private-VC baseline. Across 651 main-matrix simulations, all runs
+completed without deadlock and recorded zero cross-direction \pool read
+conflicts. Under persistent 90/10 X-direction skew with eight-cycle links,
+\system lowers network latency by 9.2\% and extends the coarse stable offered
+rate from 0.08 to 0.10. At a fully skewed point beyond baseline saturation it
+delivers 1.818 times as many packets. Under tornado traffic, pressure-aware
+credit control lowers latency by 4.85\%, whereas blind round-robin ownership
+loses 56.5\% throughput. Balanced, short-link, and rapidly reversing traffic
+can be slower. The results identify persistent directional skew near an input
+credit limit as the useful operating region and motivate timing and RTL cost
+validation.
+\end{abstract}
+\vspace{0.55em}
+\noindent\textbf{Keywords:} on-chip networks, virtual channels, shared buffers,
+credit flow control, Garnet, gem5
+\vspace{0.8em}
+\end{@twocolumnfalse}
+]
+
+\section{Introduction}
+
+Virtual-channel flow control improves throughput by multiplexing logical
+channels over physical links, but it also makes buffer organization a central
+router design choice~\cite{dally1992virtual}. Garnet models a pipelined,
+credit-controlled network inside gem5 and is widely used to study these
+tradeoffs~\cite{agarwal2009garnet,binkert2011gem5}. Its conventional private
+organization is simple: input-direction VCs cannot migrate. When traffic is
+directionally skewed, a busy side can therefore stall while unused capacity
+remains stranded at its opposite peer.
+
+Fully shared buffers improve utilization, but unconstrained sharing requires
+multiported storage or arbitration that can erase the intended cost benefit.
+Our question is narrower: \emph{can an equal-capacity, direction-paired buffer
+recover useful elasticity while exposing only one shared read and one shared
+write service per pair and cycle?}
+
+This paper makes four contributions:
+\begin{itemize}
+  \setlength{\itemsep}{0pt}
+  \setlength{\topsep}{2pt}
+  \item an equal-storage organization with three independent pairs per router,
+  one private adaptive VC and one escape VC per direction, and four movable
+  adaptive slots per pair;
+  \item an alternating read schedule and a one-write admission guard that
+  implement the shared bank as 1R1W;
+  \item a conserved ownership-credit policy combining pressure, sticky ties,
+  a three-credit cap, and idle-slot reclaim; and
+  \item a 651-run evaluation that reports both the favorable region and the
+  workloads where the fixed phase schedule is counterproductive.
+\end{itemize}
+
+\section{Background and Motivation}
+
+A conventional four-VC input assigns four physical VC slots to each
+direction. Credit round-trip time determines how quickly a released downstream
+slot can be reused. With one-flit control traffic and an approximately
+17-cycle credit loop at link latency $L=8$, four slots impose an idealized
+zero-contention input-credit bound of
+\begin{equation}
+  \lambda_{\mathrm{credit}} \approx \frac{4}{17}=0.235
+  \quad\text{flits/cycle}.
+\end{equation}
+The exact saturation point can be lower because routing, output contention,
+and switch arbitration intervene.
+
+\system targets the case in which one member of an opposing pair repeatedly
+approaches this limit while the peer is underused. It does not attempt to
+replace the escape channel used by deadlock-free routing. Deterministic escape
+resources remain private, consistent with the separation of deadlock avoidance
+from adaptive resource use~\cite{dally1987deadlock,duato1993theory}.
+
+\section{Architecture}
+
+\subsection{Direction-paired storage}
+
+Each router instantiates East/West, North/South, and Up/Down pairs. Figure~\ref{fig:pair}
+shows one pair. For each direction, \res contains one private adaptive VC and
+one private escape VC. The pair shares four adaptive slots:
+\begin{equation}
+  2(1_{\mathrm{private}}+1_{\mathrm{escape}})
+  +4_{\mathrm{pool}}=8\ \mathrm{slots}.
+\end{equation}
+This equals the eight slots in two four-VC private inputs, so performance
+comparisons preserve total storage.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\sffamily\footnotesize,>=stealth]
+  \draw[rounded corners=2pt,fill=tidalgray,draw=tidaldark,thick]
+    (0,0) rectangle (1.85,2.0);
+  \draw[rounded corners=2pt,fill=tidalblue!14,draw=tidalblue,thick]
+    (2.05,0) rectangle (5.25,2.0);
+  \draw[rounded corners=2pt,fill=tidalgray,draw=tidaldark,thick]
+    (5.45,0) rectangle (7.30,2.0);
+  \node[font=\bfseries] at (0.925,1.72) {E RES};
+  \node at (0.925,1.20) {1 private};
+  \node at (0.925,0.72) {1 escape};
+  \node[font=\bfseries,text=tidalblue] at (3.65,1.72) {Shared Pool};
+  \foreach \x in {2.42,3.18,3.94,4.70}
+    \draw[fill=white,draw=tidalblue] (\x,0.66) rectangle ++(0.52,0.52);
+  \node at (3.65,0.35) {4 movable adaptive slots};
+  \node[font=\bfseries] at (6.375,1.72) {W RES};
+  \node at (6.375,1.20) {1 private};
+  \node at (6.375,0.72) {1 escape};
+  \draw[<->,very thick,tidalorange] (1.15,2.30) -- node[above,text=tidaldark]
+    {alternating access} (6.15,2.30);
+  \node[anchor=east,font=\scriptsize,text=tidaldark] at (5.22,-0.23)
+    {one shared read + one shared write per cycle};
+\end{tikzpicture}
+\caption{One direction pair. Every router contains three copies: E/W, N/S,
+and U/D. Capacity matches the private four-VC baseline.}
+\label{fig:pair}
+\end{figure}
+
+\pool membership follows \emph{true ingress}, not the selected output. A flit
+entering from X may occupy the X-pair \pool and later depart through Y or Z.
+Each pooled flit stores its ingress direction and upstream VC so that its
+credit returns to the correct sender.
+
+\subsection{One-read, one-write service}
+
+The \pool accepts at most one read and one write service per pair, control
+virtual network, and cycle. Read phases are complementary:
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+Phase & Side 0 (E/N/U) & Side 1 (W/S/D)\\
+\midrule
+Even & \res & \pool\\
+Odd  & \pool & \res\\
+\bottomrule
+\end{tabular}
+\end{center}
+Thus E can inspect \res while W inspects the \pool, and the roles reverse next
+cycle. Cycle parity structurally eliminates simultaneous cross-direction
+\pool reads. Ordinary VC and switch arbitration still select among eligible
+flits inside the active bank.
+
+A per-pair write guard permits one adaptive \pool allocation each cycle. If
+both sides arrive, the second arrival may still use its private adaptive VC
+when that reserved credit is available; otherwise it waits. Escape storage
+never enters the shared bank and follows deterministic non-wrapping XYZ
+routing.
+
+\section{Pool-Credit Control}
+
+Each of the four shared slots has exactly one logical owner. For the E/W pair,
+ownership obeys
+\begin{equation}
+  C_E+C_W=4,\qquad 1\leq C_E,C_W\leq 3.
+\end{equation}
+An owned \pool credit authorizes the corresponding upstream direction to
+reserve an idle slot. Private and escape credits remain pinned.
+
+\textbf{Pressure grant.} When a pooled flit departs, its released credit is
+assigned to the side whose \res occupancy is larger. This local pressure
+signal approximates near-term need without adding a traffic predictor.
+
+\textbf{Sticky tie.} Equal pressure preserves the previous owner. Stickiness
+avoids credit oscillation and favors the side likely to continue a burst.
+
+\textbf{Owner cap.} A cap of three lets a hot side borrow one additional slot
+while guaranteeing one shared credit to its peer. Cap four is evaluated only
+as a full-elasticity upper bound.
+
+\textbf{On-demand reclaim.} Release-only movement can freeze if an idle owner
+has no flit to release. A requester below its cap can therefore take an
+\emph{idle} peer-owned slot immediately. Busy slots are never revoked. In the
+current simulator, this owner-table update adds no cycle; Section~\ref{sec:limits}
+treats this as an optimistic timing assumption.
+
+Blind owner round-robin is a useful control policy, but it is distinct from
+the round-robin arbitration inside the read scheduler. Rotating ownership
+without observing demand may park capacity at an inactive side.
+
+\section{Garnet Implementation}
+
+We implemented \system in gem5 Garnet's router, input unit, VC allocator, and
+switch-allocation paths. The exact strict-1R1W snapshot is retained at
+\path{1R1W/overlay}; its provenance records implementation commit
+\path{dc43a290} and base commit \path{2eb6a4e}. Major additions are:
+\begin{itemize}
+  \setlength{\itemsep}{0pt}
+  \setlength{\topsep}{2pt}
+  \item physical-to-logical mapping for pair-global \pool slots;
+  \item true-ingress and upstream-VC metadata for routing and credit return;
+  \item complementary \res/\pool eligibility in switch allocation;
+  \item a one-write-per-pair guard in downstream allocation;
+  \item owner tables, pressure grants, cap enforcement, sticky ties, and
+  idle-slot reclaim; and
+  \item structural counters and X-biased/reversal synthetic traffic.
+\end{itemize}
+
+Experiments inject only virtual network 0 with one-flit control packets and
+one slot per control VC. Hence $L=8$ means an eight-cycle link, not an
+eight-flit packet. Exported counters include \pool allocations, owned
+allocations, demand reclaims, release handoffs/keeps, owner migrations,
+write blocks, bank reads, per-direction activity, and peak borrowing.
+
+\section{Evaluation}
+
+\subsection{Methodology}
+
+The primary baseline, \privatefour, dedicates four physical VCs to every input.
+All \system arms use two \res slots per side plus four shared slots per pair,
+preserving eight slots. We compare a non-migrating round-trip-static policy
+(RTS), blind owner round-robin, pressure cap three, and pressure cap four.
+
+Tests use 4$\times$4$\times$4 or 8$\times$4$\times$4 3D torus networks, link
+latencies $L\in\{1,8\}$, one-flit control packets, 10,000 simulated cycles for
+main long runs, and three seeds per reported point. The 651-run main matrix
+contains 120 broad validation, 96 policy, 72 owner-cap, 192 reversal, and 171
+X-biased/VC-scaling runs. A separate 48-run recovery-instrumentation rerun is
+not included in this total.
+
+\subsection{Structural validation}
+
+All 651 main runs completed without deadlock. Instrumented runs maintained
+credit conservation, never exceeded the owner cap, and satisfied
+\begin{align}
+N_{\mathrm{alloc}} &=
+N_{\mathrm{owned}}+N_{\mathrm{reclaim}},\\
+N_{\mathrm{migration}} &=
+N_{\mathrm{reclaim}}+N_{\mathrm{handoff}}.
+\end{align}
+Per-direction allocation totals matched aggregate counts, and observed
+cross-direction \pool read conflicts were zero. Under cap three, peak
+borrowing was one slot, confirming that the peer retained its final credit.
+
+\subsection{Persistent X-direction skew}
+
+The 8$\times$4$\times$4 X-biased workload sends each packet three minimal
+X hops and varies the probability of choosing +X. It preserves spatially
+distributed destinations while controlling directional imbalance.
+Figure~\ref{fig:skew} reports $L=8$, injection 0.10, and four total VCs per
+input in the baseline.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=\columnwidth,
+  height=4.8cm,
+  xmin=48,xmax=102,
+  ymin=0.85,ymax=1.12,
+  xtick={50,60,70,80,90,100},
+  ytick={0.90,1.00,1.10},
+  xlabel={Probability of +X (\%)},
+  ylabel={Ratio to \privatefour},
+  tick label style={font=\scriptsize},
+  label style={font=\small},
+  legend style={font=\scriptsize,draw=none,fill=none,at={(0.02,0.03)},anchor=south west},
+  grid=major,
+  grid style={draw=black!10},
+  axis line style={draw=black!55}
+]
+\addplot[tidalblue,very thick,mark=*,mark size=1.8pt]
+  coordinates {(50,1.023) (60,1.023) (70,1.016) (80,1.001) (90,0.908)};
+\addlegendentry{Latency}
+\addplot[tidalorange,very thick,mark=square*,mark size=1.7pt]
+  coordinates {(50,1.000) (60,1.000) (70,1.000) (80,1.000) (90,1.021)};
+\addlegendentry{Throughput}
+\addplot[black!55,dashed] coordinates {(50,1.0) (100,1.0)};
+\end{axis}
+\end{tikzpicture}
+\caption{\capthree under X-direction skew at $L=8$, injection 0.10. The
+fully skewed saturated point is excluded from the latency curve.}
+\label{fig:skew}
+\end{figure}
+
+At 50/50 and 60/40, \system pays a 2.3\% latency penalty because little
+cold-side capacity is stranded. The penalty falls to 1.6\% at 70/30 and
+approximately breaks even at 80/20. At 90/10, latency falls by 9.2\% while
+throughput rises by 2.1\%. At 100\% +X, the private baseline saturates, so a
+latency ratio is not a valid below-saturation comparison; the meaningful
+observation is 1.818 times delivered throughput during the measurement window.
+
+Using completion/acceptance near one as a coarse criterion, the highest tested
+stable offered rates are 0.08 for \privatefour, 0.10 for cap three, and 0.12
+for cap four. Cap three therefore extends the tested stable bracket by 25\%;
+cap four provides an optimistic 50\% upper bound. These are discrete brackets,
+not precise saturation thresholds.
+
+\subsection{Tornado and policy comparison}
+
+On 4$\times$4$\times$4, torus tornado advances each packet by +1 in X, +1 in
+Y, and +1 in Z, making W, S, and D true inputs persistently hot. Table~\ref{tab:tornado}
+shows $L=8$ and injection 0.9.
+
+\begin{table}[t]
+\centering
+\caption{Tornado at $L=8$, injection 0.9.}
+\label{tab:tornado}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Mode & Thr./base & Latency & Lat./base\\
+\midrule
+\privatefour       & 1.000 & 49.37 & 1.000\\
+RTS                & 0.994 & 58.25 & 1.180\\
+Owner-RR           & 0.435 & 157.03 & 3.181\\
+\capthree          & 1.000 & 46.97 & 0.952\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Pressure cap three lowers latency by 4.85\% without changing throughput
+materially because an output bottleneck limits tornado first. It captures
+about 83\% of the latency benefit of cap four while preserving one peer
+credit. Only approximately 0.49\% of \pool allocations use on-demand reclaim:
+stable ownership handles most demand, and reclaim resolves occasional
+mismatches. Owner round-robin loses 56.5\% throughput because blind rotation
+can place credits at an inactive peer and has no demand-driven correction.
+
+\subsection{Where 1R1W loses}
+
+The phase schedule is a real bandwidth constraint. Against \privatefour,
+uniform traffic at $L=8$, injection 0.9 raises latency by approximately 3.2\%.
+X-opposite traffic raises latency by 3--15\% because both members of a pair
+compete for one shared read. Tornado at $L=1$ raises latency by 25.1\% because
+the credit loop is too short for additional capacity to repay the phase cost.
+Reversing the hot X direction every 16 cycles raises latency by 7.8\% while
+ownership and old traffic drain in opposite directions.
+
+VC scaling supports the same interpretation. Near the measured knee, a
+six-VC organization reaches a 1.27 throughput ratio and a 0.56 latency ratio,
+extending the stable bracket from 0.12 to 0.15. At eight VCs, where private
+capacity already hides more of the credit loop, the ratios shrink to 1.08 and
+0.83, extending 0.18 to 0.20.
+
+\section{Hardware Interpretation}
+
+The evaluated comparison establishes equal buffer capacity and a one-read,
+one-write \pool service limit. This is a plausible manufacturing advantage
+over an ideal shared bank that must serve both directions simultaneously, but
+it is not yet an area or energy result. \system adds owner bits, physical-slot
+mapping, selectors, arbitration, control wiring, and a potentially critical
+ownership update path. We therefore claim reduced shared-port demand, not
+zero hardware cost. RTL synthesis against private and dual-access pool
+implementations is required to quantify area, energy, and frequency.
+
+\section{Limitations and Next Steps}
+\label{sec:limits}
+
+The present evidence is preliminary and simulator-level. First, demand reclaim
+updates ownership with zero additional cycles; a one-cycle and parameterized
+grant path should measure timing sensitivity. Second, finer 0.005 injection
+steps, longer drain-aware runs, and at least five seeds are needed around every
+saturation knee. Third, a directed simultaneous E/W-write microbenchmark
+should stress the write guard. Fourth, multi-flit packets require an explicit
+packet/VC ownership-retention rule. Finally, RTL synthesis should compare
+private buffers, 1R1W \system, and an idealized dual-access pool.
+
+\section{Related Work}
+
+Virtual-channel flow control and its buffer/throughput tradeoffs were
+formalized by Dally~\cite{dally1992virtual}. Deadlock-free routing can be
+constructed through channel-dependency restrictions~\cite{dally1987deadlock}
+or broader adaptive conditions~\cite{duato1993theory}. \system preserves a
+private deterministic escape resource rather than changing those guarantees.
+Garnet provides the detailed router and credit model used here
+~\cite{agarwal2009garnet}; gem5 provides the surrounding simulation
+infrastructure~\cite{binkert2011gem5}. Our contribution is specifically the
+combination of direction-paired equal-capacity storage, a structurally 1R1W
+shared bank, and demand-aware ownership credits.
+
+\section{Division of Labor}
+
+The project was completed with equal overall contribution: Changxun Pan 50\%
+and Liming Wang 50\%. Both contributors participated in architecture
+discussion, debugging, correctness review, experiment review, interpretation,
+writing, slide production, and presentation preparation.
+
+\textbf{Liming Wang} proposed the original direction-paired pooling concept,
+implemented and evaluated the earlier 1R2W organization, expanded traffic and
+evaluation coverage, reviewed the 1R1W and credit-policy behavior, and
+co-analyzed and co-authored the final deliverables.
+
+\textbf{Changxun Pan} co-developed the design and finalized its complementary
+1R1W phase schedule, designed pressure, sticky-tie, cap-three, and reclaim control,
+implemented the final mechanism and instrumentation, ran and cross-checked
+major 1R1W experiments, and co-analyzed and co-authored the final deliverables.
+
+\section{Conclusion}
+
+\system shows that buffer elasticity does not require an unconstrained global
+pool. Pairing opposite directions and preserving private escape capacity lets
+a four-slot adaptive pool move storage toward sustained pressure while
+retaining equal total capacity. A complementary schedule enforces one shared
+read and one shared write per cycle. The design is effective under persistent
+directional skew and long credit loops, but balanced demand, short links, and
+fast reversals expose its serialized-access cost. Pressure-aware credit
+movement is essential: blind ownership rotation is substantially worse. The
+next decisive step is to add grant delay and synthesize the control and
+storage organization so that performance gains can be judged against measured
+area, energy, and timing.
+
+\newpage
+\bibliographystyle{abbrv}
+\bibliography{tidal_1r1w_refs}
+
+\end{document}
