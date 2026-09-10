@@ -230,66 +230,67 @@ an SRAM circuit.
 ]
   % Panel (a): router tile
   \node[font=\bfseries\small,anchor=west] at (0,4.25) {(a) One 3D router tile};
-  \node[box,minimum width=2.2cm] (ew) at (2.55,3.25)
+  \node[box,minimum width=2.2cm] (ew) at (2.40,3.25)
     {E/W pair\\2 RES + 4-slot Pool};
-  \node[box,minimum width=2.2cm] (ns) at (2.55,2.05)
+  \node[box,minimum width=2.2cm] (ns) at (2.40,2.05)
     {N/S pair\\2 RES + 4-slot Pool};
-  \node[box,minimum width=2.2cm] (ud) at (2.55,0.85)
+  \node[box,minimum width=2.2cm] (ud) at (2.40,0.85)
     {U/D pair\\2 RES + 4-slot Pool};
-  \node[ctrl,minimum width=2.4cm,minimum height=2.8cm] (sa) at (5.55,2.05)
+  \node[ctrl,minimum width=2.4cm,minimum height=2.8cm] (sa) at (5.30,2.05)
     {Switch allocator\\phase + bank RR\\output arbitration};
-  \node[box,minimum width=1.45cm,minimum height=2.8cm] (xbar) at (7.95,2.05)
+  \node[box,minimum width=1.45cm,minimum height=2.8cm] (xbar) at (7.65,2.05)
     {Crossbar\\to E/W\\N/S\\U/D};
   \draw[flow] (ew.east) -- (sa.west |- ew.east);
   \draw[flow] (ns.east) -- (sa.west |- ns.east);
   \draw[flow] (ud.east) -- (sa.west |- ud.east);
   \draw[flow] (sa) -- (xbar);
-  \node[anchor=east] at (1.25,3.55) {E link};
-  \node[anchor=east] at (1.25,2.95) {W link};
-  \node[anchor=east] at (1.25,2.25) {N/S};
-  \node[anchor=east] at (1.25,1.05) {U/D};
-  \draw[flow] (1.35,3.55) -- (ew.west |- 2.85,3.55);
-  \draw[flow] (1.35,2.95) -- (ew.west |- 2.85,2.95);
-  \draw[flow] (1.35,2.25) -- (ns.west);
-  \draw[flow] (1.35,1.05) -- (ud.west);
+  \node[anchor=east] at (1.00,3.55) {E link};
+  \node[anchor=east] at (1.00,2.95) {W link};
+  \node[anchor=east] at (1.00,2.05) {N/S};
+  \node[anchor=east] at (1.00,0.85) {U/D};
+  \draw[flow] (1.10,3.55) -- (ew.west |- 2.40,3.55);
+  \draw[flow] (1.10,2.95) -- (ew.west |- 2.40,2.95);
+  \draw[flow] (1.10,2.05) -- (ns.west);
+  \draw[flow] (1.10,0.85) -- (ud.west);
 
   % Panel (b): pair datapath
-  \node[font=\bfseries\small,anchor=west] at (9.25,4.25)
+  \node[font=\bfseries\small,anchor=west] at (8.90,4.25)
     {(b) One opposing-direction pair};
-  \node[box,minimum width=1.25cm] (elin) at (9.75,3.20) {E input\\link};
-  \node[box,minimum width=1.25cm] (wlin) at (17.80,3.20) {W input\\link};
-  \node[box,minimum width=1.85cm] (eres) at (11.30,3.20)
+  \node[box,minimum width=1.25cm] (elin) at (9.45,3.25) {E input\\link};
+  \node[box,minimum width=1.25cm] (wlin) at (18.65,3.25) {W input\\link};
+  \node[box,minimum width=1.85cm] (eres) at (11.15,3.25)
     {E RES\\private + escape};
-  \node[box,minimum width=1.85cm] (wres) at (16.25,3.20)
+  \node[box,minimum width=1.85cm] (wres) at (16.95,3.25)
     {W RES\\private + escape};
-  \node[ctrl,minimum width=2.35cm] (warb) at (13.78,3.20)
+  \node[ctrl,minimum width=2.35cm] (warb) at (14.05,3.25)
     {Pool write arbiter\\one grant/cycle};
-  \node[poolbox,minimum width=3.95cm,minimum height=0.90cm] (pool) at (13.78,2.00)
+  \node[poolbox,minimum width=3.95cm,minimum height=0.90cm] (pool) at (14.05,2.00)
     {Shared Pool: P0 \quad P1 \quad P2 \quad P3\\1R1W service};
-  \node[ctrl,minimum width=2.55cm,minimum height=0.85cm] (state) at (10.65,0.65)
+  \node[ctrl,minimum width=2.35cm,minimum height=0.85cm] (state) at (9.90,0.65)
     {pair controller\\owner, busy, cap, phase, RR};
-  \node[box,minimum width=2.20cm] (rmux) at (14.10,0.65)
-    {phase read mux\\1 RES + 1 Pool};
-  \node[box,minimum width=2.55cm] (lane) at (17.05,0.65)
-    {true-ingress lane\\to switch allocator};
+  \node[box,minimum width=6.25cm,minimum height=0.88cm] (rmux) at (14.25,0.65)
+    {alternating read selection: one RES + one Pool\\even: E-RES / W-Pool \quad odd: E-Pool / W-RES};
+  \node[box,minimum width=2.10cm] (lane) at (18.75,0.65)
+    {true-ingress lane\\to allocator};
 
   \draw[flow] (elin) -- (eres);
   \draw[flow] (wlin) -- (wres);
-  \draw[flow] (elin.south) -- ++(0,-0.45) -| (warb.west);
-  \draw[flow] (wlin.south) -- ++(0,-0.45) -| (warb.east);
+  \draw[flow] (eres) -- (warb);
+  \draw[flow] (wres) -- (warb);
   \draw[flow] (warb) -- node[right]{1W} (pool);
-  \draw[flow] (pool.south) -- node[right]{1R} (rmux.north);
+  \draw[flow] (eres.south) -- (eres.south |- rmux.north);
+  \draw[flow] (pool.south) -- node[right]{1R} (pool.south |- rmux.north);
+  \draw[flow] (wres.south) -- (wres.south |- rmux.north);
   \draw[flow] (rmux) -- (lane);
   \draw[cflow] (state) -- (rmux);
-  \draw[cflow] (state.north) |- (pool.west);
-  \draw[cflow] (state.north) |- (eres.south);
-  \draw[cflow] (state.north) -| (wres.south);
 \end{tikzpicture}
 }
 \caption{Proposed on-chip organization. (a) Three direction-pair controllers
 operate in parallel around the normal Garnet switch allocator and crossbar.
 (b) One pair exposes a single shared Pool read and write service. RES access
-remains separate; the Pool result is placed on the flit's true-ingress lane.}
+remains separate; solid arrows are flit/request paths and the sole dashed
+arrow is controller state. The Pool result is placed on the flit's
+true-ingress lane.}
 \label{fig:router-microarch}
 \end{figure*}
 
@@ -400,21 +401,22 @@ credit input port, and upstream VC ID.
   decision/.style={draw=tidalorange!90!black,rounded corners=2pt,thick,
     fill=tidalorange!12,align=center,minimum width=2.65cm,minimum height=0.92cm},
   flow/.style={->,very thick,draw=tidaldark},
-  credit/.style={->,very thick,dashed,draw=tidalorange!90!black}
+  ownership/.style={->,very thick,dashed,draw=tidalorange!90!black},
+  occupancy/.style={->,very thick,dashed,draw=tidalblue}
 ]
-  \node[font=\bfseries\small,anchor=west] at (0,2.75)
+  \node[font=\bfseries\small,anchor=west] at (0,2.85)
     {Allocation and forward path};
-  \node[stagebox] (search) at (1.45,1.80)
+  \node[stagebox] (search) at (1.45,1.90)
     {1. Search\\private, owned, reclaim};
-  \node[decision] (claim) at (4.35,1.80)
+  \node[decision] (claim) at (4.35,1.90)
     {2. Claim slot\\owner=E, busy=1\\consume 1W token};
-  \node[event] (send) at (7.30,1.80)
+  \node[event] (send) at (7.30,1.90)
     {3. Send flit\\with logical Pool VC};
-  \node[event] (map) at (10.25,1.80)
+  \node[event] (map) at (10.25,1.90)
     {4. Map to physical slot\\store true ingress\\and upstream VC};
-  \node[stagebox] (serve) at (13.25,1.80)
+  \node[stagebox] (serve) at (13.25,1.90)
     {5. Phase-selected read\\SA + crossbar traversal};
-  \node[event] (free) at (16.20,1.80)
+  \node[event] (free) at (16.20,1.90)
     {6. Tail departs\\busy=0};
   \draw[flow] (search) -- (claim);
   \draw[flow] (claim) -- (send);
@@ -422,23 +424,32 @@ credit input port, and upstream VC ID.
   \draw[flow] (map) -- (serve);
   \draw[flow] (serve) -- (free);
 
-  \node[font=\bfseries\small,anchor=west] at (0,0.55)
-    {Feedback after release};
-  \node[decision] (pressure) at (4.35,-0.25)
-    {7. Compare RES pressure\\peer fuller: handoff\\tie/cap: keep};
-  \node[event] (ownergrant) at (10.00,-0.25)
-    {8a. Ownership grant\\new owner may allocate\\idle Pool slot};
-  \node[event] (returncredit) at (15.90,-0.25)
-    {8b. Occupancy credit\\returns to true sender\\on normal CreditLink};
-  \draw[flow] (free.south) -- ++(0,-0.35) -| (pressure.north);
-  \draw[credit] (pressure) -- node[above]{ownership plane} (ownergrant);
-  \draw[credit] (free.east) -- ++(0.35,0) |-
-    node[pos=.70,right]{occupancy plane} (returncredit.east);
+  \node[font=\bfseries\small,anchor=west] at (0,0.65)
+    {After step 6: two independent feedback planes};
+
+  \node[decision,minimum width=1.65cm] (ownerlane) at (1.25,-0.25)
+    {OWNERSHIP\\PLANE};
+  \node[decision] (pressure) at (4.00,-0.25)
+    {7a. Compare RES pressure\\peer fuller: handoff\\tie/cap: keep};
+  \node[event] (ownergrant) at (7.35,-0.25)
+    {8a. Update owner bit\\authorized side may claim\\the idle Pool slot};
+  \draw[ownership] (ownerlane) -- (pressure);
+  \draw[ownership] (pressure) -- (ownergrant);
+
+  \node[event,minimum width=1.65cm] (occlane) at (9.95,-0.25)
+    {OCCUPANCY\\PLANE};
+  \node[event] (enqueuecredit) at (12.65,-0.25)
+    {7b. Enqueue free VC\\on original input port};
+  \node[event] (returncredit) at (16.05,-0.25)
+    {8b. Normal CreditLink\\returns credit to\\the true sender};
+  \draw[occupancy] (occlane) -- (enqueuecredit);
+  \draw[occupancy] (enqueuecredit) -- (returncredit);
 \end{tikzpicture}
 }
 \caption{Pool-credit lifecycle. The ordinary free credit returns to the actual
 sender, whereas the released slot's ownership may be granted to either side.
-The simulator models the owner-table change with no additional grant delay.}
+The two non-crossing feedback lanes are both triggered by step 6. The
+simulator models the owner-table change with no additional grant delay.}
 \label{fig:credit-life}
 \end{figure*}
 
