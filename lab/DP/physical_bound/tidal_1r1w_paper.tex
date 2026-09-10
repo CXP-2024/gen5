@@ -17,6 +17,7 @@
 \usepackage{url}
 
 \pgfplotsset{compat=1.17}
+\usetikzlibrary{arrows.meta,positioning,fit}
 \setlength{\parindent}{1em}
 \setlength{\parskip}{0pt}
 \setlength{\textfloatsep}{7pt plus 2pt minus 2pt}
@@ -37,6 +38,8 @@
 \newcommand{\pool}{\textsc{Pool}\xspace}
 \newcommand{\privatefour}{\textsc{private-v4}\xspace}
 \newcommand{\capthree}{\textsc{pressure-cap3}\xspace}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
 
 \makeatletter
 \renewcommand\section{\@startsection{section}{1}{\z@}%
@@ -200,6 +203,96 @@ entering from X may occupy the X-pair \pool and later depart through Y or Z.
 Each pooled flit stores its ingress direction and upstream VC so that its
 credit returns to the correct sender.
 
+\subsection{Router-level on-chip organization}
+
+Figure~\ref{fig:router-microarch} places one pair inside a router tile. The
+same structure is replicated for E/W, N/S, and U/D. The two incoming links
+retain independent \res banks. Their adaptive arrivals also feed one shared
+\pool write arbiter. The four \pool entries may be implemented as a compact
+central array or as two physical halves with equivalent global arbitration;
+the Garnet model specifies the externally visible service contract rather than
+an SRAM circuit.
+
+\begin{figure*}[t]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\sffamily\scriptsize,
+  >=Latex,
+  box/.style={draw=tidaldark,rounded corners=2pt,thick,fill=white,
+    align=center,minimum height=0.82cm},
+  ctrl/.style={draw=tidalorange!90!black,rounded corners=2pt,thick,
+    fill=tidalorange!12,align=center},
+  poolbox/.style={draw=tidalblue,rounded corners=2pt,thick,
+    fill=tidalblue!10,align=center},
+  flow/.style={->,thick,draw=tidaldark},
+  cflow/.style={->,thick,dashed,draw=tidalorange!90!black}
+]
+  % Panel (a): router tile
+  \node[font=\bfseries\small,anchor=west] at (0,4.25) {(a) One 3D router tile};
+  \node[box,minimum width=2.2cm] (ew) at (2.55,3.25)
+    {E/W pair\\2 RES + 4-slot Pool};
+  \node[box,minimum width=2.2cm] (ns) at (2.55,2.05)
+    {N/S pair\\2 RES + 4-slot Pool};
+  \node[box,minimum width=2.2cm] (ud) at (2.55,0.85)
+    {U/D pair\\2 RES + 4-slot Pool};
+  \node[ctrl,minimum width=2.4cm,minimum height=2.8cm] (sa) at (5.55,2.05)
+    {Switch allocator\\phase + bank RR\\output arbitration};
+  \node[box,minimum width=1.45cm,minimum height=2.8cm] (xbar) at (7.95,2.05)
+    {Crossbar\\to E/W\\N/S\\U/D};
+  \draw[flow] (ew.east) -- (sa.west |- ew.east);
+  \draw[flow] (ns.east) -- (sa.west |- ns.east);
+  \draw[flow] (ud.east) -- (sa.west |- ud.east);
+  \draw[flow] (sa) -- (xbar);
+  \node[anchor=east] at (1.25,3.55) {E link};
+  \node[anchor=east] at (1.25,2.95) {W link};
+  \node[anchor=east] at (1.25,2.25) {N/S};
+  \node[anchor=east] at (1.25,1.05) {U/D};
+  \draw[flow] (1.35,3.55) -- (ew.west |- 2.85,3.55);
+  \draw[flow] (1.35,2.95) -- (ew.west |- 2.85,2.95);
+  \draw[flow] (1.35,2.25) -- (ns.west);
+  \draw[flow] (1.35,1.05) -- (ud.west);
+
+  % Panel (b): pair datapath
+  \node[font=\bfseries\small,anchor=west] at (9.25,4.25)
+    {(b) One opposing-direction pair};
+  \node[box,minimum width=1.25cm] (elin) at (9.75,3.20) {E input\\link};
+  \node[box,minimum width=1.25cm] (wlin) at (17.80,3.20) {W input\\link};
+  \node[box,minimum width=1.85cm] (eres) at (11.30,3.20)
+    {E RES\\private + escape};
+  \node[box,minimum width=1.85cm] (wres) at (16.25,3.20)
+    {W RES\\private + escape};
+  \node[ctrl,minimum width=2.35cm] (warb) at (13.78,3.20)
+    {Pool write arbiter\\one grant/cycle};
+  \node[poolbox,minimum width=3.95cm,minimum height=0.90cm] (pool) at (13.78,2.00)
+    {Shared Pool: P0 \quad P1 \quad P2 \quad P3\\1R1W service};
+  \node[ctrl,minimum width=2.55cm,minimum height=0.85cm] (state) at (10.65,0.65)
+    {pair controller\\owner, busy, cap, phase, RR};
+  \node[box,minimum width=2.20cm] (rmux) at (14.10,0.65)
+    {phase read mux\\1 RES + 1 Pool};
+  \node[box,minimum width=2.55cm] (lane) at (17.05,0.65)
+    {true-ingress lane\\to switch allocator};
+
+  \draw[flow] (elin) -- (eres);
+  \draw[flow] (wlin) -- (wres);
+  \draw[flow] (elin.south) -- ++(0,-0.45) -| (warb.west);
+  \draw[flow] (wlin.south) -- ++(0,-0.45) -| (warb.east);
+  \draw[flow] (warb) -- node[right]{1W} (pool);
+  \draw[flow] (pool.south) -- node[right]{1R} (rmux.north);
+  \draw[flow] (rmux) -- (lane);
+  \draw[cflow] (state) -- (rmux);
+  \draw[cflow] (state.north) |- (pool.west);
+  \draw[cflow] (state.north) |- (eres.south);
+  \draw[cflow] (state.north) -| (wres.south);
+\end{tikzpicture}
+}
+\caption{Proposed on-chip organization. (a) Three direction-pair controllers
+operate in parallel around the normal Garnet switch allocator and crossbar.
+(b) One pair exposes a single shared Pool read and write service. RES access
+remains separate; the Pool result is placed on the flit's true-ingress lane.}
+\label{fig:router-microarch}
+\end{figure*}
+
 \subsection{One-read, one-write service}
 
 The \pool accepts at most one read and one write service per pair, control
@@ -226,6 +319,20 @@ when that reserved credit is available; otherwise it waits. Escape storage
 never enters the shared bank and follows deterministic non-wrapping XYZ
 routing.
 
+The port count must be stated precisely. A pair can perform two useful reads
+in a cycle: one from the selected side's \res and one from the shared \pool.
+Only the latter consumes the Pool's single read port. A \res write is likewise
+independent of the Pool write. For the present one-flit control traffic, Pool
+VC allocation and data arrival are one-to-one, so accepting at most one new
+Pool allocation per pair and cycle models a single Pool write service. A
+multi-flit extension would need a separate per-flit write schedule.
+
+In a physical implementation, the phase is the low bit of the router cycle
+counter, the Pool writer is a two-request arbiter, and the Pool reader is a
+four-entry bank selector followed by a true-ingress-lane multiplexer. The
+event-level Garnet implementation does not synthesize these blocks; it
+enforces their service limits and measures their utilization.
+
 \section{Pool-Credit Control}
 
 Each of the four shared slots has exactly one logical owner. For the E/W pair,
@@ -235,6 +342,155 @@ ownership obeys
 \end{equation}
 An owned \pool credit authorizes the corresponding upstream direction to
 reserve an idle slot. Private and escape credits remain pinned.
+
+\subsection{Two credit planes}
+
+The implementation deliberately separates \emph{buffer occupancy} from
+\emph{Pool ownership}. They are both called credits informally, but they have
+different destinations and correctness roles:
+\begin{table}[t]
+\centering
+\caption{The two credit planes in \system.}
+\label{tab:credit-planes}
+\small
+\begin{tabularx}{\columnwidth}{@{}P{0.20\columnwidth}YY@{}}
+\toprule
+Plane & State and path & Meaning\\
+\midrule
+Occupancy &
+Garnet OutputUnit VC state; returned on the real CreditLink to the upstream
+port that sent the flit &
+The physical slot is free; prevents overflow\\
+Ownership &
+One owner bit per Pool slot; selected by the downstream pair controller and
+observed by either opposing sender &
+This direction may allocate the idle slot\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Returning an occupancy credit never changes its physical path. Even when an E
+flit was placed in the W-hosted half of the \pool, stored metadata identifies
+the true E ingress link and the original upstream logical VC. The ordinary
+free credit is sent back on E's CreditLink. Independently, the downstream
+owner bit may stay with E or move to W. A sender whose logical VC has become
+idle must still pass the owner-table check before reusing that Pool slot.
+
+\subsection{Allocation, release, and handoff}
+
+Figure~\ref{fig:credit-life} follows one one-flit packet. The upstream router
+first searches its private adaptive VC, then idle Pool slots it already owns,
+then idle peer-owned slots that it may reclaim under the cap. A successful
+Pool choice atomically sets \texttt{owner[slot]}, sets
+\texttt{busy[slot]}, and consumes the pair's write token for that cycle. The
+logical Pool VC ID travels with the flit. At the downstream router, that ID is
+mapped to one of four physical Pool entries and tagged with true ingress,
+credit input port, and upstream VC ID.
+
+\begin{figure*}[t]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\sffamily\scriptsize,
+  >=Latex,
+  stagebox/.style={draw=tidaldark,rounded corners=2pt,thick,fill=white,
+    align=center,minimum width=2.55cm,minimum height=0.92cm},
+  event/.style={draw=tidalblue,rounded corners=2pt,thick,fill=tidalblue!10,
+    align=center,minimum width=2.65cm,minimum height=0.92cm},
+  decision/.style={draw=tidalorange!90!black,rounded corners=2pt,thick,
+    fill=tidalorange!12,align=center,minimum width=2.65cm,minimum height=0.92cm},
+  flow/.style={->,very thick,draw=tidaldark},
+  credit/.style={->,very thick,dashed,draw=tidalorange!90!black}
+]
+  \node[font=\bfseries\small,anchor=west] at (0,2.75)
+    {Allocation and forward path};
+  \node[stagebox] (search) at (1.45,1.80)
+    {1. Search\\private, owned, reclaim};
+  \node[decision] (claim) at (4.35,1.80)
+    {2. Claim slot\\owner=E, busy=1\\consume 1W token};
+  \node[event] (send) at (7.30,1.80)
+    {3. Send flit\\with logical Pool VC};
+  \node[event] (map) at (10.25,1.80)
+    {4. Map to physical slot\\store true ingress\\and upstream VC};
+  \node[stagebox] (serve) at (13.25,1.80)
+    {5. Phase-selected read\\SA + crossbar traversal};
+  \node[event] (free) at (16.20,1.80)
+    {6. Tail departs\\busy=0};
+  \draw[flow] (search) -- (claim);
+  \draw[flow] (claim) -- (send);
+  \draw[flow] (send) -- (map);
+  \draw[flow] (map) -- (serve);
+  \draw[flow] (serve) -- (free);
+
+  \node[font=\bfseries\small,anchor=west] at (0,0.55)
+    {Feedback after release};
+  \node[decision] (pressure) at (4.35,-0.25)
+    {7. Compare RES pressure\\peer fuller: handoff\\tie/cap: keep};
+  \node[event] (ownergrant) at (10.00,-0.25)
+    {8a. Ownership grant\\new owner may allocate\\idle Pool slot};
+  \node[event] (returncredit) at (15.90,-0.25)
+    {8b. Occupancy credit\\returns to true sender\\on normal CreditLink};
+  \draw[flow] (free.south) -- ++(0,-0.35) -| (pressure.north);
+  \draw[credit] (pressure) -- node[above]{ownership plane} (ownergrant);
+  \draw[credit] (free.east) -- ++(0.35,0) |-
+    node[pos=.70,right]{occupancy plane} (returncredit.east);
+\end{tikzpicture}
+}
+\caption{Pool-credit lifecycle. The ordinary free credit returns to the actual
+sender, whereas the released slot's ownership may be granted to either side.
+The simulator models the owner-table change with no additional grant delay.}
+\label{fig:credit-life}
+\end{figure*}
+
+When the tail wins switch traversal, the downstream router first clears the
+busy bit and then evaluates the release policy. Table~\ref{tab:credit-rules}
+gives the exact state transitions for the proposed pressure policy.
+
+\begin{table*}[t]
+\centering
+\caption{Exact allocation and return rules for direction $d$ and peer
+$\bar d$. An owner change is legal only for an idle slot.}
+\label{tab:credit-rules}
+\small
+\begin{tabularx}{\textwidth}{@{}P{0.15\textwidth}P{0.29\textwidth}P{0.31\textwidth}Y@{}}
+\toprule
+Event & Guard / priority & Atomic state update & Result\\
+\midrule
+Private allocation &
+Private adaptive VC is idle &
+Reserve the private VC; Pool state unchanged &
+No Pool port consumed\\
+Owned Pool allocation &
+Private busy; Pool 1W token free; an idle slot has
+\(\mathrm{owner}[s]=d\) &
+\(\mathrm{busy}[s]\leftarrow1\); record current-cycle write token &
+Send using logical VC \(1+s\)\\
+Demand reclaim &
+No usable owned slot; 1W token free; peer-owned \(s\) is idle;
+\(C_d<\mathrm{cap}\) &
+\(\mathrm{owner}[s]\leftarrow d\);
+\(\mathrm{busy}[s]\leftarrow1\); consume write token &
+Immediate reclaim; busy slots are never revoked\\
+Second Pool request &
+Current-cycle write token already consumed &
+Do not allocate Pool; use private/escape only if independently legal &
+Otherwise request waits\\
+Pool tail release &
+Selected Pool flit completes switch traversal &
+\(\mathrm{busy}[s]\leftarrow0\); count RES occupancy on both sides &
+Evaluate pressure below\\
+Pressure handoff &
+\(\mathrm{RESused}_{\bar d}>\mathrm{RESused}_d\) and
+\(C_{\bar d}<\mathrm{cap}\) &
+\(\mathrm{owner}[s]\leftarrow\bar d\) &
+Peer gains ownership; old sender still receives the normal free credit\\
+Sticky keep &
+Tie, own side fuller, or peer at cap &
+\(\mathrm{owner}[s]\leftarrow d\) &
+Preserve burst locality and the one-credit peer floor\\
+\bottomrule
+\end{tabularx}
+\end{table*}
 
 \textbf{Pressure grant.} When a pooled flit departs, its released credit is
 assigned to the side whose \res occupancy is larger. This local pressure
@@ -252,6 +508,24 @@ has no flit to release. A requester below its cap can therefore take an
 \emph{idle} peer-owned slot immediately. Busy slots are never revoked. In the
 current simulator, this owner-table update adds no cycle; Section~\ref{sec:limits}
 treats this as an optimistic timing assumption.
+
+The pressure value in the current code is the number of active private
+adaptive and escape VCs in \res. The just-released Pool slot is excluded.
+On equal pressure the old owner keeps the slot. If the preferred peer already
+owns three slots, the cap overrides pressure and the old owner keeps it.
+
+\subsection{Timing interpretation}
+
+The ordinary occupancy credit is not idealized: it is inserted into the
+original InputUnit's credit queue and scheduled on Garnet's CreditLink one
+router cycle later. Ownership handoff is the optimistic component. The
+simulator stores \texttt{owner[router][pair][vnet][slot]} at network scope, so
+the newly authorized upstream direction observes the new owner without a
+modeled sideband-wire or grant-register delay. A physical design needs a
+one-way owner-grant signal from the downstream pair controller to both
+opposing upstream allocators. Adding a registered one-cycle grant, or a
+parameterized delay, is necessary before drawing frequency-sensitive
+conclusions.
 
 Blind owner round-robin is a useful control policy, but it is distinct from
 the round-robin arbitration inside the read scheduler. Rotating ownership
@@ -275,6 +549,66 @@ switch-allocation paths. The exact strict-1R1W snapshot is retained at
   \item structural counters and X-biased/reversal synthetic traffic.
 \end{itemize}
 
+\subsection{Physical and logical VC mapping}
+
+Each physical InputUnit still contains four control-vnet VC records. Offsets
+0 and 3 are private; offsets 1 and 2 are that InputUnit's physical half of the
+pair Pool. An internal link exposes six \emph{logical} IDs so either opposing
+sender can name all four shared slots:
+\begin{table}[t]
+\centering
+\caption{VC numbering for the four-physical-VC design.}
+\label{tab:vc-map}
+\small
+\begin{tabular}{lll}
+\toprule
+Namespace & Offset(s) & Role\\
+\midrule
+Physical InputUnit & 0 & private adaptive\\
+Physical InputUnit & 1, 2 & resident Pool half\\
+Physical InputUnit & 3 & private escape\\
+\midrule
+Internal-link logical & 0 & private adaptive\\
+Internal-link logical & 1--4 & pair-global Pool slots\\
+Internal-link logical & 5 & private escape\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On arrival, \texttt{dpPhysMapLogicalVC} translates the pair-global slot ID
+into a physical input direction and offset. A borrowed E flit may therefore be
+written into an entry resident in the W InputUnit. The VC records true
+direction, original credit input port, and original upstream VC. Routing uses
+the true direction, not the physical host, and switch traversal uses E's
+crossbar lane. On release, the saved fields steer the ordinary credit back to
+E.
+
+\subsection{Control state and pipeline hooks}
+
+Conceptually, each pair and control vnet needs four owner bits, four busy
+indications, one policy-RR bit, a current-cycle Pool-write token, and bank-RR
+pointers. Busy state can be derived from or colocated with existing VC-valid
+state in RTL. The global cycle parity supplies the read phase. Per-VC
+true-ingress and upstream-ID tags are required only because a logical Pool
+slot may be physically hosted by its peer. Statistics and ownership-wait
+timestamps in the C++ model are instrumentation, not proposed hardware.
+
+The relevant Garnet hooks are:
+\begin{itemize}
+  \setlength{\itemsep}{0pt}
+  \setlength{\topsep}{2pt}
+  \item \texttt{Router::dpPhysSelectAdaptiveVC}: private first, then owned
+  Pool, then idle peer Pool under the cap;
+  \item \texttt{InputUnit::wakeup}: logical-to-physical redirection and
+  ingress metadata capture;
+  \item \texttt{SwitchAllocator::arbitrate\_dp\_phys\_inports}: complementary
+  RES/Pool eligibility and per-bank round-robin selection;
+  \item \texttt{InputUnit::increment\_credit}: true-link credit return and,
+  on the free signal, release-time owner selection; and
+  \item \texttt{GarnetNetwork::dpPhysClaimSlot}: owner/busy update and the
+  one-write-per-pair-per-cycle guard.
+\end{itemize}
+
 Experiments inject only virtual network 0 with one-flit control packets and
 one slot per control VC. Hence $L=8$ means an eight-cycle link, not an
 eight-flit packet. Exported counters include \pool allocations, owned
@@ -296,6 +630,65 @@ main long runs, and three seeds per reported point. The 651-run main matrix
 contains 120 broad validation, 96 policy, 72 owner-cap, 192 reversal, and 171
 X-biased/VC-scaling runs. A separate 48-run recovery-instrumentation rerun is
 not included in this total.
+
+\begin{table*}[t]
+\centering
+\caption{Complete 651-run evaluation matrix. Rates are offered injection
+probabilities. Long-run rows report three-seed means and approximate 95\%
+confidence intervals; validation is a single-seed smoke matrix.}
+\label{tab:matrix}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}l P{0.15\textwidth} l c P{0.29\textwidth} c r@{}}
+\toprule
+CSV dataset & Purpose / traffic & Topology & $L$ & Sweep points & Cycles $\times$ seeds & Runs\\
+\midrule
+\texttt{validation\_v4} &
+Sanity: uniform, X-opposite, tornado &
+4$\times$4$\times$4 &
+1, 8 &
+rate 0.1, 0.3, 0.5, 0.7, 0.9; four modes &
+3,000 $\times$ 1 & 120\\
+\texttt{policy\_v4} &
+Tornado policy comparison &
+4$\times$4$\times$4 &
+1, 8 &
+rate 0.1, 0.3, 0.5, 0.9; four modes &
+10,000 $\times$ 3 & 96\\
+\texttt{cap\_v4} &
+Tornado/uniform cap ablation &
+4$\times$4$\times$4 &
+8 &
+rate 0.3, 0.5, 0.9; caps 2, 3, 4 + private &
+10,000 $\times$ 3 & 72\\
+\texttt{reversal\_v4} &
+Alternating $+X/-X$ demand &
+4$\times$4$\times$4 &
+1, 8 &
+rate 0.3, 0.9; epoch 4, 16, 64, 256; four modes &
+10,000 $\times$ 3 & 192\\
+\texttt{xbiased\_bias\_v4} &
+Persistent X-direction skew &
+8$\times$4$\times$4 &
+8 &
+rate 0.10; +X bias 50--100\%; private/cap3/cap4 &
+10,000 $\times$ 3 & 54\\
+\texttt{xbiased\_fullskew\_v4} &
+Four-VC stability bracket &
+8$\times$4$\times$4 &
+8 &
+rate 0.08--0.12; 100\% +X; three modes &
+10,000 $\times$ 3 & 45\\
+\texttt{xbiased\_vcscale} &
+Six/eight-VC scaling &
+8$\times$4$\times$4 &
+8 &
+rate 0.15, 0.18, 0.20, 0.25; six modes &
+10,000 $\times$ 3 & 72\\
+\midrule
+\multicolumn{6}{r}{Total} & \textbf{651}\\
+\bottomrule
+\end{tabularx}
+\end{table*}
 
 \subsection{Structural validation}
 
@@ -365,28 +758,86 @@ for cap four. Cap three therefore extends the tested stable bracket by 25\%;
 cap four provides an optimistic 50\% upper bound. These are discrete brackets,
 not precise saturation thresholds.
 
+\begin{table*}[t]
+\centering
+\caption{Detailed X-bias sweep at $L=8$, offered rate 0.10. Values are
+mean $\pm$ approximate 95\% confidence interval across three seeds; ratios
+are computed per seed before averaging. The dagger marks an above-saturation
+latency comparison.}
+\label{tab:xbias-detail}
+\scriptsize
+\begin{tabular}{rrrrrrrr}
+\toprule
+\(+X\) &
+\multicolumn{1}{c}{Private thr.} &
+\multicolumn{1}{c}{Cap3 thr.} &
+\multicolumn{1}{c}{Thr./base} &
+\multicolumn{1}{c}{Private net lat.} &
+\multicolumn{1}{c}{Cap3 net lat.} &
+\multicolumn{1}{c}{Cap3 lat./base} &
+\multicolumn{1}{c}{Cap4 lat./base}\\
+\midrule
+50\%  & .0496$\pm$.0004 & .0496$\pm$.0004 & 1.000$\pm$.000 & 45.86$\pm$.02 & 46.94$\pm$.02 & 1.023$\pm$.000 & 1.018$\pm$.000\\
+60\%  & .0496$\pm$.0004 & .0496$\pm$.0004 & 1.000$\pm$.000 & 46.05$\pm$.06 & 47.09$\pm$.04 & 1.023$\pm$.001 & 1.015$\pm$.001\\
+70\%  & .0496$\pm$.0004 & .0496$\pm$.0004 & 1.000$\pm$.000 & 46.65$\pm$.08 & 47.39$\pm$.02 & 1.016$\pm$.002 & 1.005$\pm$.002\\
+80\%  & .0496$\pm$.0004 & .0496$\pm$.0004 & 1.000$\pm$.000 & 47.91$\pm$.15 & 47.93$\pm$.07 & 1.001$\pm$.002 & .982$\pm$.002\\
+90\%  & .0486$\pm$.0013 & .0496$\pm$.0004 & 1.021$\pm$.028 & 53.94$\pm$4.68 & 48.78$\pm$.07 & .908$\pm$.075 & .880$\pm$.074\\
+100\% & .0273$\pm$.0008 & .0496$\pm$.0004 & 1.818$\pm$.061 & 180.14$\pm$8.17 & 50.30$\pm$.24 & .280$\pm$.012$^\dagger$ & .265$\pm$.012$^\dagger$\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{Full-skew stability sweep at $L=8$. Each cell is
+injection acceptance / delivered throughput / network latency, averaged over
+three seeds. A design is treated as stably accepting the offered load only
+when acceptance remains close to one.}
+\label{tab:fullskew}
+\small
+\begin{tabular}{rccc}
+\toprule
+Offered rate & \privatefour & Pressure cap 3 & Pressure cap 4\\
+\midrule
+0.08 & .996 / .0397 / 48.8 & .996 / .0397 / 48.2 & .996 / .0397 / 46.9\\
+0.09 & .932 / .0416 / 64.3 & .996 / .0446 / 49.0 & .996 / .0446 / 47.3\\
+0.10 & .559 / .0273 / 180.1 & .997 / .0496 / 50.3 & .997 / .0496 / 47.7\\
+0.11 & .391 / .0208 / 271.9 & .901 / .0491 / 63.5 & .997 / .0545 / 48.3\\
+0.12 & .327 / .0190 / 307.5 & .484 / .0283 / 154.2 & .997 / .0595 / 49.2\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
 \subsection{Tornado and policy comparison}
 
 On 4$\times$4$\times$4, torus tornado advances each packet by +1 in X, +1 in
 Y, and +1 in Z, making W, S, and D true inputs persistently hot. Table~\ref{tab:tornado}
 shows $L=8$ and injection 0.9.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
-\caption{Tornado at $L=8$, injection 0.9.}
+\caption{Tornado policy comparison at offered rate 0.9. Values are
+mean $\pm$ approximate 95\% confidence interval over three seeds. Pool,
+reclaim, and handoff columns are percentages of completed control events.}
 \label{tab:tornado}
-\small
-\begin{tabular}{lrrr}
+\scriptsize
+\begin{tabular}{rrlrrrrrr}
 \toprule
-Mode & Thr./base & Latency & Lat./base\\
+L & Mode & Throughput & Thr./base & Net latency & Lat./base &
+Pool service & Reclaim & Handoff\\
 \midrule
-\privatefour       & 1.000 & 49.37 & 1.000\\
-RTS                & 0.994 & 58.25 & 1.180\\
-Owner-RR           & 0.435 & 157.03 & 3.181\\
-\capthree          & 1.000 & 46.97 & 0.952\\
+1 & \privatefour & .4489$\pm$.0003 & 1.000 & 10.46$\pm$.00 & 1.000 & -- & -- & --\\
+1 & RTS & .4488$\pm$.0003 & 1.000$\pm$.000 & 12.84$\pm$.01 & 1.227$\pm$.000 & 53.45 & .00 & .00\\
+1 & Owner-RR & .3138$\pm$.0013 & .699$\pm$.003 & 32.08$\pm$.16 & 3.067$\pm$.016 & 25.37 & .00 & .11\\
+1 & Pressure cap3 & .4488$\pm$.0003 & 1.000$\pm$.000 & 13.09$\pm$.01 & 1.251$\pm$.001 & 59.11 & .13 & .09\\
+\midrule
+8 & \privatefour & .1564$\pm$.0000 & 1.000 & 49.37$\pm$.07 & 1.000 & -- & -- & --\\
+8 & RTS & .1554$\pm$.0000 & .994$\pm$.000 & 58.25$\pm$.05 & 1.180$\pm$.001 & 51.35 & .00 & .00\\
+8 & Owner-RR & .0680$\pm$.0004 & .435$\pm$.003 & 157.03$\pm$1.16 & 3.181$\pm$.022 & 27.67 & .00 & .44\\
+8 & Pressure cap3 & .1563$\pm$.0000 & 1.000$\pm$.000 & 46.97$\pm$.03 & .952$\pm$.002 & 66.38 & .49 & .40\\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 Pressure cap three lowers latency by 4.85\% without changing throughput
 materially because an output bottleneck limits tornado first. It captures
@@ -395,6 +846,58 @@ credit. Only approximately 0.49\% of \pool allocations use on-demand reclaim:
 stable ownership handles most demand, and reclaim resolves occasional
 mismatches. Owner round-robin loses 56.5\% throughput because blind rotation
 can place credits at an inactive peer and has no demand-driven correction.
+
+\begin{table}[t]
+\centering
+\caption{Owner-cap ablation for tornado, $L=8$, rate 0.9.}
+\label{tab:cap}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\toprule
+Mode & Lat. & Lat./base & Reclaim & Borrow peak\\
+\midrule
+\privatefour & 49.37 & 1.000 & -- & 0\\
+Cap 2 & 58.25 & 1.180 & 0.00\% & 0\\
+Cap 3 & 46.97 & .952 & .49\% & 1\\
+Cap 4 & 46.47 & .941 & .19\% & 2\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Cap two prevents borrowing and is behaviorally equivalent to static
+ownership. Cap three recovers most of cap four's latency benefit while
+retaining one credit at the cold side. Cap four is slightly faster here but
+can temporarily leave the peer with no Pool ownership.
+
+\begin{table}[t]
+\centering
+\caption{Credit/control event counts for pressure cap 3 under tornado,
+$L=8$, rate 0.9. Counts are rounded three-seed means per 10,000-cycle run.}
+\label{tab:events}
+\scriptsize
+\begin{tabular}{lr@{\qquad}lr}
+\toprule
+Counter & Mean & Counter & Mean\\
+\midrule
+Pool allocations & 202,267 & Owned allocations & 201,267\\
+Demand reclaims & 1,000 & Owner migrations & 1,809\\
+Release handoffs & 809 & Release keeps & 201,274\\
+Pool reads & 202,083 & RES reads & 102,347\\
+Pool write blocks & 0 & Pool read conflicts & 0\\
+Borrowed peak & 1 & Deadlocks & 0\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The event identities are visible numerically:
+\(202{,}267=201{,}267+1{,}000\) allocations and
+\(1{,}809=1{,}000+809\) migrations. Completed Pool reads also equal released
+keeps plus handoffs, \(202{,}083=201{,}274+809\); the allocation/read
+difference is the set of flits still resident at measurement end. Zero
+write-block counts mean the allocator never committed a second Pool write in
+the same pair-cycle in these runs; this validates the guard's behavior, not
+the timing or area of a fabricated 1W array.
 
 \subsection{Where 1R1W loses}
 
@@ -406,11 +909,65 @@ the credit loop is too short for additional capacity to repay the phase cost.
 Reversing the hot X direction every 16 cycles raises latency by 7.8\% while
 ownership and old traffic drain in opposite directions.
 
+\begin{table}[t]
+\centering
+\caption{Representative pressure-cap3 losses. Ratios are against equal-storage
+\privatefour. The X-opposite row is a 3,000-cycle single-seed smoke point; the
+others are 10,000-cycle, three-seed results.}
+\label{tab:negative}
+\scriptsize
+\begin{tabular}{llrr}
+\toprule
+Traffic / condition & $L$ & Thr./base & Lat./base\\
+\midrule
+Uniform, rate .9 & 8 & 1.001 & 1.032\\
+X-opposite, rate .9 & 8 & .999 & 1.154\\
+Tornado, rate .9 & 1 & 1.000 & 1.251\\
+X reversal, epoch 16 & 8 & .999 & 1.078\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Direction-reversal sensitivity at $L=8$, rate 0.9. Counts and
+absolute values are three-seed means.}
+\label{tab:reversal}
+\scriptsize
+\setlength{\tabcolsep}{3.4pt}
+\begin{tabular}{rrrrrr}
+\toprule
+Epoch & Base thr. & Cap3 thr. & Base lat. & Cap3 lat. & Migrations\\
+\midrule
+4   & .1575 & .1575 & 27.37 & 27.97 & 5,335\\
+16  & .1560 & .1559 & 28.49 & 30.72 & 16,707\\
+64  & .1549 & .1558 & 27.77 & 28.60 & 7,649\\
+256 & .1565 & .1567 & 26.63 & 27.26 & 2,428\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The epoch-16 point is worst because ownership moves most often while the
+previous direction's flits are still draining. Very fast four-cycle reversal
+leaves little time to build an extreme ownership split; long epochs amortize
+each transition. This is direct evidence that credit policy must be evaluated
+as a dynamic controller, not only by its steady-state cap.
+
 VC scaling supports the same interpretation. Near the measured knee, a
 six-VC organization reaches a 1.27 throughput ratio and a 0.56 latency ratio,
 extending the stable bracket from 0.12 to 0.15. At eight VCs, where private
 capacity already hides more of the credit loop, the ratios shrink to 1.08 and
 0.83, extending 0.18 to 0.20.
+
+\subsection{Data provenance}
+
+The raw rows used above are tracked under
+\path{1R1W/overlay/lab/DP/physical_bound/}. Table~\ref{tab:matrix} names each
+CSV exactly. \path{run_sweep_dpphys.py} records the gem5 command for every
+run, and \path{analyze_dpphys.py} performs paired-by-seed ratios and
+confidence-interval aggregation. The archived overlay should be reconstructed
+in a temporary worktree from base commit \path{2eb6a4e}; it should not be
+copied over the repository's current working source.
 
 \section{Hardware Interpretation}
 
@@ -422,6 +979,16 @@ mapping, selectors, arbitration, control wiring, and a potentially critical
 ownership update path. We therefore claim reduced shared-port demand, not
 zero hardware cost. RTL synthesis against private and dual-access pool
 implementations is required to quantify area, energy, and frequency.
+
+This comparison explains both the intended cost saving and the performance
+losses. Relative to an unrestricted 2R2W shared pool, \system removes one
+shared read and one shared write service, reducing the hardest shared-port
+requirement. Relative to private banks, however, it adds a central selection
+and ownership path. Whether the smaller Pool port count outweighs those
+selectors depends on entry width, SRAM/register-file implementation, wire
+length, and target frequency. Garnet cannot answer that manufacturing
+question. The ordinary router allocator and crossbar remain present in all
+three organizations~\cite{dallytowles2004}.
 
 \section{Limitations and Next Steps}
 \label{sec:limits}
@@ -479,8 +1046,9 @@ next decisive step is to add grant delay and synthesize the control and
 storage organization so that performance gains can be judged against measured
 area, energy, and timing.
 
-\newpage
+{\small
 \bibliographystyle{abbrv}
 \bibliography{tidal_1r1w_refs}
+}
 
 \end{document}
