@@ -1,0 +1,4831 @@
+diff --git a/configs/example/garnet_synth_traffic.py b/configs/example/garnet_synth_traffic.py
+index 1da82e11b8..7caa0d4118 100644
+--- a/configs/example/garnet_synth_traffic.py
++++ b/configs/example/garnet_synth_traffic.py
+@@ -27,6 +27,7 @@
+ # Author: Tushar Krishna
+ 
+ import m5
++from _m5.core import seedRandom
+ from m5.objects import *
+ from m5.defines import buildEnv
+ from m5.util import addToPath
+@@ -57,9 +58,36 @@ parser.add_argument(
+         "neighbor",
+         "shuffle",
+         "transpose",
++        "torus3d_neighbor",
++        "torus3d_tornado",
++        "torus3d_transpose",
++        "torus3d_xopposite",
++        "torus3d_x_reversal",
++        "torus3d_xbiased",
+     ],
+ )
+ 
++parser.add_argument(
++    "--traffic-epoch-cycles",
++    type=int,
++    default=64,
++    help="Cycles per direction in torus3d_x_reversal traffic",
++)
++
++parser.add_argument(
++    "--traffic-x-bias",
++    type=float,
++    default=1.0,
++    help="Probability of choosing +X in torus3d_xbiased traffic",
++)
++
++parser.add_argument(
++    "--traffic-x-hops",
++    type=int,
++    default=1,
++    help="Minimal X distance used by torus3d_xbiased traffic",
++)
++
+ parser.add_argument(
+     "-i",
+     "--injectionrate",
+@@ -83,6 +111,13 @@ parser.add_argument(
+     "--sim-cycles", type=int, default=1000, help="Number of simulation cycles"
+ )
+ 
++parser.add_argument(
++    "--random-seed",
++    type=int,
++    default=1,
++    help="Seed for Garnet synthetic-traffic random injection decisions",
++)
++
+ parser.add_argument(
+     "--num-packets-max",
+     type=int,
+@@ -124,6 +159,8 @@ Ruby.define_options(parser)
+ 
+ args = parser.parse_args()
+ 
++seedRandom(args.random_seed)
++
+ cpus = [
+     GarnetSyntheticTraffic(
+         num_packets_max=args.num_packets_max,
+@@ -135,6 +172,12 @@ cpus = [
+         inj_vnet=args.inj_vnet,
+         precision=args.precision,
+         num_dest=args.num_dirs,
++        torus_x=args.torus_x,
++        torus_y=args.torus_y,
++        torus_z=args.torus_z,
++        traffic_epoch_cycles=args.traffic_epoch_cycles,
++        traffic_x_bias=args.traffic_x_bias,
++        traffic_x_hops=args.traffic_x_hops,
+     )
+     for i in range(args.num_cpus)
+ ]
+@@ -173,7 +216,7 @@ root = Root(full_system=False, system=system)
+ root.system.mem_mode = "timing"
+ 
+ # Not much point in this being higher than the L1 latency
+-m5.ticks.setGlobalFrequency("1ps")
++m5.ticks.setGlobalFrequency("2GHz")
+ 
+ # instantiate configuration
+ m5.instantiate()
+diff --git a/configs/network/Network.py b/configs/network/Network.py
+index a5334741c0..563190ba61 100644
+--- a/configs/network/Network.py
++++ b/configs/network/Network.py
+@@ -47,6 +47,24 @@ def define_options(parser):
+         default=0,
+         help="the number of rows in the mesh topology",
+     )
++    parser.add_argument(
++        "--torus-x",
++        type=int,
++        default=0,
++        help="number of routers in the X dimension of a 3D torus",
++    )
++    parser.add_argument(
++        "--torus-y",
++        type=int,
++        default=0,
++        help="number of routers in the Y dimension of a 3D torus",
++    )
++    parser.add_argument(
++        "--torus-z",
++        type=int,
++        default=0,
++        help="number of routers in the Z dimension of a 3D torus",
++    )
+     parser.add_argument(
+         "--network",
+         default="simple",
+@@ -87,6 +105,89 @@ def define_options(parser):
+         help="""number of virtual channels per virtual network
+             inside garnet network.""",
+     )
++    parser.add_argument(
++        "--escape-vcs",
++        action="store",
++        type=int,
++        default=1,
++        help="""number of VCs per vnet reserved for the non-wrap Mesh3D
++            escape path used by routing-algorithm 4. Set to 0 only for an
++            unsafe no-escape comparison experiment.""",
++    )
++    parser.add_argument(
++        "--wormhole",
++        action="store_true",
++        default=False,
++        help="allow multiple single-flit control packets per VC",
++    )
++    parser.add_argument(
++        "--enable-cbs",
++        action="store_true",
++        default=False,
++        help="""enable Critical Bubble Scheme flow control on Torus3D
++            rings; requires --routing-algorithm=3 and no --wormhole""",
++    )
++    parser.add_argument(
++        "--enable-dp",
++        action="store_true",
++        default=False,
++        help="""enable Dimension Pool flow control: the two opposing
++            inports of each dimension share their pooled VCs under a
++            joint occupancy cap; requires --routing-algorithm=3 with
++            --enable-cbs, or --routing-algorithm=4""",
++    )
++    parser.add_argument(
++        "--dp-reserve",
++        action="store",
++        type=int,
++        default=2,
++        help="""dedicated (non-pooled) VCs per inport reserved for the
++            CBS substrate when --enable-dp runs on routing-algorithm 3""",
++    )
++    parser.add_argument(
++        "--dp-shared-cap",
++        action="store",
++        type=int,
++        default=0,
++        help="""joint cap on occupied pooled VCs across one dimension
++            pair when --enable-dp is set""",
++    )
++    parser.add_argument(
++        "--enable-dpphys",
++        action="store_true",
++        default=False,
++        help="""enable equal-physical paired pools: E/W, N/S and U/D each
++            share movable VC storage while retaining private and escape VCs""",
++    )
++    parser.add_argument(
++        "--dpphys-private-vcs",
++        action="store",
++        type=int,
++        default=1,
++        help="private adaptive VCs permanently retained by each direction",
++    )
++    parser.add_argument(
++        "--dpphys-pool-vcs",
++        action="store",
++        type=int,
++        default=4,
++        help="physical VC slots shared by each opposing direction pair",
++    )
++    parser.add_argument(
++        "--dpphys-owner-cap",
++        action="store",
++        type=int,
++        default=3,
++        help="maximum shared-pool credits owned by either direction",
++    )
++    parser.add_argument(
++        "--dpphys-policy",
++        action="store",
++        choices=["rts", "rr", "pressure"],
++        default="pressure",
++        help="""pool-credit reassignment policy: return-to-sender,
++            round-robin, or reserved-pressure with sticky ownership""",
++    )
+     parser.add_argument(
+         "--routing-algorithm",
+         action="store",
+@@ -95,7 +196,10 @@ def define_options(parser):
+         help="""routing algorithm in network.
+             0: weight-based table
+             1: XY (for Mesh. see garnet/RoutingUnit.cc)
+-            2: Custom (see garnet/RoutingUnit.cc""",
++            2: Custom (see garnet/RoutingUnit.cc)
++            3: deterministic minimal XYZ for Torus3D
++            4: adaptive minimal Torus3D with configurable mesh escape VCs
++            5: deterministic XYZ for Mesh3D""",
+     )
+     parser.add_argument(
+         "--network-fault-model",
+@@ -165,7 +269,23 @@ def init_network(options, network, InterfaceClass):
+ 
+     if options.network == "garnet":
+         network.num_rows = options.mesh_rows
++        network.torus_x = options.torus_x
++        network.torus_y = options.torus_y
++        network.torus_z = options.torus_z
+         network.vcs_per_vnet = options.vcs_per_vnet
++        network.escape_vcs = options.escape_vcs
++        network.wormhole = options.wormhole
++        network.enable_cbs = options.enable_cbs
++        network.enable_dp = options.enable_dp
++        network.dp_reserve = options.dp_reserve
++        network.dp_shared_cap = options.dp_shared_cap
++        network.enable_dpphys = options.enable_dpphys
++        network.dpphys_private_vcs = options.dpphys_private_vcs
++        network.dpphys_pool_vcs = options.dpphys_pool_vcs
++        network.dpphys_owner_cap = options.dpphys_owner_cap
++        network.dpphys_policy = options.dpphys_policy
++        if options.wormhole:
++            network.buffers_per_ctrl_vc = 16
+         network.ni_flit_size = options.link_width_bits / 8
+         network.routing_algorithm = options.routing_algorithm
+         network.garnet_deadlock_threshold = options.garnet_deadlock_threshold
+diff --git a/configs/topologies/Mesh3D.py b/configs/topologies/Mesh3D.py
+new file mode 100644
+index 0000000000..6c3ab372d4
+--- /dev/null
++++ b/configs/topologies/Mesh3D.py
+@@ -0,0 +1,143 @@
++# Copyright (c) 2026
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++from m5.objects import *
++from m5.params import *
++
++from common import FileSystemConfig
++from topologies.BaseTopology import SimpleTopology
++
++
++class Mesh3D(SimpleTopology):
++    description = "Mesh3D"
++
++    def __init__(self, controllers):
++        self.nodes = controllers
++
++    def makeTopology(self, options, network, IntLink, ExtLink, Router):
++        nodes = self.nodes
++        size_x = options.torus_x
++        size_y = options.torus_y
++        size_z = options.torus_z
++        num_routers = options.num_cpus
++
++        assert (
++            min(size_x, size_y, size_z) >= 2
++        ), "Mesh3D dimensions must all be at least 2"
++        assert (
++            size_x * size_y * size_z == num_routers
++        ), "Mesh3D dimension product must equal --num-cpus"
++
++        link_latency = options.link_latency
++        router_latency = options.router_latency
++        routers = [
++            Router(router_id=i, latency=router_latency)
++            for i in range(num_routers)
++        ]
++        network.routers = routers
++
++        controllers_per_router, remainder = divmod(len(nodes), num_routers)
++        network_nodes = nodes[: len(nodes) - remainder]
++        remainder_nodes = nodes[len(nodes) - remainder :]
++
++        link_count = 0
++        ext_links = []
++        for index, node in enumerate(network_nodes):
++            controller_level, router_id = divmod(index, num_routers)
++            assert controller_level < controllers_per_router
++            ext_links.append(
++                ExtLink(
++                    link_id=link_count,
++                    ext_node=node,
++                    int_node=routers[router_id],
++                    latency=link_latency,
++                )
++            )
++            link_count += 1
++
++        for index, node in enumerate(remainder_nodes):
++            assert node.type == "DMA_Controller"
++            assert index < remainder
++            ext_links.append(
++                ExtLink(
++                    link_id=link_count,
++                    ext_node=node,
++                    int_node=routers[0],
++                    latency=link_latency,
++                )
++            )
++            link_count += 1
++        network.ext_links = ext_links
++
++        def router_id(x, y, z):
++            return z * size_x * size_y + y * size_x + x
++
++        directions = (
++            ("East", "West", 1, 0, 0, 1),
++            ("West", "East", -1, 0, 0, 1),
++            ("North", "South", 0, 1, 0, 2),
++            ("South", "North", 0, -1, 0, 2),
++            ("Up", "Down", 0, 0, 1, 3),
++            ("Down", "Up", 0, 0, -1, 3),
++        )
++
++        int_links = []
++        for z in range(size_z):
++            for y in range(size_y):
++                for x in range(size_x):
++                    source = router_id(x, y, z)
++                    for outport, inport, dx, dy, dz, weight in directions:
++                        dest_x = x + dx
++                        dest_y = y + dy
++                        dest_z = z + dz
++                        if not (
++                            0 <= dest_x < size_x
++                            and 0 <= dest_y < size_y
++                            and 0 <= dest_z < size_z
++                        ):
++                            continue
++                        destination = router_id(dest_x, dest_y, dest_z)
++                        int_links.append(
++                            IntLink(
++                                link_id=link_count,
++                                src_node=routers[source],
++                                dst_node=routers[destination],
++                                src_outport=outport,
++                                dst_inport=inport,
++                                latency=link_latency,
++                                weight=weight,
++                            )
++                        )
++                        link_count += 1
++        network.int_links = int_links
++
++    def registerTopology(self, options):
++        for node_id in range(options.num_cpus):
++            FileSystemConfig.register_node(
++                [node_id],
++                MemorySize(options.mem_size) // options.num_cpus,
++                node_id,
++            )
+diff --git a/configs/topologies/Ring.py b/configs/topologies/Ring.py
+new file mode 100644
+index 0000000000..571efdea12
+--- /dev/null
++++ b/configs/topologies/Ring.py
+@@ -0,0 +1,123 @@
++# Copyright (c) 2026
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++from m5.objects import *
++from m5.params import *
++
++from common import FileSystemConfig
++from topologies.BaseTopology import SimpleTopology
++
++
++class Ring(SimpleTopology):
++    description = "Ring"
++
++    def __init__(self, controllers):
++        self.nodes = controllers
++
++    def makeTopology(self, options, network, IntLink, ExtLink, Router):
++        nodes = self.nodes
++        num_routers = options.num_cpus
++        assert num_routers == 16, "Lab 3 Ring requires exactly 16 routers"
++
++        link_latency = options.link_latency
++        router_latency = options.router_latency
++        routers = [
++            Router(router_id=i, latency=router_latency)
++            for i in range(num_routers)
++        ]
++        network.routers = routers
++
++        controllers_per_router, remainder = divmod(len(nodes), num_routers)
++        network_nodes = nodes[: len(nodes) - remainder]
++        remainder_nodes = nodes[len(nodes) - remainder :]
++
++        link_count = 0
++        ext_links = []
++        for index, node in enumerate(network_nodes):
++            controller_level, router_id = divmod(index, num_routers)
++            assert controller_level < controllers_per_router
++            ext_links.append(
++                ExtLink(
++                    link_id=link_count,
++                    ext_node=node,
++                    int_node=routers[router_id],
++                    latency=link_latency,
++                )
++            )
++            link_count += 1
++
++        for index, node in enumerate(remainder_nodes):
++            assert node.type == "DMA_Controller"
++            assert index < remainder
++            ext_links.append(
++                ExtLink(
++                    link_id=link_count,
++                    ext_node=node,
++                    int_node=routers[0],
++                    latency=link_latency,
++                )
++            )
++            link_count += 1
++        network.ext_links = ext_links
++
++        int_links = []
++        for router_id in range(num_routers):
++            clockwise_id = (router_id + 1) % num_routers
++            int_links.append(
++                IntLink(
++                    link_id=link_count,
++                    src_node=routers[router_id],
++                    dst_node=routers[clockwise_id],
++                    src_outport="Clockwise",
++                    dst_inport="CounterClockwise",
++                    latency=link_latency,
++                    weight=1,
++                )
++            )
++            link_count += 1
++
++            counterclockwise_id = (router_id - 1) % num_routers
++            int_links.append(
++                IntLink(
++                    link_id=link_count,
++                    src_node=routers[router_id],
++                    dst_node=routers[counterclockwise_id],
++                    src_outport="CounterClockwise",
++                    dst_inport="Clockwise",
++                    latency=link_latency,
++                    weight=1,
++                )
++            )
++            link_count += 1
++        network.int_links = int_links
++
++    def registerTopology(self, options):
++        for node_id in range(options.num_cpus):
++            FileSystemConfig.register_node(
++                [node_id],
++                MemorySize(options.mem_size) // options.num_cpus,
++                node_id,
++            )
+diff --git a/configs/topologies/Torus3D.py b/configs/topologies/Torus3D.py
+new file mode 100644
+index 0000000000..3e245d458c
+--- /dev/null
++++ b/configs/topologies/Torus3D.py
+@@ -0,0 +1,138 @@
++# Copyright (c) 2026
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++from m5.objects import *
++from m5.params import *
++
++from common import FileSystemConfig
++from topologies.BaseTopology import SimpleTopology
++
++
++class Torus3D(SimpleTopology):
++    description = "Torus3D"
++
++    def __init__(self, controllers):
++        self.nodes = controllers
++
++    def makeTopology(self, options, network, IntLink, ExtLink, Router):
++        nodes = self.nodes
++        size_x = options.torus_x
++        size_y = options.torus_y
++        size_z = options.torus_z
++        num_routers = options.num_cpus
++
++        assert (
++            min(size_x, size_y, size_z) >= 2
++        ), "Torus3D dimensions must all be at least 2"
++        assert (
++            size_x * size_y * size_z == num_routers
++        ), "Torus3D dimension product must equal --num-cpus"
++
++        link_latency = options.link_latency
++        router_latency = options.router_latency
++        routers = [
++            Router(router_id=i, latency=router_latency)
++            for i in range(num_routers)
++        ]
++        network.routers = routers
++
++        controllers_per_router, remainder = divmod(len(nodes), num_routers)
++        network_nodes = nodes[: len(nodes) - remainder]
++        remainder_nodes = nodes[len(nodes) - remainder :]
++
++        link_count = 0
++        ext_links = []
++        for index, node in enumerate(network_nodes):
++            controller_level, router_id = divmod(index, num_routers)
++            assert controller_level < controllers_per_router
++            ext_links.append(
++                ExtLink(
++                    link_id=link_count,
++                    ext_node=node,
++                    int_node=routers[router_id],
++                    latency=link_latency,
++                )
++            )
++            link_count += 1
++
++        for index, node in enumerate(remainder_nodes):
++            assert node.type == "DMA_Controller"
++            assert index < remainder
++            ext_links.append(
++                ExtLink(
++                    link_id=link_count,
++                    ext_node=node,
++                    int_node=routers[0],
++                    latency=link_latency,
++                )
++            )
++            link_count += 1
++        network.ext_links = ext_links
++
++        def router_id(x, y, z):
++            return z * size_x * size_y + y * size_x + x
++
++        directions = (
++            ("East", "West", 1, 0, 0),
++            ("West", "East", -1, 0, 0),
++            ("North", "South", 0, 1, 0),
++            ("South", "North", 0, -1, 0),
++            ("Up", "Down", 0, 0, 1),
++            ("Down", "Up", 0, 0, -1),
++        )
++
++        int_links = []
++        for z in range(size_z):
++            for y in range(size_y):
++                for x in range(size_x):
++                    source = router_id(x, y, z)
++                    for outport, inport, dx, dy, dz in directions:
++                        destination = router_id(
++                            (x + dx) % size_x,
++                            (y + dy) % size_y,
++                            (z + dz) % size_z,
++                        )
++                        int_links.append(
++                            IntLink(
++                                link_id=link_count,
++                                src_node=routers[source],
++                                dst_node=routers[destination],
++                                src_outport=outport,
++                                dst_inport=inport,
++                                latency=link_latency,
++                                weight=1,
++                            )
++                        )
++                        link_count += 1
++        network.int_links = int_links
++
++    def registerTopology(self, options):
++        for node_id in range(options.num_cpus):
++            FileSystemConfig.register_node(
++                [node_id],
++                MemorySize(options.mem_size) // options.num_cpus,
++                node_id,
++            )
+diff --git a/lab/DP/physical_bound/analyze_dpphys.py b/lab/DP/physical_bound/analyze_dpphys.py
+new file mode 100644
+index 0000000000..aa5b33cd05
+--- /dev/null
++++ b/lab/DP/physical_bound/analyze_dpphys.py
+@@ -0,0 +1,383 @@
++#!/usr/bin/env python3
++"""Validate and summarize DP-Phys sweep CSV files as Markdown."""
++
++from __future__ import annotations
++
++import argparse
++import csv
++import math
++import statistics
++from collections import defaultdict
++from pathlib import Path
++
++
++DIRECTIONS = ("east", "west", "north", "south", "up", "down")
++
++
++def is_private(row: dict[str, str]) -> bool:
++    return row["mode"].startswith("private_v")
++
++
++def parse_args() -> argparse.Namespace:
++    parser = argparse.ArgumentParser()
++    parser.add_argument("results", type=Path)
++    parser.add_argument("--output", type=Path)
++    parser.add_argument(
++        "--rate",
++        type=float,
++        help="Only summarize this injection rate; default is the maximum",
++    )
++    return parser.parse_args()
++
++
++def number(row: dict[str, str], key: str) -> float:
++    try:
++        return float(row.get(key, "nan"))
++    except ValueError:
++        return math.nan
++
++
++def close(left: float, right: float) -> bool:
++    return math.isclose(left, right, rel_tol=0.0, abs_tol=0.5)
++
++
++def mean_ci(values: list[float]) -> tuple[float, float]:
++    finite = [value for value in values if math.isfinite(value)]
++    if not finite:
++        return math.nan, math.nan
++    mean = statistics.fmean(finite)
++    if len(finite) == 1:
++        return mean, 0.0
++    ci = 1.96 * statistics.stdev(finite) / math.sqrt(len(finite))
++    return mean, ci
++
++
++def fmt_mean_ci(values: list[float], digits: int = 3) -> str:
++    mean, ci = mean_ci(values)
++    if not math.isfinite(mean):
++        return "n/a"
++    if len(values) <= 1:
++        return f"{mean:.{digits}f}"
++    return f"{mean:.{digits}f} +/- {ci:.{digits}f}"
++
++
++def validate(rows: list[dict[str, str]]) -> list[str]:
++    dp_rows = [row for row in rows if not is_private(row)]
++    checks = {
++        "deadlock-free runs": sum(
++            number(row, "deadlock") != 0 for row in rows
++        ),
++        "zero Pool read conflicts": sum(
++            number(row, "pool_read_conflicts") != 0 for row in dp_rows
++        ),
++        "allocation conservation": sum(
++            not close(
++                number(row, "pool_allocations"),
++                number(row, "owned_pool_allocations")
++                + number(row, "demand_reclaims"),
++            )
++            for row in dp_rows
++            if math.isfinite(number(row, "owned_pool_allocations"))
++        ),
++        "migration conservation": sum(
++            not close(
++                number(row, "owner_migrations"),
++                number(row, "demand_reclaims")
++                + number(row, "release_handoffs"),
++            )
++            for row in dp_rows
++            if math.isfinite(number(row, "demand_reclaims"))
++        ),
++        "read/return conservation": sum(
++            not close(
++                number(row, "pool_reads"),
++                number(row, "release_handoffs") + number(row, "release_keeps"),
++            )
++            for row in dp_rows
++            if math.isfinite(number(row, "release_keeps"))
++        ),
++        "directional allocation sum": sum(
++            not close(
++                number(row, "pool_allocations"),
++                sum(
++                    number(row, f"pool_allocations_{direction}")
++                    for direction in DIRECTIONS
++                ),
++            )
++            for row in dp_rows
++            if math.isfinite(number(row, "pool_allocations_east"))
++        ),
++        "ownership waits do not over-complete": sum(
++            number(row, "ownership_wait_completions")
++            > number(row, "ownership_wait_starts")
++            for row in dp_rows
++            if math.isfinite(number(row, "ownership_wait_starts"))
++        ),
++    }
++    lines = ["## Validation", "", "| Check | Result |", "|---|---:|"]
++    for name, failures in checks.items():
++        result = "PASS" if failures == 0 else f"FAIL ({failures})"
++        lines.append(f"| {name} | {result} |")
++    return lines
++
++
++def paired_ratios(
++    rows: list[dict[str, str]], key: str
++) -> dict[tuple[str, ...], list[float]]:
++    baseline = {
++        (
++            row["pattern"],
++            row["link_latency"],
++            row["injection_rate"],
++            row.get("physical_vcs", "4"),
++            row.get("torus_x", "4"),
++            row.get("torus_y", "4"),
++            row.get("torus_z", "4"),
++            row.get("traffic_epoch_cycles", "0"),
++            row.get("traffic_x_bias", "0"),
++            row.get("traffic_x_hops", "0"),
++            row.get("seed", "1"),
++        ): number(row, key)
++        for row in rows
++        if is_private(row)
++    }
++    ratios: dict[tuple[str, ...], list[float]] = defaultdict(list)
++    for row in rows:
++        if is_private(row):
++            continue
++        point = (
++            row["pattern"],
++            row["link_latency"],
++            row["injection_rate"],
++            row.get("physical_vcs", "4"),
++            row.get("torus_x", "4"),
++            row.get("torus_y", "4"),
++            row.get("torus_z", "4"),
++            row.get("traffic_epoch_cycles", "0"),
++            row.get("traffic_x_bias", "0"),
++            row.get("traffic_x_hops", "0"),
++            row.get("seed", "1"),
++        )
++        base = baseline.get(point, math.nan)
++        value = number(row, key)
++        if math.isfinite(base) and base != 0 and math.isfinite(value):
++            group = (
++                row["pattern"],
++                row["link_latency"],
++                row["injection_rate"],
++                row.get("physical_vcs", "4"),
++                row.get("torus_x", "4"),
++                row.get("torus_y", "4"),
++                row.get("torus_z", "4"),
++                row.get("traffic_epoch_cycles", "0"),
++                row.get("traffic_x_bias", "0"),
++                row.get("traffic_x_hops", "0"),
++                row["mode"],
++            )
++            ratios[group].append(value / base)
++    return ratios
++
++
++def percent(numerator: float, denominator: float) -> float:
++    if not math.isfinite(numerator) or denominator <= 0:
++        return math.nan
++    return 100.0 * numerator / denominator
++
++
++def summarize(
++    rows: list[dict[str, str]], selected_rate: float | None
++) -> list[str]:
++    if selected_rate is None:
++        selected_rate = max(number(row, "injection_rate") for row in rows)
++    selected = [
++        row
++        for row in rows
++        if math.isclose(number(row, "injection_rate"), selected_rate)
++    ]
++    groups: dict[tuple[str, ...], list[dict[str, str]]] = defaultdict(list)
++    for row in selected:
++        groups[
++            (
++                row["pattern"],
++                row["link_latency"],
++                row.get("physical_vcs", "4"),
++                row.get("torus_x", "4"),
++                row.get("torus_y", "4"),
++                row.get("torus_z", "4"),
++                row.get("traffic_epoch_cycles", "0"),
++                row.get("traffic_x_bias", "0"),
++                row.get("traffic_x_hops", "0"),
++                row["mode"],
++            )
++        ].append(row)
++
++    throughput_ratios = paired_ratios(rows, "throughput")
++    latency_ratios = paired_ratios(rows, "network_latency")
++    lines = [
++        "",
++        f"## Summary at injection rate {selected_rate:g}",
++        "",
++        "Values are mean +/- approximate 95% CI across seeds. Ratios are "
++        "paired against the private baseline with the same physical VC "
++        "count and seed.",
++        "",
++        "| Pattern | Torus | L | VCs | Epoch | X bias | Hops | Mode | "
++        "Throughput | vs base | "
++        "Network latency | "
++        "vs base | Reclaim % | Handoff % | Pool service % | "
++        "Wait complete % | Recovery mean/max | Dominant Pool allocation |",
++        "|---|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|"
++        "---:|---:|---:|---:|---|",
++    ]
++    for group in sorted(groups):
++        (
++            pattern,
++            latency,
++            physical_vcs,
++            torus_x,
++            torus_y,
++            torus_z,
++            epoch,
++            bias,
++            hops,
++            mode,
++        ) = group
++        group_rows = groups[group]
++        ratio_key = (
++            pattern,
++            latency,
++            f"{selected_rate:g}",
++            physical_vcs,
++            torus_x,
++            torus_y,
++            torus_z,
++            epoch,
++            bias,
++            hops,
++            mode,
++        )
++        if ratio_key not in throughput_ratios:
++            ratio_key = (
++                pattern,
++                latency,
++                group_rows[0]["injection_rate"],
++                physical_vcs,
++                torus_x,
++                torus_y,
++                torus_z,
++                epoch,
++                bias,
++                hops,
++                mode,
++            )
++        allocations = [number(row, "pool_allocations") for row in group_rows]
++        reads = [number(row, "pool_reads") for row in group_rows]
++        reserved = [number(row, "reserved_reads") for row in group_rows]
++        reclaim = [
++            percent(number(row, "demand_reclaims"), allocation)
++            for row, allocation in zip(group_rows, allocations)
++        ]
++        handoff = [
++            percent(number(row, "release_handoffs"), read)
++            for row, read in zip(group_rows, reads)
++        ]
++        service = [
++            percent(read, read + res) for read, res in zip(reads, reserved)
++        ]
++        wait_completion = [
++            percent(
++                number(row, "ownership_wait_completions"),
++                number(row, "ownership_wait_starts"),
++            )
++            for row in group_rows
++        ]
++        wait_mean = [
++            number(row, "ownership_wait_cycles")
++            / number(row, "ownership_wait_completions")
++            if number(row, "ownership_wait_completions") > 0
++            else math.nan
++            for row in group_rows
++        ]
++        wait_max = [number(row, "ownership_wait_max") for row in group_rows]
++        wait_mean_text = fmt_mean_ci(wait_mean, 2)
++        recovery_text = (
++            "n/a"
++            if wait_mean_text == "n/a"
++            else f"{wait_mean_text}/{fmt_mean_ci(wait_max, 2)}"
++        )
++        direction_totals = {
++            direction: sum(
++                number(row, f"pool_allocations_{direction}")
++                for row in group_rows
++            )
++            for direction in DIRECTIONS
++        }
++        total_directional = sum(direction_totals.values())
++        if total_directional > 0:
++            dominant = max(direction_totals, key=direction_totals.get)
++            dominant_share = (
++                100 * direction_totals[dominant] / total_directional
++            )
++            dominant_text = f"{dominant} ({dominant_share:.1f}%)"
++        else:
++            dominant_text = "n/a"
++        throughput_ratio = throughput_ratios.get(ratio_key, [])
++        latency_ratio = latency_ratios.get(ratio_key, [])
++        lines.append(
++            "| {} | {}x{}x{} | {} | {} | {} | {} | {} | {} | {} | {} | "
++            "{} | {} | {} | {} | {} | {} | {} | {} |".format(
++                pattern,
++                torus_x,
++                torus_y,
++                torus_z,
++                latency,
++                physical_vcs,
++                epoch,
++                bias,
++                hops,
++                mode,
++                fmt_mean_ci(
++                    [number(row, "throughput") for row in group_rows], 4
++                ),
++                fmt_mean_ci(throughput_ratio, 3),
++                fmt_mean_ci(
++                    [number(row, "network_latency") for row in group_rows], 2
++                ),
++                fmt_mean_ci(latency_ratio, 3),
++                fmt_mean_ci(reclaim, 2),
++                fmt_mean_ci(handoff, 2),
++                fmt_mean_ci(service, 2),
++                fmt_mean_ci(wait_completion, 2),
++                recovery_text,
++                dominant_text,
++            )
++        )
++    return lines
++
++
++def main() -> int:
++    args = parse_args()
++    with args.results.open(newline="", encoding="utf-8") as csv_file:
++        rows = list(csv.DictReader(csv_file))
++    if not rows:
++        raise SystemExit("results CSV is empty")
++
++    lines = [
++        "# DP-Phys sweep summary",
++        "",
++        f"Input: `{args.results}` ({len(rows)} runs)",
++        "",
++    ]
++    lines.extend(validate(rows))
++    lines.extend(summarize(rows, args.rate))
++    report = "\n".join(lines) + "\n"
++    if args.output:
++        args.output.parent.mkdir(parents=True, exist_ok=True)
++        args.output.write_text(report, encoding="utf-8")
++    else:
++        print(report, end="")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/lab/DP/physical_bound/run_sweep_dpphys.py b/lab/DP/physical_bound/run_sweep_dpphys.py
+new file mode 100644
+index 0000000000..f84718a03d
+--- /dev/null
++++ b/lab/DP/physical_bound/run_sweep_dpphys.py
+@@ -0,0 +1,563 @@
++#!/usr/bin/env python3
++"""Sweep the equal-physical paired-pool DP-Phys implementation.
++
++All modes retain four physical VC slots per input port. The private baseline
++uses four ordinary VCs. DP-Phys splits the same pair capacity into one private
++adaptive VC plus one private escape VC per direction and four movable pool
++slots per opposing direction pair. Internal links expose logical pool IDs, but
++do not add physical storage. DP-Phys reads use complementary two-phase RR:
++side 0 RES / side 1 POOL, then side 0 POOL / side 1 RES.
++
++The default matrix compares private, RTS, owner-RR, and
++reserved-pressure/sticky credit ownership policies at link latencies 1 and 8.
++A gem5 deadlock panic is recorded as a result; another non-zero exit is treated
++as a harness failure.
++"""
++
++from __future__ import annotations
++
++import argparse
++import csv
++import math
++import os
++import shutil
++import subprocess
++from concurrent.futures import ThreadPoolExecutor, as_completed
++from pathlib import Path
++
++
++def find_repo_root() -> Path:
++    for candidate in Path(__file__).resolve().parents:
++        if (candidate / "build/NULL/gem5.opt").is_file():
++            return candidate
++    raise RuntimeError("could not locate build/NULL/gem5.opt")
++
++
++REPO_ROOT = find_repo_root()
++GEM5 = REPO_ROOT / "build/NULL/gem5.opt"
++CONFIG = REPO_ROOT / "configs/example/garnet_synth_traffic.py"
++TASK_DIR = Path(__file__).resolve().parent
++DEFAULT_ARTIFACT_DIR = TASK_DIR / "artifacts_dpphys"
++DEFAULT_RESULTS = TASK_DIR / "results_dpphys.csv"
++
++DPPHYS_BASE_FLAGS = [
++    "--enable-dpphys",
++    "--dpphys-private-vcs=1",
++    "--dpphys-pool-vcs=4",
++]
++
++
++def dpphys_flags(policy: str, owner_cap: int = 3) -> list[str]:
++    return DPPHYS_BASE_FLAGS + [
++        f"--dpphys-owner-cap={owner_cap}",
++        f"--dpphys-policy={policy}",
++    ]
++
++
++MODE_TABLE: dict[str, list[str]] = {
++    "private_v4": [],
++    "dpphys_rts": dpphys_flags("rts"),
++    "dpphys_owner_rr": dpphys_flags("rr"),
++    "dpphys_pressure": dpphys_flags("pressure"),
++    "dpphys_pressure_cap2": dpphys_flags("pressure", 2),
++    "dpphys_pressure_cap4": dpphys_flags("pressure", 4),
++    "private_v6": [],
++    "dpphys_pressure_v6": [
++        "--enable-dpphys",
++        "--dpphys-private-vcs=2",
++        "--dpphys-pool-vcs=6",
++        "--dpphys-owner-cap=4",
++        "--dpphys-policy=pressure",
++    ],
++    "dpphys_pressure_v6_full": [
++        "--enable-dpphys",
++        "--dpphys-private-vcs=2",
++        "--dpphys-pool-vcs=6",
++        "--dpphys-owner-cap=6",
++        "--dpphys-policy=pressure",
++    ],
++    "private_v8": [],
++    "dpphys_pressure_v8": [
++        "--enable-dpphys",
++        "--dpphys-private-vcs=3",
++        "--dpphys-pool-vcs=8",
++        "--dpphys-owner-cap=5",
++        "--dpphys-policy=pressure",
++    ],
++    "dpphys_pressure_v8_full": [
++        "--enable-dpphys",
++        "--dpphys-private-vcs=3",
++        "--dpphys-pool-vcs=8",
++        "--dpphys-owner-cap=8",
++        "--dpphys-policy=pressure",
++    ],
++}
++MODE_PHYSICAL_VCS = {
++    mode: 6 if "v6" in mode else 8 if "v8" in mode else 4
++    for mode in MODE_TABLE
++}
++MODES = list(MODE_TABLE)
++DEFAULT_MODES = [
++    "private_v4",
++    "dpphys_rts",
++    "dpphys_owner_rr",
++    "dpphys_pressure",
++]
++DEFAULT_PATTERNS = [
++    "torus3d_xopposite",
++    "torus3d_tornado",
++    "torus3d_transpose",
++    "torus3d_neighbor",
++    "uniform_random",
++]
++PATTERNS = DEFAULT_PATTERNS + ["torus3d_x_reversal", "torus3d_xbiased"]
++DEFAULT_RATES = [index / 20 for index in range(1, 21)]
++
++STAT_NAMES = {
++    "sim_ticks": "simTicks",
++    "packets_injected": "system.ruby.network.packets_injected::total",
++    "packets_received": "system.ruby.network.packets_received::total",
++    "queueing_latency": "system.ruby.network.average_packet_queueing_latency",
++    "network_latency": "system.ruby.network.average_packet_network_latency",
++    "packet_latency": "system.ruby.network.average_packet_latency",
++    "average_hops": "system.ruby.network.average_hops",
++    "escape_hops": "system.ruby.network.escape_hops",
++    "escape_transitions": "system.ruby.network.escape_transitions",
++    "pool_allocations": "system.ruby.network.dpphys_pool_allocations",
++    "owned_pool_allocations": (
++        "system.ruby.network.dpphys_owned_pool_allocations"
++    ),
++    "demand_reclaims": "system.ruby.network.dpphys_demand_reclaims",
++    "owner_migrations": "system.ruby.network.dpphys_owner_migrations",
++    "release_handoffs": "system.ruby.network.dpphys_release_handoffs",
++    "release_keeps": "system.ruby.network.dpphys_release_keeps",
++    "ownership_wait_starts": (
++        "system.ruby.network.dpphys_ownership_wait_starts"
++    ),
++    "ownership_wait_completions": (
++        "system.ruby.network.dpphys_ownership_wait_completions"
++    ),
++    "ownership_wait_cycles": (
++        "system.ruby.network.dpphys_ownership_wait_cycles"
++    ),
++    "ownership_wait_max": "system.ruby.network.dpphys_ownership_wait_max",
++    "pool_write_blocks": "system.ruby.network.dpphys_pool_write_blocks",
++    "pool_read_conflicts": "system.ruby.network.dpphys_pool_read_conflicts",
++    "pool_reads": "system.ruby.network.dpphys_pool_reads",
++    "reserved_reads": "system.ruby.network.dpphys_reserved_reads",
++    "borrowed_peak": "system.ruby.network.dpphys_borrowed_peak",
++}
++DIRECTION_NAMES = {
++    "east": "East",
++    "west": "West",
++    "north": "North",
++    "south": "South",
++    "up": "Up",
++    "down": "Down",
++}
++DIRECTIONAL_STATS = {
++    "pool_allocations": "dpphys_pool_allocations_by_dir",
++    "pool_reads": "dpphys_pool_reads_by_dir",
++    "reserved_reads": "dpphys_reserved_reads_by_dir",
++    "migrations_to": "dpphys_migrations_to_dir",
++}
++for metric, stat_name in DIRECTIONAL_STATS.items():
++    for direction, stat_subname in DIRECTION_NAMES.items():
++        STAT_NAMES[
++            f"{metric}_{direction}"
++        ] = f"system.ruby.network.{stat_name}::{stat_subname}"
++
++FIELDNAMES = [
++    "mode",
++    "physical_vcs",
++    "pattern",
++    "injection_rate",
++    "link_latency",
++    "sim_cycles",
++    "torus_x",
++    "torus_y",
++    "torus_z",
++    "traffic_epoch_cycles",
++    "traffic_x_bias",
++    "traffic_x_hops",
++    "seed",
++    "deadlock",
++    "expected_generated",
++    "packets_injected",
++    "packets_received",
++    "injection_acceptance",
++    "delivery_ratio",
++    "throughput",
++    "queueing_latency",
++    "network_latency",
++    "packet_latency",
++    "average_hops",
++    "escape_hops",
++    "escape_transitions",
++    "pool_allocations",
++    "owned_pool_allocations",
++    "demand_reclaims",
++    "owner_migrations",
++    "release_handoffs",
++    "release_keeps",
++    "ownership_wait_starts",
++    "ownership_wait_completions",
++    "ownership_wait_cycles",
++    "ownership_wait_max",
++    "pool_write_blocks",
++    "pool_read_conflicts",
++    "pool_reads",
++    "reserved_reads",
++    "borrowed_peak",
++    "sim_ticks",
++    *[
++        f"{metric}_{direction}"
++        for metric in DIRECTIONAL_STATS
++        for direction in DIRECTION_NAMES
++    ],
++]
++
++
++def parse_args() -> argparse.Namespace:
++    parser = argparse.ArgumentParser()
++    parser.add_argument(
++        "--modes", nargs="+", choices=MODES, default=DEFAULT_MODES
++    )
++    parser.add_argument(
++        "--patterns", nargs="+", choices=PATTERNS, default=DEFAULT_PATTERNS
++    )
++    parser.add_argument(
++        "--rates", nargs="+", type=float, default=DEFAULT_RATES
++    )
++    parser.add_argument(
++        "--link-latencies", nargs="+", type=int, default=[1, 8]
++    )
++    parser.add_argument("--sim-cycles", type=int, default=10_000)
++    parser.add_argument("--epoch-cycles", nargs="+", type=int, default=[64])
++    parser.add_argument("--x-biases", nargs="+", type=float, default=[1.0])
++    parser.add_argument("--x-hops", nargs="+", type=int, default=[1])
++    parser.add_argument("--seeds", nargs="+", type=int, default=[1])
++    parser.add_argument("--nodes", type=int, default=64)
++    parser.add_argument("--torus-x", type=int, default=4)
++    parser.add_argument("--torus-y", type=int, default=4)
++    parser.add_argument("--torus-z", type=int, default=4)
++    parser.add_argument(
++        "--jobs", type=int, default=min(8, os.cpu_count() or 1)
++    )
++    parser.add_argument(
++        "--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR
++    )
++    parser.add_argument("--results", type=Path, default=DEFAULT_RESULTS)
++    parser.add_argument("--force", action="store_true")
++    parser.add_argument("--keep-runs", action="store_true")
++    return parser.parse_args()
++
++
++def parse_stats(path: Path) -> dict[str, float]:
++    wanted = {stat_name: key for key, stat_name in STAT_NAMES.items()}
++    values: dict[str, float] = {}
++    with path.open(encoding="utf-8") as stats_file:
++        for line in stats_file:
++            fields = line.split()
++            if len(fields) >= 2 and fields[0] in wanted:
++                values[wanted[fields[0]]] = float(fields[1])
++    return values
++
++
++def existing_points(results: Path, force: bool) -> set[tuple[str, ...]]:
++    if force or not results.exists():
++        return set()
++    with results.open(newline="", encoding="utf-8") as csv_file:
++        return {
++            (
++                row["mode"],
++                row.get("physical_vcs", "4"),
++                row["pattern"],
++                f"{float(row['injection_rate']):.2f}",
++                row["link_latency"],
++                row["sim_cycles"],
++                row.get("torus_x", "4"),
++                row.get("torus_y", "4"),
++                row.get("torus_z", "4"),
++                row.get("traffic_epoch_cycles", "0"),
++                row.get("traffic_x_bias", "0"),
++                row.get("traffic_x_hops", "0"),
++                row.get("seed", "1"),
++            )
++            for row in csv.DictReader(csv_file)
++        }
++
++
++def run_point(
++    mode: str,
++    pattern: str,
++    rate: float,
++    link_latency: int,
++    sim_cycles: int,
++    traffic_epoch_cycles: int,
++    traffic_x_bias: float,
++    traffic_x_hops: int,
++    seed: int,
++    nodes: int,
++    torus_x: int,
++    torus_y: int,
++    torus_z: int,
++    artifact_dir: Path,
++    keep_runs: bool,
++) -> dict[str, float | str]:
++    run_root = artifact_dir / "runs"
++    log_root = artifact_dir / "logs"
++    log_root.mkdir(parents=True, exist_ok=True)
++    rate_text = f"{rate:.2f}"
++    name = (
++        f"{mode}_{pattern}_{rate_text}_l{link_latency}_c{sim_cycles}"
++        f"_x{torus_x}y{torus_y}z{torus_z}_e{traffic_epoch_cycles}"
++        f"_b{traffic_x_bias:g}_h{traffic_x_hops}_s{seed}"
++    )
++    run_dir = run_root / name
++    run_dir.mkdir(parents=True, exist_ok=True)
++    stats_path = run_dir / "stats.txt"
++    stats_path.unlink(missing_ok=True)
++    log_path = log_root / f"{name}.log"
++    command = [
++        str(GEM5),
++        "-d",
++        str(run_dir),
++        str(CONFIG),
++        "--network=garnet",
++        f"--num-cpus={nodes}",
++        f"--num-dirs={nodes}",
++        "--topology=Torus3D",
++        f"--torus-x={torus_x}",
++        f"--torus-y={torus_y}",
++        f"--torus-z={torus_z}",
++        "--routing-algorithm=4",
++        f"--vcs-per-vnet={MODE_PHYSICAL_VCS[mode]}",
++        "--escape-vcs=1",
++        "--inj-vnet=0",
++        f"--synthetic={pattern}",
++        f"--sim-cycles={sim_cycles}",
++        f"--random-seed={seed}",
++        f"--injectionrate={rate_text}",
++        f"--link-latency={link_latency}",
++    ] + MODE_TABLE[mode]
++    if pattern == "torus3d_x_reversal":
++        command.append(f"--traffic-epoch-cycles={traffic_epoch_cycles}")
++    if pattern == "torus3d_xbiased":
++        command.extend(
++            [
++                f"--traffic-x-bias={traffic_x_bias:g}",
++                f"--traffic-x-hops={traffic_x_hops}",
++            ]
++        )
++    with log_path.open("w", encoding="utf-8") as log_file:
++        result = subprocess.run(
++            command,
++            cwd=REPO_ROOT,
++            stdout=log_file,
++            stderr=subprocess.STDOUT,
++            check=False,
++        )
++
++    deadlock = 0
++    if result.returncode != 0:
++        log_text = log_path.read_text(encoding="utf-8", errors="replace")
++        if "deadlock" in log_text.lower():
++            deadlock = 1
++        else:
++            raise RuntimeError(f"gem5 failed for {name}; see {log_path}")
++
++    stats = parse_stats(stats_path) if stats_path.is_file() else {}
++    directional_keys = {
++        f"{metric}_{direction}"
++        for metric in DIRECTIONAL_STATS
++        for direction in DIRECTION_NAMES
++    }
++    for key in STAT_NAMES:
++        stats.setdefault(key, 0.0 if key in directional_keys else math.nan)
++    system_cycles = sim_cycles / 2
++    expected = nodes * system_cycles * rate
++    injected = stats["packets_injected"]
++    received = stats["packets_received"]
++    row: dict[str, float | str] = {
++        "mode": mode,
++        "physical_vcs": MODE_PHYSICAL_VCS[mode],
++        "pattern": pattern,
++        "injection_rate": rate,
++        "link_latency": link_latency,
++        "sim_cycles": sim_cycles,
++        "torus_x": torus_x,
++        "torus_y": torus_y,
++        "torus_z": torus_z,
++        "traffic_epoch_cycles": traffic_epoch_cycles,
++        "traffic_x_bias": traffic_x_bias,
++        "traffic_x_hops": traffic_x_hops,
++        "seed": seed,
++        "deadlock": deadlock,
++        "expected_generated": expected,
++        **stats,
++        "injection_acceptance": injected / expected if expected else math.nan,
++        "delivery_ratio": received / injected if injected else math.nan,
++        "throughput": received / nodes / sim_cycles,
++    }
++    if not keep_runs:
++        shutil.rmtree(run_dir, ignore_errors=True)
++    return row
++
++
++def sort_results(results: Path) -> None:
++    with results.open(newline="", encoding="utf-8") as csv_file:
++        rows = list(csv.DictReader(csv_file))
++    mode_order = {mode: index for index, mode in enumerate(MODES)}
++    pattern_order = {pattern: index for index, pattern in enumerate(PATTERNS)}
++    rows.sort(
++        key=lambda row: (
++            pattern_order[row["pattern"]],
++            int(row["link_latency"]),
++            int(row.get("physical_vcs", "4")),
++            mode_order[row["mode"]],
++            int(row["sim_cycles"]),
++            int(row.get("torus_x", "4")),
++            int(row.get("torus_y", "4")),
++            int(row.get("torus_z", "4")),
++            int(row.get("traffic_epoch_cycles", "0")),
++            float(row.get("traffic_x_bias", "0")),
++            int(row.get("traffic_x_hops", "0")),
++            float(row["injection_rate"]),
++            int(row.get("seed", "1")),
++        )
++    )
++    temporary = results.with_suffix(results.suffix + ".tmp")
++    with temporary.open("w", newline="", encoding="utf-8") as csv_file:
++        writer = csv.DictWriter(
++            csv_file, fieldnames=FIELDNAMES, lineterminator="\n"
++        )
++        writer.writeheader()
++        writer.writerows(rows)
++    temporary.replace(results)
++
++
++def main() -> int:
++    args = parse_args()
++    rates = sorted(set(args.rates))
++    latencies = sorted(set(args.link_latencies))
++    epochs = sorted(set(args.epoch_cycles))
++    biases = sorted(set(args.x_biases))
++    x_hops = sorted(set(args.x_hops))
++    seeds = sorted(set(args.seeds))
++    if any(rate <= 0 or rate > 1 for rate in rates):
++        raise SystemExit("all rates must lie in (0, 1]")
++    if any(latency < 1 for latency in latencies):
++        raise SystemExit("all link latencies must be positive")
++    if any(epoch < 1 for epoch in epochs):
++        raise SystemExit("all traffic epochs must be positive")
++    if any(bias < 0 or bias > 1 for bias in biases):
++        raise SystemExit("all X biases must lie in [0, 1]")
++    if any(hops < 1 or 2 * hops >= args.torus_x for hops in x_hops):
++        raise SystemExit("all X hops must satisfy 0 < 2 * hops < torus-x")
++    if args.nodes != args.torus_x * args.torus_y * args.torus_z:
++        raise SystemExit("the Torus3D dimension product must equal --nodes")
++
++    artifact_dir = args.artifact_dir.resolve()
++    results = args.results.resolve()
++    artifact_dir.mkdir(parents=True, exist_ok=True)
++    results.parent.mkdir(parents=True, exist_ok=True)
++    completed = existing_points(results, args.force)
++    all_points = []
++    for pattern in args.patterns:
++        pattern_epochs = epochs if pattern == "torus3d_x_reversal" else [0]
++        pattern_biases = biases if pattern == "torus3d_xbiased" else [0.0]
++        pattern_hops = x_hops if pattern == "torus3d_xbiased" else [0]
++        for latency in latencies:
++            for mode in args.modes:
++                for rate in rates:
++                    for epoch in pattern_epochs:
++                        for bias in pattern_biases:
++                            for hops in pattern_hops:
++                                for seed in seeds:
++                                    all_points.append(
++                                        (
++                                            mode,
++                                            pattern,
++                                            rate,
++                                            latency,
++                                            epoch,
++                                            bias,
++                                            hops,
++                                            seed,
++                                        )
++                                    )
++    points = [
++        point
++        for point in all_points
++        if (
++            point[0],
++            str(MODE_PHYSICAL_VCS[point[0]]),
++            point[1],
++            f"{point[2]:.2f}",
++            str(point[3]),
++            str(args.sim_cycles),
++            str(args.torus_x),
++            str(args.torus_y),
++            str(args.torus_z),
++            str(point[4]),
++            f"{point[5]:g}",
++            str(point[6]),
++            str(point[7]),
++        )
++        not in completed
++    ]
++    file_mode = "w" if args.force or not results.exists() else "a"
++    print(
++        f"{len(all_points) - len(points)} completed; {len(points)} remaining; "
++        f"running {args.jobs} job(s)",
++        flush=True,
++    )
++    with results.open(file_mode, newline="", encoding="utf-8") as csv_file:
++        writer = csv.DictWriter(
++            csv_file, fieldnames=FIELDNAMES, lineterminator="\n"
++        )
++        if file_mode == "w":
++            writer.writeheader()
++        with ThreadPoolExecutor(max_workers=args.jobs) as executor:
++            futures = {
++                executor.submit(
++                    run_point,
++                    mode,
++                    pattern,
++                    rate,
++                    latency,
++                    args.sim_cycles,
++                    epoch,
++                    bias,
++                    hops,
++                    seed,
++                    args.nodes,
++                    args.torus_x,
++                    args.torus_y,
++                    args.torus_z,
++                    artifact_dir,
++                    args.keep_runs,
++                ): (mode, pattern, rate, latency, epoch, bias, hops, seed)
++                for mode, pattern, rate, latency, epoch, bias, hops, seed in points
++            }
++            for future in as_completed(futures):
++                row = future.result()
++                writer.writerow(row)
++                csv_file.flush()
++                print(
++                    f"done {row['mode']} {row['pattern']} "
++                    f"rate={row['injection_rate']:.2f} "
++                    f"L={row['link_latency']} "
++                    f"epoch={row['traffic_epoch_cycles']} "
++                    f"bias={row['traffic_x_bias']:.2f} "
++                    f"hops={row['traffic_x_hops']} "
++                    f"seed={row['seed']}",
++                    flush=True,
++                )
++    sort_results(results)
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.cc b/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.cc
+index fc3d620414..393f3921fb 100644
+--- a/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.cc
++++ b/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.cc
+@@ -81,6 +81,12 @@ GarnetSyntheticTraffic::GarnetSyntheticTraffic(const Params &p)
+       size(p.memory_size),
+       blockSizeBits(p.block_offset),
+       numDestinations(p.num_dest),
++      torusX(p.torus_x),
++      torusY(p.torus_y),
++      torusZ(p.torus_z),
++      trafficEpochCycles(p.traffic_epoch_cycles),
++      trafficXBias(p.traffic_x_bias),
++      trafficXHops(p.traffic_x_hops),
+       simCycles(p.sim_cycles),
+       numPacketsMax(p.num_packets_max),
+       numPacketsSent(0),
+@@ -103,6 +109,24 @@ GarnetSyntheticTraffic::GarnetSyntheticTraffic(const Params &p)
+     }
+     traffic = trafficStringToEnum[trafficType];
+ 
++    if (traffic == TORUS_3D_NEIGHBOR_ ||
++        traffic == TORUS_3D_TORNADO_ ||
++        traffic == TORUS_3D_TRANSPOSE_ ||
++        traffic == TORUS_3D_XOPPOSITE_ ||
++        traffic == TORUS_3D_X_REVERSAL_ ||
++        traffic == TORUS_3D_XBIASED_) {
++        fatal_if(torusX * torusY * torusZ != numDestinations,
++            "3D traffic dimensions do not match the destination count");
++    }
++    fatal_if(traffic == TORUS_3D_X_REVERSAL_ && trafficEpochCycles == 0,
++        "torus3d_x_reversal requires traffic_epoch_cycles > 0");
++    fatal_if(traffic == TORUS_3D_XBIASED_ &&
++             (trafficXBias < 0.0 || trafficXBias > 1.0),
++        "torus3d_xbiased requires traffic_x_bias in [0, 1]");
++    fatal_if(traffic == TORUS_3D_XBIASED_ &&
++             (trafficXHops == 0 || 2 * trafficXHops >= torusX),
++        "torus3d_xbiased requires 0 < 2 * traffic_x_hops < torus_x");
++
+     id = TESTER_NETWORK++;
+     DPRINTF(GarnetSyntheticTraffic,"Config Created: Name = %s , and id = %d\n",
+             name(), id);
+@@ -236,6 +260,54 @@ GarnetSyntheticTraffic::generatePkt()
+         dest_x = (src_x + (int) ceil(radix/2) - 1) % radix;
+         dest_y = src_y;
+         destination = dest_y*radix + dest_x;
++    } else if (traffic == TORUS_3D_NEIGHBOR_ ||
++               traffic == TORUS_3D_TORNADO_ ||
++               traffic == TORUS_3D_TRANSPOSE_ ||
++               traffic == TORUS_3D_XOPPOSITE_ ||
++               traffic == TORUS_3D_X_REVERSAL_ ||
++               traffic == TORUS_3D_XBIASED_) {
++        const int src_3d_x = source % torusX;
++        const int src_3d_y = (source / torusX) % torusY;
++        const int src_3d_z = source / (torusX * torusY);
++        int dest_3d_x = src_3d_x;
++        int dest_3d_y = src_3d_y;
++        int dest_3d_z = src_3d_z;
++
++        if (traffic == TORUS_3D_NEIGHBOR_) {
++            dest_3d_x = (src_3d_x + 1) % torusX;
++        } else if (traffic == TORUS_3D_X_REVERSAL_) {
++            const uint64_t epoch =
++                static_cast<uint64_t>(curCycle()) / trafficEpochCycles;
++            const int delta = (epoch & 1) == 0 ? 1 : torusX - 1;
++            dest_3d_x = (src_3d_x + delta) % torusX;
++        } else if (traffic == TORUS_3D_XBIASED_) {
++            constexpr unsigned bias_scale = 1000000;
++            const unsigned draw =
++                random_mt.random<unsigned>(0, bias_scale - 1);
++            const bool positive =
++                draw < static_cast<unsigned>(trafficXBias * bias_scale);
++            const int delta = positive ? trafficXHops : torusX - trafficXHops;
++            dest_3d_x = (src_3d_x + delta) % torusX;
++        } else if (traffic == TORUS_3D_XOPPOSITE_) {
++            fatal_if(torusX % 2 != 0,
++                "torus3d_xopposite requires an even X dimension");
++            dest_3d_x = (src_3d_x + torusX / 2) % torusX;
++        } else if (traffic == TORUS_3D_TORNADO_) {
++            dest_3d_x =
++                (src_3d_x + (int)ceil(torusX / 2.0) - 1) % torusX;
++            dest_3d_y =
++                (src_3d_y + (int)ceil(torusY / 2.0) - 1) % torusY;
++            dest_3d_z =
++                (src_3d_z + (int)ceil(torusZ / 2.0) - 1) % torusZ;
++        } else {
++            fatal_if(torusX != torusY || torusY != torusZ,
++                "torus3d_transpose requires equal dimensions");
++            dest_3d_x = src_3d_z;
++            dest_3d_y = src_3d_x;
++            dest_3d_z = src_3d_y;
++        }
++        destination =
++            dest_3d_z * torusX * torusY + dest_3d_y * torusX + dest_3d_x;
+     }
+     else {
+         fatal("Unknown Traffic Type: %s!\n", traffic);
+@@ -334,6 +406,12 @@ GarnetSyntheticTraffic::initTrafficType()
+     trafficStringToEnum["tornado"] = TORNADO_;
+     trafficStringToEnum["transpose"] = TRANSPOSE_;
+     trafficStringToEnum["uniform_random"] = UNIFORM_RANDOM_;
++    trafficStringToEnum["torus3d_neighbor"] = TORUS_3D_NEIGHBOR_;
++    trafficStringToEnum["torus3d_tornado"] = TORUS_3D_TORNADO_;
++    trafficStringToEnum["torus3d_transpose"] = TORUS_3D_TRANSPOSE_;
++    trafficStringToEnum["torus3d_xopposite"] = TORUS_3D_XOPPOSITE_;
++    trafficStringToEnum["torus3d_x_reversal"] = TORUS_3D_X_REVERSAL_;
++    trafficStringToEnum["torus3d_xbiased"] = TORUS_3D_XBIASED_;
+ }
+ 
+ void
+diff --git a/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.hh b/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.hh
+index def3ed29a2..97a31a5e33 100644
+--- a/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.hh
++++ b/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.hh
+@@ -29,6 +29,7 @@
+ #ifndef __CPU_GARNET_SYNTHETIC_TRAFFIC_HH__
+ #define __CPU_GARNET_SYNTHETIC_TRAFFIC_HH__
+ 
++#include <cstdint>
+ #include <set>
+ 
+ #include "base/statistics.hh"
+@@ -51,6 +52,12 @@ enum TrafficType {BIT_COMPLEMENT_ = 0,
+                   TORNADO_ = 5,
+                   TRANSPOSE_ = 6,
+                   UNIFORM_RANDOM_ = 7,
++                  TORUS_3D_NEIGHBOR_ = 8,
++                  TORUS_3D_TORNADO_ = 9,
++                  TORUS_3D_TRANSPOSE_ = 10,
++                  TORUS_3D_XOPPOSITE_ = 11,
++                  TORUS_3D_X_REVERSAL_ = 12,
++                  TORUS_3D_XBIASED_ = 13,
+                   NUM_TRAFFIC_PATTERNS_};
+ 
+ class Packet;
+@@ -119,6 +126,12 @@ class GarnetSyntheticTraffic : public ClockedObject
+     Tick noResponseCycles;
+ 
+     int numDestinations;
++    int torusX;
++    int torusY;
++    int torusZ;
++    uint64_t trafficEpochCycles;
++    double trafficXBias;
++    uint32_t trafficXHops;
+     Tick simCycles;
+     int numPacketsMax;
+     int numPacketsSent;
+diff --git a/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.py b/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.py
+index 6b7e7b8ab4..d1924da8b3 100644
+--- a/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.py
++++ b/src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.py
+@@ -38,6 +38,21 @@ class GarnetSyntheticTraffic(ClockedObject):
+ 
+     block_offset = Param.Int(6, "block offset in bits")
+     num_dest = Param.Int(1, "Number of Destinations")
++    torus_x = Param.UInt32(0, "routers in the X dimension of a 3D torus")
++    torus_y = Param.UInt32(0, "routers in the Y dimension of a 3D torus")
++    torus_z = Param.UInt32(0, "routers in the Z dimension of a 3D torus")
++    traffic_epoch_cycles = Param.UInt64(
++        64,
++        "Cycles before torus3d_x_reversal changes direction",
++    )
++    traffic_x_bias = Param.Float(
++        1.0,
++        "Probability of choosing +X in torus3d_xbiased traffic",
++    )
++    traffic_x_hops = Param.UInt32(
++        1,
++        "Minimal X distance used by torus3d_xbiased traffic",
++    )
+     memory_size = Param.Int(65536, "memory size")
+     sim_cycles = Param.Int(1000, "Number of simulation cycles")
+     num_packets_max = Param.Int(
+diff --git a/src/mem/ruby/SConscript b/src/mem/ruby/SConscript
+index 1e386f922d..bc55974eeb 100644
+--- a/src/mem/ruby/SConscript
++++ b/src/mem/ruby/SConscript
+@@ -52,6 +52,7 @@ Import('*')
+ if env['CONF']['PROTOCOL'] == 'None':
+     Return()
+ 
++DebugFlag('DPPhys')
+ DebugFlag('ProtocolTrace')
+ DebugFlag('RubyCache')
+ DebugFlag('RubyCacheTrace')
+diff --git a/src/mem/ruby/network/garnet/CommonTypes.hh b/src/mem/ruby/network/garnet/CommonTypes.hh
+index 0bf6f3680d..8a1b558ae2 100644
+--- a/src/mem/ruby/network/garnet/CommonTypes.hh
++++ b/src/mem/ruby/network/garnet/CommonTypes.hh
+@@ -51,6 +51,8 @@ enum VNET_type {CTRL_VNET_, DATA_VNET_, NULL_VNET_, NUM_VNET_TYPE_};
+ enum flit_stage {I_, VA_, SA_, ST_, LT_, NUM_FLIT_STAGE_};
+ enum link_type { EXT_IN_, EXT_OUT_, INT_, NUM_LINK_TYPES_ };
+ enum RoutingAlgorithm { TABLE_ = 0, XY_ = 1, CUSTOM_ = 2,
++                        TORUS_3D_DOR_ = 3, TORUS_3D_ADAPTIVE_ = 4,
++                        MESH_3D_XYZ_ = 5,
+                         NUM_ROUTING_ALGORITHM_};
+ 
+ struct RouteInfo
+@@ -72,6 +74,16 @@ struct RouteInfo
+     int hops_traversed;
+ };
+ 
++struct AdaptiveRouteDecision
++{
++    AdaptiveRouteDecision(int port = -1, bool use_escape = false)
++        : outport(port), escape(use_escape)
++    {}
++
++    int outport;
++    bool escape;
++};
++
+ #define INFINITE_ 10000
+ 
+ } // namespace garnet
+diff --git a/src/mem/ruby/network/garnet/GarnetNetwork.cc b/src/mem/ruby/network/garnet/GarnetNetwork.cc
+index 57922698e0..5558a7a6f5 100644
+--- a/src/mem/ruby/network/garnet/GarnetNetwork.cc
++++ b/src/mem/ruby/network/garnet/GarnetNetwork.cc
+@@ -32,15 +32,18 @@
+ #include "mem/ruby/network/garnet/GarnetNetwork.hh"
+ 
+ #include <cassert>
++#include <limits>
+ 
+ #include "base/cast.hh"
+ #include "base/compiler.hh"
++#include "debug/DPPhys.hh"
+ #include "debug/RubyNetwork.hh"
+ #include "mem/ruby/common/NetDest.hh"
+ #include "mem/ruby/network/MessageBuffer.hh"
+ #include "mem/ruby/network/garnet/CommonTypes.hh"
+ #include "mem/ruby/network/garnet/CreditLink.hh"
+ #include "mem/ruby/network/garnet/GarnetLink.hh"
++#include "mem/ruby/network/garnet/InputUnit.hh"
+ #include "mem/ruby/network/garnet/NetworkInterface.hh"
+ #include "mem/ruby/network/garnet/NetworkLink.hh"
+ #include "mem/ruby/network/garnet/Router.hh"
+@@ -65,10 +68,27 @@ GarnetNetwork::GarnetNetwork(const Params &p)
+     : Network(p)
+ {
+     m_num_rows = p.num_rows;
++    m_torus_x = p.torus_x;
++    m_torus_y = p.torus_y;
++    m_torus_z = p.torus_z;
+     m_ni_flit_size = p.ni_flit_size;
+     m_max_vcs_per_vnet = 0;
++    m_max_link_vcs_per_vnet = 0;
++    m_escape_vcs = p.escape_vcs;
+     m_buffers_per_data_vc = p.buffers_per_data_vc;
+     m_buffers_per_ctrl_vc = p.buffers_per_ctrl_vc;
++    m_wormhole = p.wormhole;
++    m_enable_cbs = p.enable_cbs;
++    m_enable_dp = p.enable_dp;
++    m_dp_reserve = p.dp_reserve;
++    m_dp_shared_cap = p.dp_shared_cap;
++    m_enable_dpphys = p.enable_dpphys;
++    m_dpphys_private_vcs = p.dpphys_private_vcs;
++    m_dpphys_pool_vcs = p.dpphys_pool_vcs;
++    m_dpphys_owner_cap = p.dpphys_owner_cap;
++    m_dpphys_policy = p.dpphys_policy;
++    m_dpphys_borrowed_peak_value = 0;
++    m_dpphys_ownership_wait_max_value = 0;
+     m_routing_algorithm = p.routing_algorithm;
+     m_next_packet_id = 0;
+ 
+@@ -121,6 +141,124 @@ GarnetNetwork::init()
+     assert(m_topology_ptr != NULL);
+     m_topology_ptr->createLinks(this);
+ 
++    const uint64_t torus_routers =
++        static_cast<uint64_t>(m_torus_x) * m_torus_y * m_torus_z;
++    if (torus_routers > 0) {
++        fatal_if(m_torus_x < 2 || m_torus_y < 2 || m_torus_z < 2,
++            "All Torus3D dimensions must contain at least two routers");
++        fatal_if(torus_routers != m_routers.size(),
++            "Torus3D dimensions describe %llu routers, but the network "
++            "contains %d", torus_routers, m_routers.size());
++    }
++    fatal_if(isTorus3DAdaptive() && torus_routers == 0,
++        "Torus3D adaptive routing requires nonzero --torus-x/y/z");
++    fatal_if(isTorus3DAdaptive() &&
++             m_escape_vcs >= m_max_vcs_per_vnet,
++        "Torus3D adaptive routing requires at least one adaptive VC per "
++        "vnet; --escape-vcs must be smaller than --vcs-per-vnet");
++    fatal_if(isTorus3DAdaptive() && isWormhole(),
++        "Torus3D adaptive routing cannot be combined with --wormhole");
++    fatal_if(m_enable_cbs && m_routing_algorithm != TORUS_3D_DOR_,
++        "--enable-cbs requires Torus3D DOR routing "
++        "(--routing-algorithm=3)");
++    fatal_if(m_enable_cbs && torus_routers == 0,
++        "--enable-cbs requires nonzero --torus-x/y/z");
++    fatal_if(m_enable_cbs && isWormhole(),
++        "--enable-cbs cannot be combined with --wormhole");
++    fatal_if(m_enable_cbs && m_max_vcs_per_vnet < 2,
++        "--enable-cbs requires at least 2 VCs per vnet: ring entry next "
++        "to the critical bubble needs two free slots to ever proceed");
++    if (m_enable_cbs)
++        cbsInit();
++
++    if (m_enable_dp) {
++        fatal_if(torus_routers == 0,
++            "--enable-dp requires nonzero --torus-x/y/z");
++        fatal_if(m_torus_x < 3 || m_torus_y < 3 || m_torus_z < 3,
++            "--enable-dp requires torus dimensions >= 3: in a dimension "
++            "of size 2 both outports of a router lead to the same "
++            "downstream pool, and same-cycle grants could overrun the "
++            "cap");
++        fatal_if(isWormhole(),
++            "--enable-dp cannot be combined with --wormhole");
++        fatal_if(m_routing_algorithm != TORUS_3D_DOR_ &&
++                 m_routing_algorithm != TORUS_3D_ADAPTIVE_,
++            "--enable-dp requires Torus3D routing (--routing-algorithm=3 "
++            "with --enable-cbs, or --routing-algorithm=4)");
++        if (m_routing_algorithm == TORUS_3D_DOR_) {
++            fatal_if(!m_enable_cbs,
++                "--enable-dp on routing-algorithm 3 requires --enable-cbs: "
++                "the dedicated VCs run CBS as the deadlock-free substrate");
++            fatal_if(m_dp_reserve < 2,
++                "--enable-dp requires --dp-reserve >= 2: the dedicated "
++                "sub-ring runs CBS, which needs two slots per inport");
++            fatal_if(m_max_vcs_per_vnet <= m_dp_reserve,
++                "--enable-dp requires --vcs-per-vnet > --dp-reserve so at "
++                "least one pooled VC exists per inport");
++        } else {
++            fatal_if(m_escape_vcs < 1,
++                "--enable-dp on routing-algorithm 4 requires "
++                "--escape-vcs >= 1: the Mesh3D escape VCs are the "
++                "deadlock-free substrate and stay exempt from the pool");
++        }
++        const uint32_t pooled_per_inport =
++            (m_routing_algorithm == TORUS_3D_DOR_) ?
++                m_max_vcs_per_vnet - m_dp_reserve :
++                m_max_vcs_per_vnet - m_escape_vcs;
++        const uint32_t max_pool_cap = 2 * pooled_per_inport;
++        fatal_if(m_dp_shared_cap < 1 ||
++                 m_dp_shared_cap > max_pool_cap,
++            "--dp-shared-cap must lie in [1, %u]; a cap of %u pools "
++            "nothing or exceeds the dimension-pair storage",
++            max_pool_cap, m_dp_shared_cap);
++        dpInit();
++    }
++
++    if (m_enable_dpphys) {
++        fatal_if(m_enable_dp,
++            "--enable-dpphys and --enable-dp are mutually exclusive");
++        fatal_if(torus_routers == 0 || m_torus_x < 3 || m_torus_y < 3 ||
++                 m_torus_z < 3,
++            "--enable-dpphys requires Torus3D dimensions >= 3");
++        fatal_if(m_routing_algorithm != TORUS_3D_ADAPTIVE_,
++            "--enable-dpphys requires adaptive Torus3D routing "
++            "(--routing-algorithm=4)");
++        fatal_if(m_enable_cbs || m_wormhole,
++            "--enable-dpphys cannot be combined with CBS or wormhole mode");
++        fatal_if(m_escape_vcs < 1,
++            "--enable-dpphys requires at least one private escape VC");
++        fatal_if(m_dpphys_private_vcs < 1 ||
++                 m_dpphys_pool_vcs < 2 || m_dpphys_pool_vcs % 2 != 0,
++            "DP-Phys requires at least one private adaptive VC and a "
++            "positive even pool size");
++        const uint32_t expected_physical = m_dpphys_private_vcs +
++            m_dpphys_pool_vcs / 2 + m_escape_vcs;
++        const uint32_t reserved_vcs =
++            m_dpphys_private_vcs + m_escape_vcs;
++        fatal_if(reserved_vcs != m_dpphys_pool_vcs / 2,
++            "DP-Phys phase RR requires private + escape (%u) to equal "
++            "half of the pool (%u)", reserved_vcs,
++            m_dpphys_pool_vcs / 2);
++        fatal_if(m_max_vcs_per_vnet != expected_physical,
++            "DP-Phys physical layout requires --vcs-per-vnet=%u "
++            "(private %u + local pool half %u + escape %u), got %u",
++            expected_physical, m_dpphys_private_vcs,
++            m_dpphys_pool_vcs / 2, m_escape_vcs,
++            m_max_vcs_per_vnet);
++        fatal_if(m_buffers_per_ctrl_vc != 1,
++            "DP-Phys currently requires one-flit control VC storage");
++        fatal_if(m_dpphys_owner_cap < m_dpphys_pool_vcs / 2 ||
++                 m_dpphys_owner_cap > m_dpphys_pool_vcs,
++            "--dpphys-owner-cap must lie in [%u, %u]",
++            m_dpphys_pool_vcs / 2, m_dpphys_pool_vcs);
++        fatal_if(m_dpphys_policy != "rts" &&
++                 m_dpphys_policy != "rr" &&
++                 m_dpphys_policy != "pressure",
++            "--dpphys-policy must be rts, rr, or pressure, got '%s'",
++            m_dpphys_policy);
++        dpPhysInit();
++    }
++
+     // Initialize topology specific parameters
+     if (getNumRows() > 0) {
+         // Only for Mesh topology
+@@ -152,6 +290,496 @@ GarnetNetwork::init()
+     }
+ }
+ 
++/*
++ * Critical Bubble Scheme (CBS) support. One buffer slot per directed torus
++ * ring per vnet is marked "critical"; packets entering a ring may never
++ * consume it, packets travelling along the ring may displace it upstream.
++ * On ctrl vnets (single-flit packets, one buffer per VC) a slot is exactly
++ * one VC, so the mark is tracked per (router, inport direction, vnet).
++ */
++
++int
++GarnetNetwork::cbsDirnIndex(const PortDirection &dirn)
++{
++    if (dirn == "East") return 0;
++    if (dirn == "West") return 1;
++    if (dirn == "North") return 2;
++    if (dirn == "South") return 3;
++    if (dirn == "Up") return 4;
++    if (dirn == "Down") return 5;
++    return -1; // "Local" and unknown directions host no CBS mark
++}
++
++PortDirection
++GarnetNetwork::cbsOppositeDirn(const PortDirection &dirn)
++{
++    if (dirn == "East") return "West";
++    if (dirn == "West") return "East";
++    if (dirn == "North") return "South";
++    if (dirn == "South") return "North";
++    if (dirn == "Up") return "Down";
++    if (dirn == "Down") return "Up";
++    panic("CBS: no opposite for port direction %s", dirn);
++}
++
++int
++GarnetNetwork::cbsDownstreamRouter(int router_id,
++                                   const PortDirection &outport_dirn) const
++{
++    const int X = m_torus_x;
++    const int Y = m_torus_y;
++    const int Z = m_torus_z;
++    int x = router_id % X;
++    int y = (router_id / X) % Y;
++    int z = router_id / (X * Y);
++
++    if (outport_dirn == "East") x = (x + 1) % X;
++    else if (outport_dirn == "West") x = (x - 1 + X) % X;
++    else if (outport_dirn == "North") y = (y + 1) % Y;
++    else if (outport_dirn == "South") y = (y - 1 + Y) % Y;
++    else if (outport_dirn == "Up") z = (z + 1) % Z;
++    else if (outport_dirn == "Down") z = (z - 1 + Z) % Z;
++    else panic("CBS: no downstream router across port %s", outport_dirn);
++
++    return z * X * Y + y * X + x;
++}
++
++void
++GarnetNetwork::cbsInit()
++{
++    const int X = m_torus_x;
++    const int Y = m_torus_y;
++    const int Z = m_torus_z;
++
++    m_cbs_mark.assign(m_routers.size(),
++        std::vector<std::vector<bool>>(6,
++            std::vector<bool>(m_virtual_networks, false)));
++
++    // Place one critical bubble per directed ring per vnet, at the ring's
++    // coordinate-0 router. A packet moving in direction D arrives at the
++    // downstream inport facing opposite(D).
++    for (int vnet = 0; vnet < m_virtual_networks; vnet++) {
++        for (int z = 0; z < Z; z++) {
++            for (int y = 0; y < Y; y++) {
++                int r = z * X * Y + y * X; // x = 0
++                m_cbs_mark[r][cbsDirnIndex("West")][vnet] = true; // +X ring
++                m_cbs_mark[r][cbsDirnIndex("East")][vnet] = true; // -X ring
++            }
++        }
++        for (int z = 0; z < Z; z++) {
++            for (int x = 0; x < X; x++) {
++                int r = z * X * Y + x; // y = 0
++                m_cbs_mark[r][cbsDirnIndex("South")][vnet] = true; // +Y ring
++                m_cbs_mark[r][cbsDirnIndex("North")][vnet] = true; // -Y ring
++            }
++        }
++        for (int y = 0; y < Y; y++) {
++            for (int x = 0; x < X; x++) {
++                int r = y * X + x; // z = 0
++                m_cbs_mark[r][cbsDirnIndex("Down")][vnet] = true; // +Z ring
++                m_cbs_mark[r][cbsDirnIndex("Up")][vnet] = true; // -Z ring
++            }
++        }
++    }
++}
++
++bool
++GarnetNetwork::cbsHasMark(int router_id, const PortDirection &inport_dirn,
++                          int vnet) const
++{
++    int d = cbsDirnIndex(inport_dirn);
++    if (d < 0)
++        return false;
++    return m_cbs_mark[router_id][d][vnet];
++}
++
++void
++GarnetNetwork::cbsMoveMark(int from_router, const PortDirection &from_inport,
++                           int to_router, const PortDirection &to_inport,
++                           int vnet)
++{
++    int from_d = cbsDirnIndex(from_inport);
++    int to_d = cbsDirnIndex(to_inport);
++    assert(from_d >= 0 && to_d >= 0);
++    assert(m_cbs_mark[from_router][from_d][vnet]);
++    assert(!m_cbs_mark[to_router][to_d][vnet]);
++    m_cbs_mark[from_router][from_d][vnet] = false;
++    m_cbs_mark[to_router][to_d][vnet] = true;
++    m_cbs_mark_moves++;
++}
++
++/*
++ * Dimension Pool (DP) support. Pooled VCs of the two opposing inports of one
++ * dimension form a joint pool. Admission is denied when the pair reaches its
++ * cap.
++ * Deadlock freedom never depends on the pool: the dedicated window
++ * [0, dp_reserve) runs CBS on algorithm 3, the escape window on
++ * algorithm 4 stays exempt. Occupancy is counted at allocation grant
++ * (upstream reserves the slot) and released on the VC's free credit.
++ */
++
++bool
++GarnetNetwork::dpPooledOffset(int vc_offset) const
++{
++    if (m_routing_algorithm == TORUS_3D_DOR_)
++        return vc_offset >= static_cast<int>(m_dp_reserve);
++    // Adaptive routing: the adaptive class [0, V - escape_vcs) is pooled,
++    // the trailing escape VCs are exempt.
++    return vc_offset <
++        static_cast<int>(m_max_vcs_per_vnet - m_escape_vcs);
++}
++
++int
++GarnetNetwork::dpSharedUsed(int router_id, const PortDirection &inport_dirn,
++                            int vnet) const
++{
++    int d = cbsDirnIndex(inport_dirn);
++    assert(d >= 0);
++    return m_dp_shared_occ[router_id][d][vnet] +
++           m_dp_shared_occ[router_id][d ^ 1][vnet];
++}
++
++bool
++GarnetNetwork::dpPoolFull(int router_id, const PortDirection &inport_dirn,
++                          int vnet) const
++{
++    if (cbsDirnIndex(inport_dirn) < 0)
++        return false; // Local ports are not pooled
++    return dpSharedUsed(router_id, inport_dirn, vnet) >=
++        static_cast<int>(m_dp_shared_cap);
++}
++
++void
++GarnetNetwork::dpNoteAlloc(int router_id, const PortDirection &inport_dirn,
++                           int vnet, int vc_offset)
++{
++    int d = cbsDirnIndex(inport_dirn);
++    if (d < 0 || !dpGoverns(vnet) || !dpPooledOffset(vc_offset))
++        return;
++    m_dp_shared_occ[router_id][d][vnet]++;
++    m_dp_shared_grants++;
++}
++
++void
++GarnetNetwork::dpNoteFree(int router_id, const PortDirection &inport_dirn,
++                          int vnet, int vc_offset)
++{
++    int d = cbsDirnIndex(inport_dirn);
++    if (d < 0 || !dpGoverns(vnet) || !dpPooledOffset(vc_offset))
++        return;
++    assert(m_dp_shared_occ[router_id][d][vnet] > 0);
++    m_dp_shared_occ[router_id][d][vnet]--;
++}
++
++void
++GarnetNetwork::dpInit()
++{
++    m_dp_shared_occ.assign(m_routers.size(),
++        std::vector<std::vector<int>>(6,
++            std::vector<int>(m_virtual_networks, 0)));
++}
++
++bool
++GarnetNetwork::dpPhysGoverns(int vnet,
++                             const PortDirection &direction) const
++{
++    return m_enable_dpphys && cbsDirnIndex(direction) >= 0 &&
++           m_vnet_type[vnet] == CTRL_VNET_;
++}
++
++bool
++GarnetNetwork::dpPhysPhysicalPooledOffset(int vc_offset) const
++{
++    return vc_offset >= static_cast<int>(m_dpphys_private_vcs) &&
++           vc_offset < static_cast<int>(m_dpphys_private_vcs +
++                                        m_dpphys_pool_vcs / 2);
++}
++
++void
++GarnetNetwork::dpPhysMapLogicalVC(
++    int router_id, const PortDirection &true_inport, int vnet,
++    int logical_offset, PortDirection &physical_inport,
++    int &physical_offset) const
++{
++    const int d = cbsDirnIndex(true_inport);
++    assert(d >= 0 && router_id >= 0 && router_id < m_routers.size());
++    const int pair = d / 2;
++    const int side = d % 2;
++    physical_inport = true_inport;
++
++    if (logical_offset < static_cast<int>(m_dpphys_private_vcs)) {
++        physical_offset = logical_offset;
++        return;
++    }
++
++    const int pool_begin = m_dpphys_private_vcs;
++    const int pool_end = pool_begin + m_dpphys_pool_vcs;
++    if (logical_offset < pool_end) {
++        const int slot = logical_offset - pool_begin;
++        assert(m_dpphys_busy[router_id][pair][vnet][slot]);
++        assert(m_dpphys_owner[router_id][pair][vnet][slot] == side);
++        const int physical_side = slot / (m_dpphys_pool_vcs / 2);
++        const int physical_dir = pair * 2 + physical_side;
++        static const PortDirection directions[6] = {
++            "East", "West", "North", "South", "Up", "Down"
++        };
++        physical_inport = directions[physical_dir];
++        physical_offset = m_dpphys_private_vcs +
++                          slot % (m_dpphys_pool_vcs / 2);
++        return;
++    }
++
++    const int escape_offset = logical_offset - pool_end;
++    assert(escape_offset >= 0 &&
++           escape_offset < static_cast<int>(m_escape_vcs));
++    physical_offset = m_dpphys_private_vcs + m_dpphys_pool_vcs / 2 +
++                      escape_offset;
++}
++
++int
++GarnetNetwork::dpPhysOwnerCount(int router_id, int pair, int vnet,
++                                int side) const
++{
++    int count = 0;
++    for (int owner : m_dpphys_owner[router_id][pair][vnet])
++        count += owner == side;
++    return count;
++}
++
++bool
++GarnetNetwork::dpPhysSlotOwnedBy(
++    int router_id, const PortDirection &inport_dirn, int vnet, int slot) const
++{
++    const int d = cbsDirnIndex(inport_dirn);
++    assert(d >= 0 && slot >= 0 &&
++           slot < static_cast<int>(m_dpphys_pool_vcs));
++    return m_dpphys_owner[router_id][d / 2][vnet][slot] == d % 2;
++}
++
++bool
++GarnetNetwork::dpPhysCanClaimSlot(
++    int router_id, const PortDirection &inport_dirn, int vnet, int slot) const
++{
++    const int d = cbsDirnIndex(inport_dirn);
++    assert(d >= 0 && slot >= 0 &&
++           slot < static_cast<int>(m_dpphys_pool_vcs));
++    const int pair = d / 2;
++    const int side = d % 2;
++    if (m_dpphys_busy[router_id][pair][vnet][slot])
++        return false;
++    if (m_dpphys_owner[router_id][pair][vnet][slot] == side)
++        return true;
++    return m_dpphys_policy == "pressure" &&
++           dpPhysOwnerCount(router_id, pair, vnet, side) <
++               static_cast<int>(m_dpphys_owner_cap);
++}
++
++bool
++GarnetNetwork::dpPhysPoolWriteAvailable(
++    int router_id, const PortDirection &inport_dirn, int vnet,
++    Tick when) const
++{
++    const int d = cbsDirnIndex(inport_dirn);
++    assert(d >= 0);
++    return m_dpphys_write_tick[router_id][d / 2][vnet] != when;
++}
++
++void
++GarnetNetwork::dpPhysSetOwner(int router_id, int pair, int vnet,
++                              int slot, int side)
++{
++    int &owner = m_dpphys_owner[router_id][pair][vnet][slot];
++    if (owner == side)
++        return;
++    owner = side;
++    m_dpphys_owner_migrations++;
++    m_dpphys_migrations_to_dir[pair * 2 + side]++;
++    uint64_t &wait_start =
++        m_dpphys_ownership_wait_start[router_id][pair][vnet][side];
++    if (wait_start != std::numeric_limits<uint64_t>::max()) {
++        const uint64_t delay =
++            static_cast<uint64_t>(curCycle()) - wait_start;
++        m_dpphys_ownership_wait_completions++;
++        m_dpphys_ownership_wait_cycles += delay;
++        if (delay > m_dpphys_ownership_wait_max_value) {
++            m_dpphys_ownership_wait_max_value = delay;
++            m_dpphys_ownership_wait_max = delay;
++        }
++        wait_start = std::numeric_limits<uint64_t>::max();
++    }
++    const int borrowed = dpPhysOwnerCount(router_id, pair, vnet, side) -
++                         static_cast<int>(m_dpphys_pool_vcs / 2);
++    if (borrowed > static_cast<int>(m_dpphys_borrowed_peak_value)) {
++        m_dpphys_borrowed_peak_value = borrowed;
++        m_dpphys_borrowed_peak = borrowed;
++    }
++}
++
++bool
++GarnetNetwork::dpPhysClaimSlot(
++    int router_id, const PortDirection &inport_dirn, int vnet, int slot,
++    Tick when)
++{
++    const int d = cbsDirnIndex(inport_dirn);
++    assert(d >= 0);
++    const int pair = d / 2;
++    const int side = d % 2;
++    if (!dpPhysPoolWriteAvailable(
++            router_id, inport_dirn, vnet, when)) {
++        m_dpphys_pool_write_blocks++;
++        return false;
++    }
++    if (!dpPhysCanClaimSlot(router_id, inport_dirn, vnet, slot))
++        return false;
++    const bool demand_reclaim =
++        m_dpphys_owner[router_id][pair][vnet][slot] != side;
++    if (demand_reclaim) {
++        dpPhysNoteOwnershipDemand(router_id, inport_dirn, vnet);
++        DPRINTF(DPPhys, "owner-change tick=%llu cycle=%llu router=%d "
++                "pair=%d vnet=%d slot=%d from=%d to=%d cause=demand\n",
++                static_cast<unsigned long long>(curTick()),
++                static_cast<unsigned long long>(curCycle()), router_id,
++                pair, vnet, slot, side ^ 1, side);
++    }
++    dpPhysSetOwner(router_id, pair, vnet, slot, side);
++    m_dpphys_busy[router_id][pair][vnet][slot] = true;
++    m_dpphys_write_tick[router_id][pair][vnet] = when;
++    m_dpphys_pool_allocations++;
++    m_dpphys_pool_allocations_by_dir[d]++;
++    if (demand_reclaim)
++        m_dpphys_demand_reclaims++;
++    else
++        m_dpphys_owned_pool_allocations++;
++    return true;
++}
++
++void
++GarnetNetwork::dpPhysNoteOwnershipDemand(
++    int router_id, const PortDirection &inport_dirn, int vnet)
++{
++    const int d = cbsDirnIndex(inport_dirn);
++    assert(d >= 0);
++    const int pair = d / 2;
++    const int side = d % 2;
++    if (dpPhysOwnerCount(router_id, pair, vnet, side) >=
++        static_cast<int>(m_dpphys_owner_cap)) {
++        return;
++    }
++
++    uint64_t &wait_start =
++        m_dpphys_ownership_wait_start[router_id][pair][vnet][side];
++    if (wait_start == std::numeric_limits<uint64_t>::max()) {
++        wait_start = static_cast<uint64_t>(curCycle());
++        m_dpphys_ownership_wait_starts++;
++    }
++}
++
++int
++GarnetNetwork::dpPhysReservedUsed(
++    int router_id, const PortDirection &inport_dirn, int vnet) const
++{
++    auto *input = m_routers[router_id]->getInputUnitByDirection(inport_dirn);
++    int used = input->count_active_vcs(vnet, 0, m_dpphys_private_vcs);
++    const int escape_begin = m_dpphys_private_vcs +
++                             m_dpphys_pool_vcs / 2;
++    used += input->count_active_vcs(vnet, escape_begin, m_escape_vcs);
++    return used;
++}
++
++void
++GarnetNetwork::dpPhysNoteFree(
++    int router_id, const PortDirection &true_inport, int vnet,
++    int logical_offset)
++{
++    const int pool_begin = m_dpphys_private_vcs;
++    const int slot = logical_offset - pool_begin;
++    if (!dpPhysGoverns(vnet, true_inport) || slot < 0 ||
++        slot >= static_cast<int>(m_dpphys_pool_vcs))
++        return;
++
++    const int d = cbsDirnIndex(true_inport);
++    const int pair = d / 2;
++    const int side = d % 2;
++    assert(m_dpphys_busy[router_id][pair][vnet][slot]);
++    assert(m_dpphys_owner[router_id][pair][vnet][slot] == side);
++    m_dpphys_busy[router_id][pair][vnet][slot] = false;
++
++    int target = side;
++    if (m_dpphys_policy == "rr") {
++        target = m_dpphys_rr_next[router_id][pair][vnet];
++        m_dpphys_rr_next[router_id][pair][vnet] ^= 1;
++    } else if (m_dpphys_policy == "pressure") {
++        const int peer = side ^ 1;
++        static const PortDirection directions[6] = {
++            "East", "West", "North", "South", "Up", "Down"
++        };
++        const int own_pressure = dpPhysReservedUsed(
++            router_id, directions[pair * 2 + side], vnet);
++        const int peer_pressure = dpPhysReservedUsed(
++            router_id, directions[pair * 2 + peer], vnet);
++        // Equal pressure is deliberately sticky: a returning credit remains
++        // with the last user, which preserves burst/packet locality.
++        if (peer_pressure > own_pressure)
++            target = peer;
++    }
++
++    if (target != side &&
++        dpPhysOwnerCount(router_id, pair, vnet, target) >=
++            static_cast<int>(m_dpphys_owner_cap))
++        target = side;
++    if (target == side)
++        m_dpphys_release_keeps++;
++    else {
++        m_dpphys_release_handoffs++;
++        DPRINTF(DPPhys, "owner-change tick=%llu cycle=%llu router=%d "
++                "pair=%d vnet=%d slot=%d from=%d to=%d cause=release\n",
++                static_cast<unsigned long long>(curTick()),
++                static_cast<unsigned long long>(curCycle()), router_id,
++                pair, vnet, slot, side, target);
++    }
++    dpPhysSetOwner(router_id, pair, vnet, slot, target);
++}
++
++void
++GarnetNetwork::dpPhysInit()
++{
++    const int routers = m_routers.size();
++    const int pairs = 3;
++    m_dpphys_owner.assign(routers,
++        std::vector<std::vector<std::vector<int>>>(pairs,
++            std::vector<std::vector<int>>(m_virtual_networks,
++                std::vector<int>(m_dpphys_pool_vcs, 0))));
++    m_dpphys_busy.assign(routers,
++        std::vector<std::vector<std::vector<bool>>>(pairs,
++            std::vector<std::vector<bool>>(m_virtual_networks,
++                std::vector<bool>(m_dpphys_pool_vcs, false))));
++    m_dpphys_rr_next.assign(routers,
++        std::vector<std::vector<int>>(pairs,
++            std::vector<int>(m_virtual_networks, 0)));
++    m_dpphys_write_tick.assign(routers,
++        std::vector<std::vector<Tick>>(pairs,
++            std::vector<Tick>(m_virtual_networks,
++                std::numeric_limits<Tick>::max())));
++    m_dpphys_ownership_wait_start.assign(routers,
++        std::vector<std::vector<std::vector<uint64_t>>>(pairs,
++            std::vector<std::vector<uint64_t>>(m_virtual_networks,
++                std::vector<uint64_t>(
++                    2, std::numeric_limits<uint64_t>::max()))));
++
++    // Start at the private baseline: each direction owns the two pool
++    // entries physically located in its own InputUnit.
++    for (int router = 0; router < routers; ++router) {
++        for (int pair = 0; pair < pairs; ++pair) {
++            for (int vnet = 0; vnet < m_virtual_networks; ++vnet) {
++                for (int slot = 0; slot < m_dpphys_pool_vcs; ++slot) {
++                    m_dpphys_owner[router][pair][vnet][slot] =
++                        slot / (m_dpphys_pool_vcs / 2);
++                }
++            }
++        }
++    }
++}
++
+ /*
+  * This function creates a link from the Network Interface (NI)
+  * into the Network.
+@@ -180,6 +808,8 @@ GarnetNetwork::makeExtInLink(NodeID global_src, SwitchID dest, BasicLink* link,
+ 
+     m_max_vcs_per_vnet = std::max(m_max_vcs_per_vnet,
+                              m_routers[dest]->get_vc_per_vnet());
++    m_max_link_vcs_per_vnet = std::max(m_max_link_vcs_per_vnet,
++                             m_routers[dest]->get_vc_per_vnet());
+ 
+     /*
+      * We check if a bridge was enabled at any end of the link.
+@@ -253,6 +883,8 @@ GarnetNetwork::makeExtOutLink(SwitchID src, NodeID global_dest,
+ 
+     m_max_vcs_per_vnet = std::max(m_max_vcs_per_vnet,
+                              m_routers[src]->get_vc_per_vnet());
++    m_max_link_vcs_per_vnet = std::max(m_max_link_vcs_per_vnet,
++                             m_routers[src]->get_vc_per_vnet());
+ 
+     /*
+      * We check if a bridge was enabled at any end of the link.
+@@ -322,6 +954,10 @@ GarnetNetwork::makeInternalLink(SwitchID src, SwitchID dest, BasicLink* link,
+     m_max_vcs_per_vnet = std::max(m_max_vcs_per_vnet,
+                              std::max(m_routers[dest]->get_vc_per_vnet(),
+                              m_routers[src]->get_vc_per_vnet()));
++    const uint32_t consumer_vcs = m_enable_dpphys ?
++        getDPPhysLogicalVCs() : m_routers[dest]->get_vc_per_vnet();
++    m_max_link_vcs_per_vnet = std::max(
++        m_max_link_vcs_per_vnet, consumer_vcs);
+ 
+     /*
+      * We check if a bridge was enabled at any end of the link.
+@@ -355,13 +991,13 @@ GarnetNetwork::makeInternalLink(SwitchID src, SwitchID dest, BasicLink* link,
+             addOutPort(src_outport_dirn, n_bridge,
+                        routing_table_entry,
+                        link->m_weight, garnet_link->srcCredBridge,
+-                       m_routers[dest]->get_vc_per_vnet());
++                       consumer_vcs);
+         m_networkbridges.push_back(n_bridge);
+     } else {
+         m_routers[src]->addOutPort(src_outport_dirn, net_link,
+                         routing_table_entry,
+                         link->m_weight, credit_link,
+-                        m_routers[dest]->get_vc_per_vnet());
++                        consumer_vcs);
+     }
+ }
+ 
+@@ -386,10 +1022,19 @@ GarnetNetwork::regStats()
+ {
+     Network::regStats();
+ 
++    const auto *count = statistics::units::Count::get();
++    const auto *tick = statistics::units::Tick::get();
++    const auto *tick_per_count = statistics::units::Rate<
++        statistics::units::Tick, statistics::units::Count>::get();
++    const auto *count_per_count = statistics::units::Rate<
++        statistics::units::Count, statistics::units::Count>::get();
++    const auto *ratio = statistics::units::Ratio::get();
++
+     // Packets
+     m_packets_received
+         .init(m_virtual_networks)
+         .name(name() + ".packets_received")
++        .unit(count)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -397,6 +1042,7 @@ GarnetNetwork::regStats()
+     m_packets_injected
+         .init(m_virtual_networks)
+         .name(name() + ".packets_injected")
++        .unit(count)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -404,12 +1050,14 @@ GarnetNetwork::regStats()
+     m_packet_network_latency
+         .init(m_virtual_networks)
+         .name(name() + ".packet_network_latency")
++        .unit(tick)
+         .flags(statistics::oneline)
+         ;
+ 
+     m_packet_queueing_latency
+         .init(m_virtual_networks)
+         .name(name() + ".packet_queueing_latency")
++        .unit(tick)
+         .flags(statistics::oneline)
+         ;
+ 
+@@ -422,28 +1070,33 @@ GarnetNetwork::regStats()
+ 
+     m_avg_packet_vnet_latency
+         .name(name() + ".average_packet_vnet_latency")
++        .unit(tick_per_count)
+         .flags(statistics::oneline);
+     m_avg_packet_vnet_latency =
+         m_packet_network_latency / m_packets_received;
+ 
+     m_avg_packet_vqueue_latency
+         .name(name() + ".average_packet_vqueue_latency")
++        .unit(tick_per_count)
+         .flags(statistics::oneline);
+     m_avg_packet_vqueue_latency =
+         m_packet_queueing_latency / m_packets_received;
+ 
+     m_avg_packet_network_latency
+-        .name(name() + ".average_packet_network_latency");
++        .name(name() + ".average_packet_network_latency")
++        .unit(tick_per_count);
+     m_avg_packet_network_latency =
+         sum(m_packet_network_latency) / sum(m_packets_received);
+ 
+     m_avg_packet_queueing_latency
+-        .name(name() + ".average_packet_queueing_latency");
++        .name(name() + ".average_packet_queueing_latency")
++        .unit(tick_per_count);
+     m_avg_packet_queueing_latency
+         = sum(m_packet_queueing_latency) / sum(m_packets_received);
+ 
+     m_avg_packet_latency
+-        .name(name() + ".average_packet_latency");
++        .name(name() + ".average_packet_latency")
++        .unit(tick_per_count);
+     m_avg_packet_latency
+         = m_avg_packet_network_latency + m_avg_packet_queueing_latency;
+ 
+@@ -451,6 +1104,7 @@ GarnetNetwork::regStats()
+     m_flits_received
+         .init(m_virtual_networks)
+         .name(name() + ".flits_received")
++        .unit(count)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -458,6 +1112,7 @@ GarnetNetwork::regStats()
+     m_flits_injected
+         .init(m_virtual_networks)
+         .name(name() + ".flits_injected")
++        .unit(count)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -465,12 +1120,14 @@ GarnetNetwork::regStats()
+     m_flit_network_latency
+         .init(m_virtual_networks)
+         .name(name() + ".flit_network_latency")
++        .unit(tick)
+         .flags(statistics::oneline)
+         ;
+ 
+     m_flit_queueing_latency
+         .init(m_virtual_networks)
+         .name(name() + ".flit_queueing_latency")
++        .unit(tick)
+         .flags(statistics::oneline)
+         ;
+ 
+@@ -483,47 +1140,161 @@ GarnetNetwork::regStats()
+ 
+     m_avg_flit_vnet_latency
+         .name(name() + ".average_flit_vnet_latency")
++        .unit(tick_per_count)
+         .flags(statistics::oneline);
+     m_avg_flit_vnet_latency = m_flit_network_latency / m_flits_received;
+ 
+     m_avg_flit_vqueue_latency
+         .name(name() + ".average_flit_vqueue_latency")
++        .unit(tick_per_count)
+         .flags(statistics::oneline);
+     m_avg_flit_vqueue_latency =
+         m_flit_queueing_latency / m_flits_received;
+ 
+     m_avg_flit_network_latency
+-        .name(name() + ".average_flit_network_latency");
++        .name(name() + ".average_flit_network_latency")
++        .unit(tick_per_count);
+     m_avg_flit_network_latency =
+         sum(m_flit_network_latency) / sum(m_flits_received);
+ 
+     m_avg_flit_queueing_latency
+-        .name(name() + ".average_flit_queueing_latency");
++        .name(name() + ".average_flit_queueing_latency")
++        .unit(tick_per_count);
+     m_avg_flit_queueing_latency =
+         sum(m_flit_queueing_latency) / sum(m_flits_received);
+ 
+     m_avg_flit_latency
+-        .name(name() + ".average_flit_latency");
++        .name(name() + ".average_flit_latency")
++        .unit(tick_per_count);
+     m_avg_flit_latency =
+         m_avg_flit_network_latency + m_avg_flit_queueing_latency;
+ 
+ 
+     // Hops
+-    m_avg_hops.name(name() + ".average_hops");
++    m_total_hops.unit(count);
++    m_avg_hops
++        .name(name() + ".average_hops")
++        .unit(count_per_count);
+     m_avg_hops = m_total_hops / sum(m_flits_received);
+ 
++    m_adaptive_hops
++        .name(name() + ".adaptive_hops")
++        .unit(count);
++    m_escape_hops
++        .name(name() + ".escape_hops")
++        .unit(count);
++    m_escape_transitions
++        .name(name() + ".escape_transitions")
++        .unit(count);
++    m_cbs_entry_blocks
++        .name(name() + ".cbs_entry_blocks")
++        .unit(count);
++    m_cbs_mark_moves
++        .name(name() + ".cbs_mark_moves")
++        .unit(count);
++    m_dp_pool_blocks
++        .name(name() + ".dp_pool_blocks")
++        .unit(count);
++    m_dp_shared_grants
++        .name(name() + ".dp_shared_grants")
++        .unit(count);
++    m_dpphys_pool_allocations
++        .name(name() + ".dpphys_pool_allocations")
++        .unit(count);
++    m_dpphys_owned_pool_allocations
++        .name(name() + ".dpphys_owned_pool_allocations")
++        .unit(count);
++    m_dpphys_demand_reclaims
++        .name(name() + ".dpphys_demand_reclaims")
++        .unit(count);
++    m_dpphys_owner_migrations
++        .name(name() + ".dpphys_owner_migrations")
++        .unit(count);
++    m_dpphys_release_handoffs
++        .name(name() + ".dpphys_release_handoffs")
++        .unit(count);
++    m_dpphys_release_keeps
++        .name(name() + ".dpphys_release_keeps")
++        .unit(count);
++    m_dpphys_ownership_wait_starts
++        .name(name() + ".dpphys_ownership_wait_starts")
++        .unit(count);
++    m_dpphys_ownership_wait_completions
++        .name(name() + ".dpphys_ownership_wait_completions")
++        .unit(count);
++    m_dpphys_ownership_wait_cycles
++        .name(name() + ".dpphys_ownership_wait_cycles")
++        .unit(count);
++    m_dpphys_ownership_wait_max
++        .name(name() + ".dpphys_ownership_wait_max")
++        .unit(count);
++    m_dpphys_pool_write_blocks
++        .name(name() + ".dpphys_pool_write_blocks")
++        .unit(count);
++    m_dpphys_pool_read_conflicts
++        .name(name() + ".dpphys_pool_read_conflicts")
++        .unit(count);
++    m_dpphys_pool_reads
++        .name(name() + ".dpphys_pool_reads")
++        .unit(count);
++    m_dpphys_reserved_reads
++        .name(name() + ".dpphys_reserved_reads")
++        .unit(count);
++    m_dpphys_borrowed_peak
++        .name(name() + ".dpphys_borrowed_peak")
++        .unit(count);
++
++    static const char *dpphys_directions[6] = {
++        "East", "West", "North", "South", "Up", "Down"
++    };
++    m_dpphys_pool_allocations_by_dir
++        .init(6)
++        .name(name() + ".dpphys_pool_allocations_by_dir")
++        .unit(count)
++        .flags(statistics::total);
++    m_dpphys_pool_reads_by_dir
++        .init(6)
++        .name(name() + ".dpphys_pool_reads_by_dir")
++        .unit(count)
++        .flags(statistics::total);
++    m_dpphys_reserved_reads_by_dir
++        .init(6)
++        .name(name() + ".dpphys_reserved_reads_by_dir")
++        .unit(count)
++        .flags(statistics::total);
++    m_dpphys_migrations_to_dir
++        .init(6)
++        .name(name() + ".dpphys_migrations_to_dir")
++        .unit(count)
++        .flags(statistics::total);
++    for (int direction = 0; direction < 6; ++direction) {
++        m_dpphys_pool_allocations_by_dir.subname(
++            direction, dpphys_directions[direction]);
++        m_dpphys_pool_reads_by_dir.subname(
++            direction, dpphys_directions[direction]);
++        m_dpphys_reserved_reads_by_dir.subname(
++            direction, dpphys_directions[direction]);
++        m_dpphys_migrations_to_dir.subname(
++            direction, dpphys_directions[direction]);
++    }
++
+     // Links
+     m_total_ext_in_link_utilization
+-        .name(name() + ".ext_in_link_utilization");
++        .name(name() + ".ext_in_link_utilization")
++        .unit(count);
+     m_total_ext_out_link_utilization
+-        .name(name() + ".ext_out_link_utilization");
++        .name(name() + ".ext_out_link_utilization")
++        .unit(count);
+     m_total_int_link_utilization
+-        .name(name() + ".int_link_utilization");
++        .name(name() + ".int_link_utilization")
++        .unit(count);
+     m_average_link_utilization
+-        .name(name() + ".avg_link_utilization");
++        .name(name() + ".avg_link_utilization")
++        .unit(ratio);
+     m_average_vc_load
+-        .init(m_virtual_networks * m_max_vcs_per_vnet)
++        .init(m_virtual_networks * m_max_link_vcs_per_vnet)
+         .name(name() + ".avg_vc_load")
++        .unit(ratio)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -539,10 +1310,12 @@ GarnetNetwork::regStats()
+             statistics::Scalar *data_packets = new statistics::Scalar();
+             statistics::Scalar *ctrl_packets = new statistics::Scalar();
+ 
++            data_packets->unit(count);
+             data_packets->name(name() + ".data_traffic_distribution." + "n" +
+                     std::to_string(source) + "." + "n" + std::to_string(dest));
+             m_data_traffic_distribution[source].push_back(data_packets);
+ 
++            ctrl_packets->unit(count);
+             ctrl_packets->name(name() + ".ctrl_traffic_distribution." + "n" +
+                     std::to_string(source) + "." + "n" + std::to_string(dest));
+             m_ctrl_traffic_distribution[source].push_back(ctrl_packets);
+diff --git a/src/mem/ruby/network/garnet/GarnetNetwork.hh b/src/mem/ruby/network/garnet/GarnetNetwork.hh
+index db37628bea..9554503e9c 100644
+--- a/src/mem/ruby/network/garnet/GarnetNetwork.hh
++++ b/src/mem/ruby/network/garnet/GarnetNetwork.hh
+@@ -32,6 +32,7 @@
+ #ifndef __MEM_RUBY_NETWORK_GARNET_0_GARNETNETWORK_HH__
+ #define __MEM_RUBY_NETWORK_GARNET_0_GARNETNETWORK_HH__
+ 
++#include <cstdint>
+ #include <iostream>
+ #include <vector>
+ 
+@@ -74,12 +75,23 @@ class GarnetNetwork : public Network
+     // for 2D topology
+     int getNumRows() const { return m_num_rows; }
+     int getNumCols() { return m_num_cols; }
++    uint32_t getTorusX() const { return m_torus_x; }
++    uint32_t getTorusY() const { return m_torus_y; }
++    uint32_t getTorusZ() const { return m_torus_z; }
++    uint32_t getEscapeVCs() const { return m_escape_vcs; }
+ 
+     // for network
+     uint32_t getNiFlitSize() const { return m_ni_flit_size; }
+     uint32_t getBuffersPerDataVC() { return m_buffers_per_data_vc; }
+     uint32_t getBuffersPerCtrlVC() { return m_buffers_per_ctrl_vc; }
+     int getRoutingAlgorithm() const { return m_routing_algorithm; }
++    bool isWormhole() const { return m_wormhole; }
++    bool isCBSEnabled() const { return m_enable_cbs; }
++    bool
++    isTorus3DAdaptive() const
++    {
++        return m_routing_algorithm == TORUS_3D_ADAPTIVE_;
++    }
+ 
+     bool isFaultModelEnabled() const { return m_enable_fault_model; }
+     FaultModel* fault_model;
+@@ -154,6 +166,106 @@ class GarnetNetwork : public Network
+         m_total_hops += hops;
+     }
+ 
++    void increment_adaptive_hop() { m_adaptive_hops++; }
++    void increment_escape_hop() { m_escape_hops++; }
++    void increment_escape_transition() { m_escape_transitions++; }
++
++    // Critical Bubble Scheme (CBS): one critical bubble per directed torus
++    // ring per vnet, tracked at the input port that hosts it. Hardware
++    // would piggyback the mark on credits; the simulator keeps a global
++    // registry indexed by (router, inport direction, vnet).
++    bool cbsHasMark(int router_id, const PortDirection &inport_dirn,
++                    int vnet) const;
++    void cbsMoveMark(int from_router, const PortDirection &from_inport,
++                     int to_router, const PortDirection &to_inport,
++                     int vnet);
++    int cbsDownstreamRouter(int router_id,
++                            const PortDirection &outport_dirn) const;
++    static PortDirection cbsOppositeDirn(const PortDirection &dirn);
++    void increment_cbs_entry_block() { m_cbs_entry_blocks++; }
++
++    // Dimension Pool (DP): the two opposing inports of one dimension at a
++    // router share their pooled VCs under a joint occupancy cap. The pool
++    // is a pure admission policy (packets never relocate); deadlock
++    // freedom comes from a substrate that ignores pool state entirely
++    // (the CBS-run dedicated VCs on algorithm 3, the escape VCs on
++    // algorithm 4). Hardware would distribute the cap as shared-credit
++    // tokens piggybacked on the existing credit path; the simulator keeps
++    // a registry of pooled-VC occupancy indexed like the CBS marks.
++    bool isDPEnabled() const { return m_enable_dp; }
++    uint32_t getDPReserve() const { return m_dp_reserve; }
++    uint32_t getDPSharedCap() const { return m_dp_shared_cap; }
++    // DP applies where CBS does: ctrl vnets, non-Local torus ports.
++    bool dpGoverns(int vnet) { return m_enable_dp &&
++        get_vnet_type(vnet) == CTRL_VNET_; }
++    // Whether a VC offset within its vnet belongs to the pooled window:
++    // [dp_reserve, V) on algorithm 3, the adaptive class on algorithm 4.
++    bool dpPooledOffset(int vc_offset) const;
++    // Occupied pooled VCs summed over both inports of the dimension pair
++    // that inport_dirn belongs to, at router_id.
++    int dpSharedUsed(int router_id, const PortDirection &inport_dirn,
++                     int vnet) const;
++    bool dpPoolFull(int router_id, const PortDirection &inport_dirn,
++                    int vnet) const;
++    void dpNoteAlloc(int router_id, const PortDirection &inport_dirn,
++                     int vnet, int vc_offset);
++    void dpNoteFree(int router_id, const PortDirection &inport_dirn,
++                    int vnet, int vc_offset);
++    void increment_dp_pool_block() { m_dp_pool_blocks++; }
++
++    // DP-Phys keeps the physical storage of two opposing inports equal to
++    // the baseline while allowing ownership of the pooled slots to migrate.
++    bool isDPPhysEnabled() const { return m_enable_dpphys; }
++    uint32_t getDPPhysPrivateVCs() const { return m_dpphys_private_vcs; }
++    uint32_t getDPPhysPoolVCs() const { return m_dpphys_pool_vcs; }
++    uint32_t getDPPhysOwnerCap() const { return m_dpphys_owner_cap; }
++    uint32_t getDPPhysLogicalVCs() const
++    {
++        return m_dpphys_private_vcs + m_dpphys_pool_vcs + m_escape_vcs;
++    }
++    bool dpPhysGoverns(int vnet, const PortDirection &direction) const;
++    bool dpPhysPhysicalPooledOffset(int vc_offset) const;
++    void dpPhysMapLogicalVC(int router_id,
++                            const PortDirection &true_inport, int vnet,
++                            int logical_offset,
++                            PortDirection &physical_inport,
++                            int &physical_offset) const;
++    bool dpPhysSlotOwnedBy(int router_id,
++                           const PortDirection &inport_dirn, int vnet,
++                           int slot) const;
++    bool dpPhysCanClaimSlot(int router_id,
++                            const PortDirection &inport_dirn, int vnet,
++                            int slot) const;
++    bool dpPhysPoolWriteAvailable(int router_id,
++                                  const PortDirection &inport_dirn,
++                                  int vnet, Tick when) const;
++    bool dpPhysClaimSlot(int router_id,
++                         const PortDirection &inport_dirn, int vnet,
++                         int slot, Tick when);
++    void dpPhysNoteOwnershipDemand(
++        int router_id, const PortDirection &inport_dirn, int vnet);
++    void dpPhysNoteFree(int router_id,
++                        const PortDirection &true_inport, int vnet,
++                        int logical_offset);
++    int dpPhysReservedUsed(int router_id,
++                           const PortDirection &inport_dirn, int vnet) const;
++    void increment_dp_phys_read_conflict()
++    { m_dpphys_pool_read_conflicts++; }
++    void increment_dp_phys_write_block()
++    { m_dpphys_pool_write_blocks++; }
++    void increment_dp_phys_pool_read(int direction)
++    {
++        m_dpphys_pool_reads++;
++        m_dpphys_pool_reads_by_dir[direction]++;
++    }
++    void increment_dp_phys_reserved_read(int direction)
++    {
++        m_dpphys_reserved_reads++;
++        m_dpphys_reserved_reads_by_dir[direction]++;
++    }
++    static int dpPhysDirnIndex(const PortDirection &direction)
++    { return cbsDirnIndex(direction); }
++
+     void update_traffic_distribution(RouteInfo route);
+     int getNextPacketID() { return m_next_packet_id++; }
+ 
+@@ -161,13 +273,60 @@ class GarnetNetwork : public Network
+     // Configuration
+     int m_num_rows;
+     int m_num_cols;
++    uint32_t m_torus_x;
++    uint32_t m_torus_y;
++    uint32_t m_torus_z;
+     uint32_t m_ni_flit_size;
+     uint32_t m_max_vcs_per_vnet;
++    uint32_t m_max_link_vcs_per_vnet;
++    uint32_t m_escape_vcs;
+     uint32_t m_buffers_per_ctrl_vc;
++    bool m_wormhole;
++    bool m_enable_cbs;
++    bool m_enable_dp;
++    uint32_t m_dp_reserve;
++    uint32_t m_dp_shared_cap;
++    bool m_enable_dpphys;
++    uint32_t m_dpphys_private_vcs;
++    uint32_t m_dpphys_pool_vcs;
++    uint32_t m_dpphys_owner_cap;
++    std::string m_dpphys_policy;
+     uint32_t m_buffers_per_data_vc;
+     int m_routing_algorithm;
+     bool m_enable_fault_model;
+ 
++    // CBS critical bubble registry: m_cbs_mark[router][dirn][vnet] is true
++    // when the input port of `router` facing direction `dirn` hosts the
++    // critical bubble of its directed ring.
++    std::vector<std::vector<std::vector<bool>>> m_cbs_mark;
++    void cbsInit();
++    static int cbsDirnIndex(const PortDirection &dirn);
++
++    // DP pooled-occupancy registry: m_dp_shared_occ[router][dirn][vnet]
++    // counts pooled VCs currently reserved or occupied at the input port
++    // of `router` facing direction `dirn`. The pair total for dimension
++    // pool checks is occ[d] + occ[d ^ 1] (E/W, N/S, U/D are adjacent).
++    std::vector<std::vector<std::vector<int>>> m_dp_shared_occ;
++    void dpInit();
++
++    // [router][dimension pair][vnet][slot]. Owner is the side index 0/1;
++    // busy remains true from upstream allocation until the physical slot
++    // drains. Round-robin and write-port state are per pair and vnet.
++    std::vector<std::vector<std::vector<std::vector<int>>>>
++        m_dpphys_owner;
++    std::vector<std::vector<std::vector<std::vector<bool>>>>
++        m_dpphys_busy;
++    std::vector<std::vector<std::vector<int>>> m_dpphys_rr_next;
++    std::vector<std::vector<std::vector<Tick>>> m_dpphys_write_tick;
++    std::vector<std::vector<std::vector<std::vector<uint64_t>>>>
++        m_dpphys_ownership_wait_start;
++    uint32_t m_dpphys_borrowed_peak_value;
++    uint64_t m_dpphys_ownership_wait_max_value;
++    void dpPhysInit();
++    int dpPhysOwnerCount(int router_id, int pair, int vnet, int side) const;
++    void dpPhysSetOwner(int router_id, int pair, int vnet, int slot,
++                        int side);
++
+     // Statistical variables
+     statistics::Vector m_packets_received;
+     statistics::Vector m_packets_injected;
+@@ -199,6 +358,32 @@ class GarnetNetwork : public Network
+ 
+     statistics::Scalar  m_total_hops;
+     statistics::Formula m_avg_hops;
++    statistics::Scalar m_adaptive_hops;
++    statistics::Scalar m_escape_hops;
++    statistics::Scalar m_escape_transitions;
++    statistics::Scalar m_cbs_entry_blocks;
++    statistics::Scalar m_cbs_mark_moves;
++    statistics::Scalar m_dp_pool_blocks;
++    statistics::Scalar m_dp_shared_grants;
++    statistics::Scalar m_dpphys_pool_allocations;
++    statistics::Scalar m_dpphys_owned_pool_allocations;
++    statistics::Scalar m_dpphys_demand_reclaims;
++    statistics::Scalar m_dpphys_owner_migrations;
++    statistics::Scalar m_dpphys_release_handoffs;
++    statistics::Scalar m_dpphys_release_keeps;
++    statistics::Scalar m_dpphys_ownership_wait_starts;
++    statistics::Scalar m_dpphys_ownership_wait_completions;
++    statistics::Scalar m_dpphys_ownership_wait_cycles;
++    statistics::Scalar m_dpphys_ownership_wait_max;
++    statistics::Scalar m_dpphys_pool_write_blocks;
++    statistics::Scalar m_dpphys_pool_read_conflicts;
++    statistics::Scalar m_dpphys_pool_reads;
++    statistics::Scalar m_dpphys_reserved_reads;
++    statistics::Scalar m_dpphys_borrowed_peak;
++    statistics::Vector m_dpphys_pool_allocations_by_dir;
++    statistics::Vector m_dpphys_pool_reads_by_dir;
++    statistics::Vector m_dpphys_reserved_reads_by_dir;
++    statistics::Vector m_dpphys_migrations_to_dir;
+ 
+     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
+     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;
+diff --git a/src/mem/ruby/network/garnet/GarnetNetwork.py b/src/mem/ruby/network/garnet/GarnetNetwork.py
+index 128118309c..ec42ed37b3 100644
+--- a/src/mem/ruby/network/garnet/GarnetNetwork.py
++++ b/src/mem/ruby/network/garnet/GarnetNetwork.py
+@@ -41,11 +41,56 @@ class GarnetNetwork(RubyNetwork):
+     cxx_class = "gem5::ruby::garnet::GarnetNetwork"
+ 
+     num_rows = Param.Int(0, "number of rows if 2D (mesh/torus/..) topology")
++    torus_x = Param.UInt32(0, "routers in the X dimension of a 3D torus")
++    torus_y = Param.UInt32(0, "routers in the Y dimension of a 3D torus")
++    torus_z = Param.UInt32(0, "routers in the Z dimension of a 3D torus")
+     ni_flit_size = Param.UInt32(16, "network interface flit size in bytes")
+     vcs_per_vnet = Param.UInt32(4, "virtual channels per virtual network")
++    escape_vcs = Param.UInt32(
++        1, "VCs per vnet reserved for Torus3D adaptive escape routing"
++    )
+     buffers_per_data_vc = Param.UInt32(4, "buffers per data virtual channel")
+     buffers_per_ctrl_vc = Param.UInt32(1, "buffers per ctrl virtual channel")
+-    routing_algorithm = Param.Int(0, "0: Weight-based Table, 1: XY, 2: Custom")
++    wormhole = Param.Bool(
++        False, "allow multiple single-flit packets per virtual channel"
++    )
++    enable_cbs = Param.Bool(
++        False,
++        "critical bubble scheme flow control on Torus3D rings (ctrl vnets)",
++    )
++    enable_dp = Param.Bool(
++        False,
++        "dimension pool flow control: opposing inports of one dimension "
++        "share their pooled VCs under a joint occupancy cap (ctrl vnets)",
++    )
++    dp_reserve = Param.UInt32(
++        2, "dedicated (non-pooled) VCs per inport for the CBS substrate"
++    )
++    dp_shared_cap = Param.UInt32(
++        0, "joint cap on occupied pooled VCs across one dimension pair"
++    )
++    enable_dpphys = Param.Bool(
++        False,
++        "equal-physical paired VC pools for opposing torus directions",
++    )
++    dpphys_private_vcs = Param.UInt32(
++        1, "private adaptive VCs permanently retained by each direction"
++    )
++    dpphys_pool_vcs = Param.UInt32(
++        4, "physical VC slots shared by each opposing direction pair"
++    )
++    dpphys_owner_cap = Param.UInt32(
++        3, "maximum shared-pool credits owned by either direction"
++    )
++    dpphys_policy = Param.String(
++        "pressure",
++        "pool-credit policy: rts, rr, or pressure",
++    )
++    routing_algorithm = Param.Int(
++        0,
++        "0: Table, 1: XY, 2: Custom, 3: Torus3D DOR, "
++        "4: Torus3D adaptive routing with Mesh3D escape VCs, 5: Mesh3D XYZ",
++    )
+     enable_fault_model = Param.Bool(False, "enable network fault model")
+     fault_model = Param.FaultModel(NULL, "network fault model")
+     garnet_deadlock_threshold = Param.UInt32(
+diff --git a/src/mem/ruby/network/garnet/InputUnit.cc b/src/mem/ruby/network/garnet/InputUnit.cc
+index 179bb642b7..ebf70c6484 100644
+--- a/src/mem/ruby/network/garnet/InputUnit.cc
++++ b/src/mem/ruby/network/garnet/InputUnit.cc
+@@ -33,6 +33,7 @@
+ 
+ #include "debug/RubyNetwork.hh"
+ #include "mem/ruby/network/garnet/Credit.hh"
++#include "mem/ruby/network/garnet/GarnetNetwork.hh"
+ #include "mem/ruby/network/garnet/Router.hh"
+ 
+ namespace gem5
+@@ -76,77 +77,149 @@ InputUnit::InputUnit(int id, PortDirection direction, Router *router)
+ void
+ InputUnit::wakeup()
+ {
+-    flit *t_flit;
+     if (m_in_link->isReady(curTick())) {
+-
+-        t_flit = m_in_link->consumeLink();
++        flit *t_flit = m_in_link->consumeLink();
+         DPRINTF(RubyNetwork, "Router[%d] Consuming:%s Width: %d Flit:%s\n",
+-        m_router->get_id(), m_in_link->name(),
+-        m_router->getBitWidth(), *t_flit);
++                m_router->get_id(), m_in_link->name(),
++                m_router->getBitWidth(), *t_flit);
+         assert(t_flit->m_width == m_router->getBitWidth());
+-        int vc = t_flit->get_vc();
+         t_flit->increment_hops(); // for stats
+ 
+-        if ((t_flit->get_type() == HEAD_) ||
+-            (t_flit->get_type() == HEAD_TAIL_)) {
++        const int upstream_vc = t_flit->get_vc();
++        int physical_vc = upstream_vc;
++        InputUnit *target = this;
++        PortDirection target_direction = m_direction;
++        auto *net = m_router->get_net_ptr();
+ 
+-            assert(virtualChannels[vc].get_state() == IDLE_);
+-            set_vc_active(vc, curTick());
++        // Internal DP-Phys links expose a logical namespace containing all
++        // four pool slots. Map that namespace back onto the fixed four-slot
++        // physical layout, redirecting borrowed slots to the InputUnit that
++        // physically owns the selected pool entry.
++        if (net->isDPPhysEnabled() && m_direction != "Local") {
++            const int logical_vcs = net->getDPPhysLogicalVCs();
++            const int vnet = t_flit->get_vnet();
++            assert(upstream_vc / logical_vcs == vnet);
++            const int logical_offset = upstream_vc % logical_vcs;
++            int physical_offset = logical_offset;
++            if (net->dpPhysGoverns(vnet, m_direction)) {
++                net->dpPhysMapLogicalVC(
++                    m_router->get_id(), m_direction, vnet, logical_offset,
++                    target_direction, physical_offset);
++            } else {
++                // Data vnets use the ordinary physical VC offsets; only the
++                // per-vnet stride on the internal link is enlarged.
++                assert(logical_offset < m_vc_per_vnet);
++            }
++            target = m_router->getInputUnitByDirection(target_direction);
++            physical_vc = vnet * m_vc_per_vnet + physical_offset;
++        }
+ 
+-            // Route computation for this vc
+-            int outport = m_router->route_compute(t_flit->get_route(),
+-                m_id, m_direction);
++        target->accept_flit(t_flit, physical_vc, m_direction, m_id,
++                            upstream_vc);
+ 
+-            // Update output port in VC
+-            // All flits in this packet will use this output port
+-            // The output port field in the flit is updated after it wins SA
+-            grant_outport(vc, outport);
++        if (m_in_link->isReady(curTick()))
++            m_router->schedule_wakeup(Cycles(1));
++    }
++}
+ 
++void
++InputUnit::accept_flit(flit *t_flit, int vc,
++                       const PortDirection &true_direction,
++                       int credit_inport, int upstream_vc)
++{
++    assert(vc >= 0 && vc < static_cast<int>(virtualChannels.size()));
++    const int vnet = t_flit->get_vnet();
++    assert(vc / m_vc_per_vnet == vnet);
++    const bool is_head = t_flit->get_type() == HEAD_ ||
++                         t_flit->get_type() == HEAD_TAIL_;
++    const bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
++        m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
++
++    if (is_head) {
++        const bool idle = virtualChannels[vc].get_state() == IDLE_;
++        assert(idle || wormhole_control);
++        if (idle) {
++            virtualChannels[vc].set_ingress_metadata(
++                credit_inport, upstream_vc, true_direction);
++            set_vc_active(vc, curTick());
+         } else {
+-            assert(virtualChannels[vc].get_state() == ACTIVE_);
++            virtualChannels[vc].set_enqueue_time(curTick());
+         }
+ 
++        const int outport = m_router->route_compute(
++            t_flit->get_route(), m_id, true_direction, vc);
++        if (wormhole_control)
++            t_flit->set_outport(outport);
++        else
++            grant_outport(vc, outport);
++    } else {
++        assert(virtualChannels[vc].get_state() == ACTIVE_);
++    }
+ 
+-        // Buffer the flit
+-        virtualChannels[vc].insertFlit(t_flit);
+-
+-        int vnet = vc/m_vc_per_vnet;
+-        // number of writes same as reads
+-        // any flit that is written will be read only once
+-        m_num_buffer_writes[vnet]++;
+-        m_num_buffer_reads[vnet]++;
+-
+-        Cycles pipe_stages = m_router->get_pipe_stages();
+-        if (pipe_stages == 1) {
+-            // 1-cycle router
+-            // Flit goes for SA directly
+-            t_flit->advance_stage(SA_, curTick());
+-        } else {
+-            assert(pipe_stages > 1);
+-            // Router delay is modeled by making flit wait in buffer for
+-            // (pipe_stages cycles - 1) cycles before going for SA
++    // From this point onward the router indexes the physical VC.
++    t_flit->set_vc(vc);
++    virtualChannels[vc].insertFlit(t_flit);
+ 
+-            Cycles wait_time = pipe_stages - Cycles(1);
+-            t_flit->advance_stage(SA_, m_router->clockEdge(wait_time));
++    // number of writes same as reads: every buffered flit is read once.
++    m_num_buffer_writes[vnet]++;
++    m_num_buffer_reads[vnet]++;
+ 
+-            // Wakeup the router in that cycle to perform SA
+-            m_router->schedule_wakeup(Cycles(wait_time));
+-        }
++    const Cycles pipe_stages = m_router->get_pipe_stages();
++    if (pipe_stages == 1) {
++        t_flit->advance_stage(SA_, curTick());
++    } else {
++        assert(pipe_stages > 1);
++        const Cycles wait_time = pipe_stages - Cycles(1);
++        t_flit->advance_stage(SA_, m_router->clockEdge(wait_time));
++        m_router->schedule_wakeup(wait_time);
++    }
++}
+ 
+-        if (m_in_link->isReady(curTick())) {
+-            m_router->schedule_wakeup(Cycles(1));
+-        }
++int
++InputUnit::count_active_vcs(int vnet, int first_offset, int count) const
++{
++    assert(first_offset >= 0 && count >= 0);
++    assert(first_offset + count <= m_vc_per_vnet);
++    int active = 0;
++    const int base = vnet * m_vc_per_vnet;
++    for (int offset = first_offset; offset < first_offset + count; ++offset) {
++        if (virtualChannels[base + offset].get_state() != IDLE_)
++            active++;
+     }
++    return active;
+ }
+ 
+ // Send a credit back to upstream router for this VC.
+ // Called by SwitchAllocator when the flit in this VC wins the Switch.
+ void
+ InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime)
++{
++    int credit_inport = m_id;
++    int upstream_vc = in_vc;
++    auto *net = m_router->get_net_ptr();
++    if (net->isDPPhysEnabled() &&
++        virtualChannels[in_vc].get_credit_inport() >= 0) {
++        credit_inport = virtualChannels[in_vc].get_credit_inport();
++        upstream_vc = virtualChannels[in_vc].get_upstream_vc();
++        if (free_signal) {
++            const int vnet = in_vc / m_vc_per_vnet;
++            net->dpPhysNoteFree(
++                m_router->get_id(),
++                virtualChannels[in_vc].get_true_direction(), vnet,
++                upstream_vc % net->getDPPhysLogicalVCs());
++        }
++    }
++    m_router->getInputUnit(credit_inport)->enqueue_credit(
++        upstream_vc, free_signal, curTime);
++}
++
++void
++InputUnit::enqueue_credit(int upstream_vc, bool free_signal, Tick curTime)
+ {
+     DPRINTF(RubyNetwork, "Router[%d]: Sending a credit vc:%d free:%d to %s\n",
+-    m_router->get_id(), in_vc, free_signal, m_credit_link->name());
+-    Credit *t_credit = new Credit(in_vc, free_signal, curTime);
++            m_router->get_id(), upstream_vc, free_signal,
++            m_credit_link->name());
++    Credit *t_credit = new Credit(upstream_vc, free_signal, curTime);
+     creditQueue.insert(t_credit);
+     m_credit_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
+ }
+diff --git a/src/mem/ruby/network/garnet/InputUnit.hh b/src/mem/ruby/network/garnet/InputUnit.hh
+index 4c4baeb03e..185bedef13 100644
+--- a/src/mem/ruby/network/garnet/InputUnit.hh
++++ b/src/mem/ruby/network/garnet/InputUnit.hh
+@@ -63,6 +63,12 @@ class InputUnit : public Consumer
+ 
+     inline PortDirection get_direction() { return m_direction; }
+ 
++    inline PortDirection
++    get_true_direction(int vc) const
++    {
++        return virtualChannels[vc].get_true_direction();
++    }
++
+     inline void
+     set_vc_idle(int vc, Tick curTime)
+     {
+@@ -99,6 +105,12 @@ class InputUnit : public Consumer
+         return virtualChannels[invc].get_outvc();
+     }
+ 
++    inline void
++    set_outvc(int invc, int outvc)
++    {
++        virtualChannels[invc].set_outvc(outvc);
++    }
++
+     inline Tick
+     get_enqueue_time(int invc)
+     {
+@@ -106,6 +118,9 @@ class InputUnit : public Consumer
+     }
+ 
+     void increment_credit(int in_vc, bool free_signal, Tick curTime);
++    void enqueue_credit(int upstream_vc, bool free_signal, Tick curTime);
++
++    int count_active_vcs(int vnet, int first_offset, int count) const;
+ 
+     inline flit*
+     peekTopFlit(int vc)
+@@ -158,6 +173,10 @@ class InputUnit : public Consumer
+     void resetStats();
+ 
+   private:
++    void accept_flit(flit *t_flit, int physical_vc,
++                     const PortDirection &true_direction,
++                     int credit_inport, int upstream_vc);
++
+     Router *m_router;
+     int m_id;
+     PortDirection m_direction;
+diff --git a/src/mem/ruby/network/garnet/NetworkInterface.cc b/src/mem/ruby/network/garnet/NetworkInterface.cc
+index 31d625c4d5..5916a0610a 100644
+--- a/src/mem/ruby/network/garnet/NetworkInterface.cc
++++ b/src/mem/ruby/network/garnet/NetworkInterface.cc
+@@ -459,16 +459,22 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
+ int
+ NetworkInterface::calculateVC(int vnet)
+ {
+-    for (int i = 0; i < m_vc_per_vnet; i++) {
++    const int allocatable_vcs = m_net_ptr->isTorus3DAdaptive() ?
++        m_vc_per_vnet - m_net_ptr->getEscapeVCs() : m_vc_per_vnet;
++    for (int i = 0; i < allocatable_vcs; i++) {
+         int delta = m_vc_allocator[vnet];
+         m_vc_allocator[vnet]++;
+-        if (m_vc_allocator[vnet] == m_vc_per_vnet)
++        if (m_vc_allocator[vnet] == allocatable_vcs)
+             m_vc_allocator[vnet] = 0;
+ 
+-        if (outVcState[(vnet*m_vc_per_vnet) + delta].isInState(
+-                    IDLE_, curTick())) {
++        int vc = (vnet*m_vc_per_vnet) + delta;
++        bool idle = outVcState[vc].isInState(IDLE_, curTick());
++        bool reusable = m_net_ptr->isWormhole() &&
++            m_net_ptr->get_vnet_type(vnet) == CTRL_VNET_ &&
++            outVcState[vc].has_credit();
++        if (idle || reusable) {
+             vc_busy_counter[vnet] = 0;
+-            return ((vnet*m_vc_per_vnet) + delta);
++            return vc;
+         }
+     }
+ 
+diff --git a/src/mem/ruby/network/garnet/OutputUnit.cc b/src/mem/ruby/network/garnet/OutputUnit.cc
+index d5ad75327c..4030411f99 100644
+--- a/src/mem/ruby/network/garnet/OutputUnit.cc
++++ b/src/mem/ruby/network/garnet/OutputUnit.cc
+@@ -97,9 +97,53 @@ OutputUnit::has_credit(int out_vc)
+ bool
+ OutputUnit::has_free_vc(int vnet)
+ {
+-    int vc_base = vnet*m_vc_per_vnet;
++    return has_free_vc(vnet, 0, m_vc_per_vnet);
++}
++
++bool
++OutputUnit::has_free_vc(int vnet, int first_offset, int count)
++{
++    return free_vc_credit_count(vnet, first_offset, count) > 0;
++}
++
++int
++OutputUnit::free_vc_credit_count(int vnet, int first_offset, int count)
++{
++    assert(first_offset >= 0 && count > 0);
++    assert(first_offset + count <= m_vc_per_vnet);
++
++    int credits = 0;
++    const int vc_base = vnet * m_vc_per_vnet;
++    for (int offset = first_offset; offset < first_offset + count; offset++) {
++        const int vc = vc_base + offset;
++        if (is_vc_idle(vc, curTick()))
++            credits += outVcState[vc].get_credit_count();
++    }
++
++    return credits;
++}
++
++// Number of idle (free) VCs of this vnet at the downstream input port.
++// Used by the Critical Bubble Scheme to reserve the critical slot.
++int
++OutputUnit::count_free_vcs(int vnet)
++{
++    int free_vcs = 0;
++    const int vc_base = vnet * m_vc_per_vnet;
+     for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
+         if (is_vc_idle(vc, curTick()))
++            free_vcs++;
++    }
++
++    return free_vcs;
++}
++
++bool
++OutputUnit::has_credit_vc(int vnet)
++{
++    int vc_base = vnet*m_vc_per_vnet;
++    for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
++        if (outVcState[vc].has_credit())
+             return true;
+     }
+ 
+@@ -109,10 +153,35 @@ OutputUnit::has_free_vc(int vnet)
+ // Assign a free output VC to the winner of Switch Allocation
+ int
+ OutputUnit::select_free_vc(int vnet)
++{
++    return select_free_vc(vnet, 0, m_vc_per_vnet);
++}
++
++int
++OutputUnit::select_free_vc(int vnet, int first_offset, int count)
++{
++    assert(first_offset >= 0 && count > 0);
++    assert(first_offset + count <= m_vc_per_vnet);
++
++    const int vc_base = vnet * m_vc_per_vnet;
++    for (int offset = first_offset; offset < first_offset + count; offset++) {
++        const int vc = vc_base + offset;
++        if (is_vc_idle(vc, curTick())) {
++            outVcState[vc].setState(ACTIVE_, curTick());
++            return vc;
++        }
++    }
++
++    return -1;
++}
++
++int
++OutputUnit::select_vc(int vnet, bool allow_active)
+ {
+     int vc_base = vnet*m_vc_per_vnet;
+     for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
+-        if (is_vc_idle(vc, curTick())) {
++        bool idle = is_vc_idle(vc, curTick());
++        if (idle || (allow_active && outVcState[vc].has_credit())) {
+             outVcState[vc].setState(ACTIVE_, curTick());
+             return vc;
+         }
+@@ -136,9 +205,22 @@ OutputUnit::wakeup()
+         Credit *t_credit = (Credit*) m_credit_link->consumeLink();
+         increment_credit(t_credit->get_vc());
+ 
+-        if (t_credit->is_free_signal())
++        if (t_credit->is_free_signal()) {
+             set_vc_state(IDLE_, t_credit->get_vc(), curTick());
+ 
++            // DP: the freed VC is an input VC at the downstream router;
++            // release its pooled-occupancy reservation if it was pooled.
++            GarnetNetwork *net = m_router->get_net_ptr();
++            if (net->isDPEnabled() && m_direction != "Local") {
++                const int vc = t_credit->get_vc();
++                net->dpNoteFree(
++                    net->cbsDownstreamRouter(m_router->get_id(),
++                                             m_direction),
++                    GarnetNetwork::cbsOppositeDirn(m_direction),
++                    vc / m_vc_per_vnet, vc % m_vc_per_vnet);
++            }
++        }
++
+         delete t_credit;
+ 
+         if (m_credit_link->isReady(curTick())) {
+diff --git a/src/mem/ruby/network/garnet/OutputUnit.hh b/src/mem/ruby/network/garnet/OutputUnit.hh
+index b07035c43a..cbea6a57b7 100644
+--- a/src/mem/ruby/network/garnet/OutputUnit.hh
++++ b/src/mem/ruby/network/garnet/OutputUnit.hh
+@@ -69,6 +69,12 @@ class OutputUnit : public Consumer
+     bool has_credit(int out_vc);
+     bool has_free_vc(int vnet);
+     int select_free_vc(int vnet);
++    bool has_credit_vc(int vnet);
++    int select_vc(int vnet, bool allow_active);
++    bool has_free_vc(int vnet, int first_offset, int count);
++    int select_free_vc(int vnet, int first_offset, int count);
++    int free_vc_credit_count(int vnet, int first_offset, int count);
++    int count_free_vcs(int vnet);
+ 
+     inline PortDirection get_direction() { return m_direction; }
+ 
+diff --git a/src/mem/ruby/network/garnet/Router.cc b/src/mem/ruby/network/garnet/Router.cc
+index 5232b91897..672dab00e5 100644
+--- a/src/mem/ruby/network/garnet/Router.cc
++++ b/src/mem/ruby/network/garnet/Router.cc
+@@ -158,10 +158,138 @@ Router::getInportDirection(int inport)
+     return m_input_unit[inport]->get_direction();
+ }
+ 
++InputUnit *
++Router::getInputUnitByDirection(const PortDirection &direction)
++{
++    const int inport = getInportIdByDirection(direction);
++    if (inport < 0)
++        panic("Router %d has no input direction %s", m_id, direction);
++    return m_input_unit[inport].get();
++}
++
++int
++Router::getInportIdByDirection(const PortDirection &direction) const
++{
++    for (int inport = 0; inport < static_cast<int>(m_input_unit.size());
++         ++inport) {
++        if (m_input_unit[inport]->get_direction() == direction)
++            return inport;
++    }
++    return -1;
++}
++
++int
++Router::route_compute(RouteInfo route, int inport, PortDirection inport_dirn,
++                      int invc)
++{
++    return routingUnit.outportCompute(route, inport, inport_dirn, invc);
++}
++
++AdaptiveRouteDecision
++Router::route_compute_3d_adaptive(RouteInfo route, int invc,
++                                  bool require_available)
++{
++    return routingUnit.outportCompute3DAdaptive(
++        route, invc, require_available);
++}
++
++int
++Router::dpPhysAdaptiveFreeCount(int outport, int vnet)
++{
++    auto *net = get_net_ptr();
++    auto *output = getOutputUnit(outport);
++    const PortDirection outdir = output->get_direction();
++    assert(net->dpPhysGoverns(vnet, outdir));
++
++    int count = output->free_vc_credit_count(
++        vnet, 0, net->getDPPhysPrivateVCs());
++    const PortDirection down_inport =
++        GarnetNetwork::cbsOppositeDirn(outdir);
++    const int down_router = net->cbsDownstreamRouter(m_id, outdir);
++    if (!net->dpPhysPoolWriteAvailable(down_router, down_inport, vnet,
++                                       curTick()))
++        return count;
++
++    for (int slot = 0; slot < net->getDPPhysPoolVCs(); ++slot) {
++        const int logical_offset = net->getDPPhysPrivateVCs() + slot;
++        const int logical_vc = vnet * output->getVcsPerVnet() +
++                               logical_offset;
++        if (output->is_vc_idle(logical_vc, curTick()) &&
++            net->dpPhysCanClaimSlot(down_router, down_inport, vnet, slot))
++            count++;
++    }
++    return count;
++}
++
++int
++Router::dpPhysSelectAdaptiveVC(int outport, int vnet)
++{
++    auto *net = get_net_ptr();
++    auto *output = getOutputUnit(outport);
++    const PortDirection outdir = output->get_direction();
++    assert(net->dpPhysGoverns(vnet, outdir));
++
++    int outvc = output->select_free_vc(
++        vnet, 0, net->getDPPhysPrivateVCs());
++    if (outvc != -1)
++        return outvc;
++
++    const PortDirection down_inport =
++        GarnetNetwork::cbsOppositeDirn(outdir);
++    const int down_router = net->cbsDownstreamRouter(m_id, outdir);
++    if (!net->dpPhysPoolWriteAvailable(down_router, down_inport, vnet,
++                                       curTick())) {
++        net->increment_dp_phys_write_block();
++        net->dpPhysNoteOwnershipDemand(
++            down_router, down_inport, vnet);
++        return -1;
++    }
++
++    // Prefer already-owned credits. Borrow an idle opposing credit only
++    // when no owned shared slot is usable.
++    for (int pass = 0; pass < 2; ++pass) {
++        for (int slot = 0; slot < net->getDPPhysPoolVCs(); ++slot) {
++            const bool owned = net->dpPhysSlotOwnedBy(
++                down_router, down_inport, vnet, slot);
++            if ((pass == 0) != owned)
++                continue;
++            const int logical_offset = net->getDPPhysPrivateVCs() + slot;
++            const int logical_vc = vnet * output->getVcsPerVnet() +
++                                   logical_offset;
++            if (!output->is_vc_idle(logical_vc, curTick()) ||
++                !net->dpPhysCanClaimSlot(
++                    down_router, down_inport, vnet, slot))
++                continue;
++            if (!net->dpPhysClaimSlot(
++                    down_router, down_inport, vnet, slot, curTick()))
++                continue;
++            outvc = output->select_free_vc(vnet, logical_offset, 1);
++            assert(outvc == logical_vc);
++            return outvc;
++        }
++    }
++    net->dpPhysNoteOwnershipDemand(down_router, down_inport, vnet);
++    return -1;
++}
++
++bool
++Router::dpPhysHasEscapeVC(int outport, int vnet)
++{
++    auto *net = get_net_ptr();
++    auto *output = getOutputUnit(outport);
++    const int first = net->getDPPhysPrivateVCs() +
++                      net->getDPPhysPoolVCs();
++    return output->has_free_vc(vnet, first, net->getEscapeVCs());
++}
++
+ int
+-Router::route_compute(RouteInfo route, int inport, PortDirection inport_dirn)
++Router::dpPhysSelectEscapeVC(int outport, int vnet)
+ {
+-    return routingUnit.outportCompute(route, inport, inport_dirn);
++    auto *net = get_net_ptr();
++    auto *output = getOutputUnit(outport);
++    const int first = net->getDPPhysPrivateVCs() +
++                      net->getDPPhysPoolVCs();
++    return output->select_free_vc(vnet, first, net->getEscapeVCs());
+ }
+ 
+ void
+diff --git a/src/mem/ruby/network/garnet/Router.hh b/src/mem/ruby/network/garnet/Router.hh
+index dbcdda9dbf..ad9678798e 100644
+--- a/src/mem/ruby/network/garnet/Router.hh
++++ b/src/mem/ruby/network/garnet/Router.hh
+@@ -104,6 +104,9 @@ class Router : public BasicRouter, public Consumer
+         return m_input_unit[port].get();
+     }
+ 
++    InputUnit *getInputUnitByDirection(const PortDirection &direction);
++    int getInportIdByDirection(const PortDirection &direction) const;
++
+     OutputUnit*
+     getOutputUnit(unsigned port)
+     {
+@@ -116,7 +119,14 @@ class Router : public BasicRouter, public Consumer
+     PortDirection getOutportDirection(int outport);
+     PortDirection getInportDirection(int inport);
+ 
+-    int route_compute(RouteInfo route, int inport, PortDirection direction);
++    int route_compute(RouteInfo route, int inport, PortDirection direction,
++                      int invc);
++    AdaptiveRouteDecision route_compute_3d_adaptive(
++        RouteInfo route, int invc, bool require_available);
++    int dpPhysAdaptiveFreeCount(int outport, int vnet);
++    int dpPhysSelectAdaptiveVC(int outport, int vnet);
++    bool dpPhysHasEscapeVC(int outport, int vnet);
++    int dpPhysSelectEscapeVC(int outport, int vnet);
+     void grant_switch(int inport, flit *t_flit);
+     void schedule_wakeup(Cycles time);
+ 
+diff --git a/src/mem/ruby/network/garnet/RoutingUnit.cc b/src/mem/ruby/network/garnet/RoutingUnit.cc
+index f6075fb651..3d21cca0c2 100644
+--- a/src/mem/ruby/network/garnet/RoutingUnit.cc
++++ b/src/mem/ruby/network/garnet/RoutingUnit.cc
+@@ -34,6 +34,7 @@
+ #include "base/compiler.hh"
+ #include "debug/RubyNetwork.hh"
+ #include "mem/ruby/network/garnet/InputUnit.hh"
++#include "mem/ruby/network/garnet/OutputUnit.hh"
+ #include "mem/ruby/network/garnet/Router.hh"
+ #include "mem/ruby/slicc_interface/Message.hh"
+ 
+@@ -47,8 +48,8 @@ namespace garnet
+ {
+ 
+ RoutingUnit::RoutingUnit(Router *router)
++    : m_router(router), m_random(0x5eed0000U + router->get_id())
+ {
+-    m_router = router;
+     m_routing_table.clear();
+     m_weight_table.clear();
+ }
+@@ -167,7 +168,7 @@ RoutingUnit::addOutDirection(PortDirection outport_dirn, int outport_idx)
+ 
+ int
+ RoutingUnit::outportCompute(RouteInfo route, int inport,
+-                            PortDirection inport_dirn)
++                            PortDirection inport_dirn, int invc)
+ {
+     int outport = -1;
+ 
+@@ -193,6 +194,12 @@ RoutingUnit::outportCompute(RouteInfo route, int inport,
+         // any custom algorithm
+         case CUSTOM_: outport =
+             outportComputeCustom(route, inport, inport_dirn); break;
++        case TORUS_3D_DOR_: outport =
++            outportCompute3DDOR(route, inport, inport_dirn); break;
++        case TORUS_3D_ADAPTIVE_: outport =
++            outportCompute3DAdaptive(route, invc, false).outport; break;
++        case MESH_3D_XYZ_: outport =
++            outportCompute3DXYZ(route); break;
+         default: outport =
+             lookupRoutingTable(route.vnet, route.net_dest); break;
+     }
+@@ -267,7 +274,251 @@ RoutingUnit::outportComputeCustom(RouteInfo route,
+                                  int inport,
+                                  PortDirection inport_dirn)
+ {
+-    panic("%s placeholder executed", __FUNCTION__);
++    const int num_routers = m_router->get_net_ptr()->getNumRouters();
++    const int current_id = m_router->get_id();
++    const int destination_id = route.dest_router;
++
++    assert(num_routers == 16);
++    assert(destination_id >= 0 && destination_id < num_routers);
++    assert(current_id != destination_id);
++
++    const int clockwise_hops =
++        (destination_id - current_id + num_routers) % num_routers;
++    const int counterclockwise_hops =
++        (current_id - destination_id + num_routers) % num_routers;
++
++    PortDirection outport_dirn;
++    if (clockwise_hops <= counterclockwise_hops) {
++        assert(inport_dirn == "Local" ||
++               inport_dirn == "CounterClockwise");
++        outport_dirn = "Clockwise";
++    } else {
++        assert(inport_dirn == "Local" || inport_dirn == "Clockwise");
++        outport_dirn = "CounterClockwise";
++    }
++
++    return m_outports_dirn2idx[outport_dirn];
++}
++
++int
++RoutingUnit::outportCompute3DDOR(RouteInfo route,
++                                 int inport,
++                                 PortDirection inport_dirn)
++{
++    const int size_x = m_router->get_net_ptr()->getTorusX();
++    const int size_y = m_router->get_net_ptr()->getTorusY();
++    const int size_z = m_router->get_net_ptr()->getTorusZ();
++    const int num_routers = m_router->get_net_ptr()->getNumRouters();
++    assert(size_x * size_y * size_z == num_routers);
++
++    const int current_id = m_router->get_id();
++    const int destination_id = route.dest_router;
++    const int current_x = current_id % size_x;
++    const int current_y = (current_id / size_x) % size_y;
++    const int current_z = current_id / (size_x * size_y);
++    const int destination_x = destination_id % size_x;
++    const int destination_y = (destination_id / size_x) % size_y;
++    const int destination_z = destination_id / (size_x * size_y);
++
++    PortDirection outport_dirn = "Unknown";
++    auto shortestDirection = [](int current, int destination, int size,
++                                PortDirection positive,
++                                PortDirection negative) {
++        const int positive_hops =
++            (destination - current + size) % size;
++        const int negative_hops =
++            (current - destination + size) % size;
++        return positive_hops <= negative_hops ? positive : negative;
++    };
++
++    if (current_x != destination_x) {
++        outport_dirn = shortestDirection(
++            current_x, destination_x, size_x, "East", "West");
++    } else if (current_y != destination_y) {
++        outport_dirn = shortestDirection(
++            current_y, destination_y, size_y, "North", "South");
++    } else if (current_z != destination_z) {
++        outport_dirn = shortestDirection(
++            current_z, destination_z, size_z, "Up", "Down");
++    } else {
++        panic("Torus3D routing called at the destination router");
++    }
++
++    return m_outports_dirn2idx[outport_dirn];
++}
++
++int
++RoutingUnit::outportCompute3DXYZ(RouteInfo route)
++{
++    const int size_x = m_router->get_net_ptr()->getTorusX();
++    const int size_y = m_router->get_net_ptr()->getTorusY();
++    const int size_z = m_router->get_net_ptr()->getTorusZ();
++    assert(size_x * size_y * size_z ==
++           m_router->get_net_ptr()->getNumRouters());
++
++    const int current_id = m_router->get_id();
++    const int destination_id = route.dest_router;
++    const int current_x = current_id % size_x;
++    const int current_y = (current_id / size_x) % size_y;
++    const int current_z = current_id / (size_x * size_y);
++    const int destination_x = destination_id % size_x;
++    const int destination_y = (destination_id / size_x) % size_y;
++    const int destination_z = destination_id / (size_x * size_y);
++
++    PortDirection outport_dirn = "Unknown";
++    if (current_x != destination_x)
++        outport_dirn = destination_x > current_x ? "East" : "West";
++    else if (current_y != destination_y)
++        outport_dirn = destination_y > current_y ? "North" : "South";
++    else if (current_z != destination_z)
++        outport_dirn = destination_z > current_z ? "Up" : "Down";
++    else
++        panic("Mesh3D routing called at the destination router");
++
++    return m_outports_dirn2idx.at(outport_dirn);
++}
++
++AdaptiveRouteDecision
++RoutingUnit::outportCompute3DAdaptive(RouteInfo route, int invc,
++                                      bool require_available)
++{
++    const int size_x = m_router->get_net_ptr()->getTorusX();
++    const int size_y = m_router->get_net_ptr()->getTorusY();
++    const int size_z = m_router->get_net_ptr()->getTorusZ();
++    const int vcs_per_vnet = m_router->get_vc_per_vnet();
++    const int vnet = invc / vcs_per_vnet;
++    const int escape_vcs = m_router->get_net_ptr()->getEscapeVCs();
++    const int adaptive_vcs = vcs_per_vnet - escape_vcs;
++    const bool input_escape = escape_vcs > 0 &&
++        invc % vcs_per_vnet >= adaptive_vcs;
++
++    const int current_id = m_router->get_id();
++    const int destination_id = route.dest_router;
++    const int current_x = current_id % size_x;
++    const int current_y = (current_id / size_x) % size_y;
++    const int current_z = current_id / (size_x * size_y);
++    const int destination_x = destination_id % size_x;
++    const int destination_y = (destination_id / size_x) % size_y;
++    const int destination_z = destination_id / (size_x * size_y);
++
++    auto outportForDirection = [this](PortDirection direction) {
++        return m_outports_dirn2idx.at(direction);
++    };
++    auto escapeOutport = [&]() {
++        if (current_x != destination_x) {
++            return outportForDirection(
++                destination_x > current_x ? "East" : "West");
++        }
++        if (current_y != destination_y) {
++            return outportForDirection(
++                destination_y > current_y ? "North" : "South");
++        }
++        if (current_z != destination_z) {
++            return outportForDirection(
++                destination_z > current_z ? "Up" : "Down");
++        }
++        return lookupRoutingTable(route.vnet, route.net_dest);
++    };
++    auto hasClassVC = [&](int outport, bool escape) {
++        const PortDirection outdir =
++            m_router->getOutputUnit(outport)->get_direction();
++        if (m_router->get_net_ptr()->dpPhysGoverns(vnet, outdir)) {
++            return escape ? m_router->dpPhysHasEscapeVC(outport, vnet) :
++                            m_router->dpPhysAdaptiveFreeCount(
++                                outport, vnet) > 0;
++        }
++        const int first_offset = escape ? adaptive_vcs : 0;
++        const int count = escape ? escape_vcs : adaptive_vcs;
++        return m_router->getOutputUnit(outport)->has_free_vc(
++            vnet, first_offset, count);
++    };
++
++    if (input_escape) {
++        const int outport = escapeOutport();
++        if (require_available && !hasClassVC(outport, true))
++            return AdaptiveRouteDecision();
++        return AdaptiveRouteDecision(outport, true);
++    }
++
++    if (current_id == destination_id) {
++        const int outport = escapeOutport();
++        if (!require_available || hasClassVC(outport, false))
++            return AdaptiveRouteDecision(outport, false);
++        if (escape_vcs > 0 && hasClassVC(outport, true))
++            return AdaptiveRouteDecision(outport, true);
++        return AdaptiveRouteDecision();
++    }
++
++    std::vector<int> candidates;
++    std::vector<PortDirection> candidate_dirns;
++    auto addMinimalDirections = [&](int current, int destination, int size,
++                                    PortDirection positive,
++                                    PortDirection negative) {
++        if (current == destination)
++            return;
++        const int positive_hops =
++            (destination - current + size) % size;
++        const int negative_hops =
++            (current - destination + size) % size;
++        if (positive_hops <= negative_hops) {
++            candidates.push_back(outportForDirection(positive));
++            candidate_dirns.push_back(positive);
++        }
++        if (negative_hops <= positive_hops) {
++            candidates.push_back(outportForDirection(negative));
++            candidate_dirns.push_back(negative);
++        }
++    };
++
++    addMinimalDirections(
++        current_x, destination_x, size_x, "East", "West");
++    addMinimalDirections(
++        current_y, destination_y, size_y, "North", "South");
++    addMinimalDirections(
++        current_z, destination_z, size_z, "Up", "Down");
++    assert(!candidates.empty());
++
++    int best_credits = -1;
++    std::vector<int> best_outports;
++    auto *net = m_router->get_net_ptr();
++    for (size_t i = 0; i < candidates.size(); i++) {
++        const int outport = candidates[i];
++        const int credits = net->dpPhysGoverns(vnet, candidate_dirns[i]) ?
++            m_router->dpPhysAdaptiveFreeCount(outport, vnet) :
++            m_router->getOutputUnit(outport)->free_vc_credit_count(
++                vnet, 0, adaptive_vcs);
++        if (require_available && credits == 0)
++            continue;
++        // DP: skip outports whose downstream dimension pair is at its
++        // pool cap so the packet falls through to the escape path;
++        // waiting on a capped adaptive window would sidestep the escape
++        // premise of Duato's protocol.
++        if (require_available && net->dpGoverns(vnet) &&
++            net->dpPoolFull(
++                net->cbsDownstreamRouter(current_id, candidate_dirns[i]),
++                GarnetNetwork::cbsOppositeDirn(candidate_dirns[i]),
++                vnet))
++            continue;
++        if (credits > best_credits) {
++            best_credits = credits;
++            best_outports.clear();
++        }
++        if (credits == best_credits)
++            best_outports.push_back(outport);
++    }
++
++    if (!best_outports.empty()) {
++        const unsigned choice = m_random.random<unsigned>(
++            0, best_outports.size() - 1);
++        return AdaptiveRouteDecision(best_outports[choice], false);
++    }
++
++    if (escape_vcs > 0) {
++        const int outport = escapeOutport();
++        if (hasClassVC(outport, true))
++            return AdaptiveRouteDecision(outport, true);
++    }
++    return AdaptiveRouteDecision();
+ }
+ 
+ } // namespace garnet
+diff --git a/src/mem/ruby/network/garnet/RoutingUnit.hh b/src/mem/ruby/network/garnet/RoutingUnit.hh
+index e593afd080..2910800319 100644
+--- a/src/mem/ruby/network/garnet/RoutingUnit.hh
++++ b/src/mem/ruby/network/garnet/RoutingUnit.hh
+@@ -31,6 +31,7 @@
+ #ifndef __MEM_RUBY_NETWORK_GARNET_0_ROUTINGUNIT_HH__
+ #define __MEM_RUBY_NETWORK_GARNET_0_ROUTINGUNIT_HH__
+ 
++#include "base/random.hh"
+ #include "mem/ruby/common/Consumer.hh"
+ #include "mem/ruby/common/NetDest.hh"
+ #include "mem/ruby/network/garnet/CommonTypes.hh"
+@@ -54,8 +55,9 @@ class RoutingUnit
+   public:
+     RoutingUnit(Router *router);
+     int outportCompute(RouteInfo route,
+-                      int inport,
+-                      PortDirection inport_dirn);
++                       int inport,
++                       PortDirection inport_dirn,
++                       int invc);
+ 
+     // Topology-agnostic Routing Table based routing (default)
+     void addRoute(std::vector<NetDest>& routing_table_entry);
+@@ -78,6 +80,14 @@ class RoutingUnit
+                              int inport,
+                              PortDirection inport_dirn);
+ 
++    int outportCompute3DDOR(RouteInfo route,
++                            int inport,
++                            PortDirection inport_dirn);
++    int outportCompute3DXYZ(RouteInfo route);
++
++    AdaptiveRouteDecision outportCompute3DAdaptive(
++        RouteInfo route, int invc, bool require_available);
++
+     // Returns true if vnet is present in the vector
+     // of vnets or if the vector supports all vnets.
+     bool supportsVnet(int vnet, std::vector<int> sVnets);
+@@ -85,6 +95,7 @@ class RoutingUnit
+ 
+   private:
+     Router *m_router;
++    Random m_random;
+ 
+     // Routing Table
+     std::vector<std::vector<NetDest>> m_routing_table;
+diff --git a/src/mem/ruby/network/garnet/SwitchAllocator.cc b/src/mem/ruby/network/garnet/SwitchAllocator.cc
+index e31733d42e..cdc673d878 100644
+--- a/src/mem/ruby/network/garnet/SwitchAllocator.cc
++++ b/src/mem/ruby/network/garnet/SwitchAllocator.cc
+@@ -66,11 +66,18 @@ SwitchAllocator::init()
+     m_round_robin_invc.resize(m_num_inports);
+     m_port_requests.resize(m_num_inports);
+     m_vc_winners.resize(m_num_inports);
++    m_escape_requests.resize(m_num_inports);
++    m_request_source_inport.resize(m_num_inports);
++    m_dpphys_flat_winner.resize(m_num_inports);
++    m_dpphys_bank_rr.assign(3, std::vector<int>(4, 0));
+ 
+     for (int i = 0; i < m_num_inports; i++) {
+         m_round_robin_invc[i] = 0;
+         m_port_requests[i] = -1;
+         m_vc_winners[i] = -1;
++        m_escape_requests[i] = false;
++        m_request_source_inport[i] = i;
++        m_dpphys_flat_winner[i] = -1;
+     }
+ 
+     for (int i = 0; i < m_num_outports; i++) {
+@@ -110,39 +117,147 @@ SwitchAllocator::wakeup()
+ void
+ SwitchAllocator::arbitrate_inports()
+ {
++    std::vector<bool> paired_inports(m_num_inports, false);
++    if (m_router->get_net_ptr()->isDPPhysEnabled())
++        arbitrate_dp_phys_inports(paired_inports);
++
+     // Select a VC from each input in a round robin manner
+     // Independent arbiter at each input port
+     for (int inport = 0; inport < m_num_inports; inport++) {
++        if (m_port_requests[inport] >= 0)
++            continue;
+         int invc = m_round_robin_invc[inport];
+ 
+         for (int invc_iter = 0; invc_iter < m_num_vcs; invc_iter++) {
+-            auto input_unit = m_router->getInputUnit(inport);
+-
+-            if (input_unit->need_stage(invc, SA_, curTick())) {
+-                // This flit is in SA stage
+-
+-                int outport = input_unit->get_outport(invc);
+-                int outvc = input_unit->get_outvc(invc);
+-
+-                // check if the flit in this InputVC is allowed to be sent
+-                // send_allowed conditions described in that function.
+-                bool make_request =
+-                    send_allowed(inport, invc, outport, outvc);
++            const int vnet = get_vnet(invc);
++            auto *net = m_router->get_net_ptr();
++            auto *input = m_router->getInputUnit(inport);
++            if (!(paired_inports[inport] &&
++                  net->dpPhysGoverns(vnet, input->get_direction())) &&
++                try_request(inport, invc, inport))
++                break;
+ 
+-                if (make_request) {
+-                    m_input_arbiter_activity++;
+-                    m_port_requests[inport] = outport;
+-                    m_vc_winners[inport] = invc;
++            invc++;
++            if (invc >= m_num_vcs)
++                invc = 0;
++        }
++    }
++}
+ 
+-                    break; // got one vc winner for this port
++// The paired-pool organization has two read banks: the selected direction's
++// private RES bank and one shared POOL bank. Opposing directions use opposite
++// phases, so exactly one side can query POOL each cycle. A pool candidate is
++// selected across both physical InputUnits and travels through the crossbar
++// lane belonging to its true ingress direction; this models a central 1R pool
++// even when the backing slot is physically hosted by the opposite InputUnit.
++void
++SwitchAllocator::arbitrate_dp_phys_inports(
++    std::vector<bool> &paired_inports)
++{
++    auto *net = m_router->get_net_ptr();
++    static const PortDirection directions[6] = {
++        "East", "West", "North", "South", "Up", "Down"
++    };
++    const int pool_side =
++        (static_cast<uint64_t>(m_router->curCycle()) & 1) == 0 ? 1 : 0;
++    const int flat_count = 2 * m_num_vcs;
++
++    for (int pair = 0; pair < 3; ++pair) {
++        const int pair_inports[2] = {
++            m_router->getInportIdByDirection(directions[pair * 2]),
++            m_router->getInportIdByDirection(directions[pair * 2 + 1])
++        };
++        assert(pair_inports[0] >= 0 && pair_inports[1] >= 0);
++        paired_inports[pair_inports[0]] = true;
++        paired_inports[pair_inports[1]] = true;
++
++        for (int side = 0; side < 2; ++side) {
++            const bool pool_turn = side == pool_side;
++            const int bank = pool_turn ? 1 : 0;
++            const int request_inport = pair_inports[side];
++            int flat = m_dpphys_bank_rr[pair][side * 2 + bank];
++
++            for (int iter = 0; iter < flat_count; ++iter) {
++                const int source_inport =
++                    pair_inports[flat / m_num_vcs];
++                const int invc = flat % m_num_vcs;
++                auto *input = m_router->getInputUnit(source_inport);
++                const int vnet = get_vnet(invc);
++                const bool ready = input->need_stage(invc, SA_, curTick());
++                if (ready &&
++                    net->dpPhysGoverns(vnet, input->get_direction())) {
++                    const int true_d = GarnetNetwork::dpPhysDirnIndex(
++                        input->get_true_direction(invc));
++                    const bool pooled = net->dpPhysPhysicalPooledOffset(
++                        invc % m_vc_per_vnet);
++                    if (true_d == pair * 2 + side &&
++                        pooled == pool_turn &&
++                        try_request(source_inport, invc, request_inport)) {
++                        m_dpphys_flat_winner[request_inport] = flat;
++                        break;
++                    }
+                 }
++                flat = (flat + 1) % flat_count;
+             }
++        }
++    }
++}
+ 
+-            invc++;
+-            if (invc >= m_num_vcs)
+-                invc = 0;
++bool
++SwitchAllocator::try_request(int source_inport, int invc,
++                             int request_inport)
++{
++    auto input_unit = m_router->getInputUnit(source_inport);
++    if (!input_unit->need_stage(invc, SA_, curTick()))
++        return false;
++
++    int outport = input_unit->get_outport(invc);
++    const int vnet = get_vnet(invc);
++    bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
++        m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
++    if (wormhole_control)
++        outport = input_unit->peekTopFlit(invc)->get_outport();
++    const int outvc = input_unit->get_outvc(invc);
++    bool route_available = true;
++    bool escape_request = false;
++
++    if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
++        if (outvc == -1) {
++            AdaptiveRouteDecision decision =
++                m_router->route_compute_3d_adaptive(
++                    input_unit->peekTopFlit(invc)->get_route(), invc, true);
++            route_available = decision.outport != -1;
++            if (route_available) {
++                outport = decision.outport;
++                escape_request = decision.escape;
++                input_unit->grant_outport(invc, outport);
++            }
++        } else {
++            const int escape_vcs =
++                m_router->get_net_ptr()->getEscapeVCs();
++            const int output_vcs =
++                m_router->getOutputUnit(outport)->getVcsPerVnet();
++            const bool dpphys = m_router->get_net_ptr()->dpPhysGoverns(
++                vnet, m_router->getOutputUnit(outport)->get_direction());
++            const int escape_begin = dpphys ?
++                m_router->get_net_ptr()->getDPPhysPrivateVCs() +
++                    m_router->get_net_ptr()->getDPPhysPoolVCs() :
++                m_vc_per_vnet - escape_vcs;
++            escape_request = escape_vcs > 0 &&
++                outvc % output_vcs >= escape_begin;
+         }
+     }
++
++    if (!route_available ||
++        !send_allowed(source_inport, invc, outport, outvc, escape_request))
++        return false;
++
++    m_input_arbiter_activity++;
++    m_port_requests[request_inport] = outport;
++    m_vc_winners[request_inport] = invc;
++    m_escape_requests[request_inport] = escape_request;
++    m_request_source_inport[request_inport] = source_inport;
++    return true;
+ }
+ 
+ /*
+@@ -174,7 +289,8 @@ SwitchAllocator::arbitrate_outports()
+             // inport has a request this cycle for outport
+             if (m_port_requests[inport] == outport) {
+                 auto output_unit = m_router->getOutputUnit(outport);
+-                auto input_unit = m_router->getInputUnit(inport);
++                const int source_inport = m_request_source_inport[inport];
++                auto input_unit = m_router->getInputUnit(source_inport);
+ 
+                 // grant this outport to this inport
+                 int invc = m_vc_winners[inport];
+@@ -182,7 +298,9 @@ SwitchAllocator::arbitrate_outports()
+                 int outvc = input_unit->get_outvc(invc);
+                 if (outvc == -1) {
+                     // VC Allocation - select any free VC from outport
+-                    outvc = vc_allocate(outport, inport, invc);
++                    outvc = vc_allocate(
++                        outport, source_inport, invc,
++                        m_escape_requests[inport]);
+                 }
+ 
+                 // remove flit from Input VC
+@@ -213,26 +331,108 @@ SwitchAllocator::arbitrate_outports()
+                 // (This was updated in VC by vc_allocate, but not in flit)
+                 t_flit->set_vc(outvc);
+ 
++                if (m_router->get_net_ptr()->isTorus3DAdaptive() &&
++                    output_unit->get_direction() != "Local") {
++                    auto *net = m_router->get_net_ptr();
++                    const int escape_vcs =
++                        net->getEscapeVCs();
++                    const int adaptive_vcs = m_vc_per_vnet - escape_vcs;
++                    const bool dpphys = net->dpPhysGoverns(
++                        get_vnet(invc), output_unit->get_direction());
++                    const int output_offset = outvc %
++                        output_unit->getVcsPerVnet();
++                    const bool output_escape = dpphys ?
++                        output_offset >=
++                            static_cast<int>(net->getDPPhysPrivateVCs() +
++                                             net->getDPPhysPoolVCs()) :
++                        escape_vcs > 0 &&
++                            output_offset >= adaptive_vcs;
++                    const bool input_escape =
++                        escape_vcs > 0 &&
++                        invc % m_vc_per_vnet >= adaptive_vcs;
++                    if (output_escape)
++                        m_router->get_net_ptr()->increment_escape_hop();
++                    else
++                        m_router->get_net_ptr()->increment_adaptive_hop();
++                    const bool packet_head =
++                        t_flit->get_type() == HEAD_ ||
++                        t_flit->get_type() == HEAD_TAIL_;
++                    if (output_escape && !input_escape && packet_head) {
++                        m_router->get_net_ptr()->
++                            increment_escape_transition();
++                    }
++                }
++
+                 // decrement credit in outvc
+                 output_unit->decrement_credit(outvc);
+ 
++                // CBS: an in-ring transit packet may displace the critical
++                // bubble. When it fills the last free slot at the marked
++                // downstream inport, the mark moves upstream to the slot
++                // this packet vacates (freed below for single-flit ctrl
++                // packets).
++                {
++                    const int cbs_vnet = get_vnet(invc);
++                    if (cbs_governs(cbs_vnet, outport)) {
++                        auto *net = m_router->get_net_ptr();
++                        PortDirection outport_dirn =
++                            output_unit->get_direction();
++                        PortDirection down_inport =
++                            GarnetNetwork::cbsOppositeDirn(outport_dirn);
++                        int down_router = net->cbsDownstreamRouter(
++                            m_router->get_id(), outport_dirn);
++                        // Under DP the bubble lives in the dedicated
++                        // window: displacement fires when the consumed
++                        // slot and the vacated slot are both dedicated
++                        // and no dedicated slot stays free downstream.
++                        const bool dp = net->isDPEnabled();
++                        const int dp_r =
++                            dp ? (int)net->getDPReserve() : 0;
++                        const bool bubble_consumed = dp ?
++                            (outvc % m_vc_per_vnet < dp_r &&
++                             invc % m_vc_per_vnet < dp_r &&
++                             output_unit->free_vc_credit_count(
++                                 cbs_vnet, 0, dp_r) == 0) :
++                            output_unit->count_free_vcs(cbs_vnet) == 0;
++                        if (input_unit->get_direction() == down_inport &&
++                            net->cbsHasMark(down_router, down_inport,
++                                            cbs_vnet) &&
++                            bubble_consumed) {
++                            net->cbsMoveMark(down_router, down_inport,
++                                m_router->get_id(),
++                                input_unit->get_direction(), cbs_vnet);
++                        }
++                    }
++                }
++
+                 // flit ready for Switch Traversal
+                 t_flit->advance_stage(ST_, curTick());
++                // `inport` is the true-direction crossbar lane. For a pool
++                // flit, `input_unit` may be the opposite physical host.
+                 m_router->grant_switch(inport, t_flit);
+                 m_output_arbiter_activity++;
+ 
+                 if ((t_flit->get_type() == TAIL_) ||
+                     t_flit->get_type() == HEAD_TAIL_) {
+-
+-                    // This Input VC should now be empty
+-                    assert(!(input_unit->isReady(invc, curTick())));
+-
+-                    // Free this VC
+-                    input_unit->set_vc_idle(invc, curTick());
+-
+-                    // Send a credit back
+-                    // along with the information that this VC is now idle
+-                    input_unit->increment_credit(invc, true, curTick());
++                    bool wormhole_control =
++                        m_router->get_net_ptr()->isWormhole() &&
++                        m_router->get_net_ptr()->get_vnet_type(
++                            get_vnet(invc)) == CTRL_VNET_;
++                    bool input_has_next = input_unit->isReady(invc, curTick());
++
++                    if (!wormhole_control || !input_has_next)
++                        assert(!(input_unit->isReady(invc, curTick())));
++
++                    if (wormhole_control && input_has_next) {
++                        // Keep the input VC active while queued
++                        // HEAD_TAIL packets drain, but route the next flit
++                        // independently.
++                        input_unit->set_outvc(invc, -1);
++                        input_unit->increment_credit(invc, false, curTick());
++                    } else {
++                        input_unit->set_vc_idle(invc, curTick());
++                        input_unit->increment_credit(invc, true, curTick());
++                    }
+                 } else {
+                     // Send a credit back
+                     // but do not indicate that the VC is idle
+@@ -251,9 +451,28 @@ SwitchAllocator::arbitrate_outports()
+                 // We do it here to keep it fair.
+                 // Only the VC which got switch traversal
+                 // is updated.
+-                m_round_robin_invc[inport] = invc + 1;
+-                if (m_round_robin_invc[inport] >= m_num_vcs)
+-                    m_round_robin_invc[inport] = 0;
++                m_round_robin_invc[source_inport] = invc + 1;
++                if (m_round_robin_invc[source_inport] >= m_num_vcs)
++                    m_round_robin_invc[source_inport] = 0;
++
++                const int flat_winner = m_dpphys_flat_winner[inport];
++                if (flat_winner >= 0) {
++                    auto *net = m_router->get_net_ptr();
++                    const int true_d = GarnetNetwork::dpPhysDirnIndex(
++                        input_unit->get_true_direction(invc));
++                    assert(true_d >= 0);
++                    const int pair = true_d / 2;
++                    const int side = true_d % 2;
++                    const bool pooled = net->dpPhysPhysicalPooledOffset(
++                        invc % m_vc_per_vnet);
++                    const int bank = pooled ? 1 : 0;
++                    m_dpphys_bank_rr[pair][side * 2 + bank] =
++                        (flat_winner + 1) % (2 * m_num_vcs);
++                    if (pooled)
++                        net->increment_dp_phys_pool_read(true_d);
++                    else
++                        net->increment_dp_phys_reserved_read(true_d);
++                }
+ 
+ 
+                 break; // got a input winner for this outport
+@@ -266,6 +485,75 @@ SwitchAllocator::arbitrate_outports()
+     }
+ }
+ 
++// CBS applies to hops that stay inside the torus (non-Local outports) on
++// ctrl vnets, where every packet is a single flit and a buffer slot is
++// exactly one VC.
++bool
++SwitchAllocator::cbs_governs(int vnet, int outport)
++{
++    auto *net = m_router->get_net_ptr();
++    return net->isCBSEnabled() &&
++           net->get_vnet_type(vnet) == CTRL_VNET_ &&
++           m_router->getOutputUnit(outport)->get_direction() != "Local";
++}
++
++// DP applies to the same hops as CBS: non-Local outports on ctrl vnets.
++bool
++SwitchAllocator::dp_governs(int vnet, int outport)
++{
++    auto *net = m_router->get_net_ptr();
++    return net->isDPEnabled() &&
++           net->get_vnet_type(vnet) == CTRL_VNET_ &&
++           m_router->getOutputUnit(outport)->get_direction() != "Local";
++}
++
++// DP on Torus3D DOR: decide which windows at `outport` may admit the flit
++// waiting in (inport, invc). The pooled window [dp_reserve, V) is open when
++// it has a free VC and the downstream dimension pair is under its cap. The
++// dedicated window [0, dp_reserve) runs CBS: ring entry next to the
++// critical bubble needs two free dedicated slots, and in-ring transit may
++// fill the last dedicated slot at a marked inport only when the mover
++// itself sits in a dedicated VC, so the mark lands on the dedicated slot
++// it vacates.
++void
++SwitchAllocator::dp_cbs_admission(int vnet, int inport, int invc, int outport,
++                                  bool &shared_ok, bool &dedicated_ok,
++                                  bool record_stats)
++{
++    auto *net = m_router->get_net_ptr();
++    auto output_unit = m_router->getOutputUnit(outport);
++    const int r = net->getDPReserve();
++    const int pooled = m_vc_per_vnet - r;
++
++    const PortDirection outport_dirn = output_unit->get_direction();
++    const PortDirection down_inport =
++        GarnetNetwork::cbsOppositeDirn(outport_dirn);
++    const int down_router =
++        net->cbsDownstreamRouter(m_router->get_id(), outport_dirn);
++    const bool marked = net->cbsHasMark(down_router, down_inport, vnet);
++    const bool ring_entry =
++        m_router->getInputUnit(inport)->get_direction() != down_inport;
++
++    const bool pool_full = net->dpPoolFull(down_router, down_inport, vnet);
++    const bool shared_free = output_unit->has_free_vc(vnet, r, pooled);
++    shared_ok = shared_free && !pool_full;
++
++    const int ded_free = output_unit->free_vc_credit_count(vnet, 0, r);
++    if (ring_entry) {
++        dedicated_ok = ded_free >= (marked ? 2 : 1);
++    } else {
++        dedicated_ok = ded_free >= 2 ||
++            (ded_free == 1 && (!marked || invc % m_vc_per_vnet < r));
++    }
++
++    if (record_stats && !shared_ok && !dedicated_ok) {
++        if (shared_free && pool_full)
++            net->increment_dp_pool_block();
++        if (ring_entry && marked && ded_free == 1)
++            net->increment_cbs_entry_block();
++    }
++}
++
+ /*
+  * A flit can be sent only if
+  * (1) there is at least one free output VC at the
+@@ -281,7 +569,8 @@ SwitchAllocator::arbitrate_outports()
+  */
+ 
+ bool
+-SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
++SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc,
++                              bool escape_request)
+ {
+     // Check if outvc needed
+     // Check if credit needed (for multi-flit packet)
+@@ -297,7 +586,81 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
+         // needs outvc
+         // this is only true for HEAD and HEAD_TAIL flits.
+ 
+-        if (output_unit->has_free_vc(vnet)) {
++        bool output_available = false;
++        if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
++            auto *net = m_router->get_net_ptr();
++            const int escape_vcs = net->getEscapeVCs();
++            const int adaptive_vcs = m_vc_per_vnet - escape_vcs;
++            const bool dpphys = net->dpPhysGoverns(
++                vnet, output_unit->get_direction());
++            if (dpphys) {
++                output_available = escape_request ?
++                    m_router->dpPhysHasEscapeVC(outport, vnet) :
++                    m_router->dpPhysAdaptiveFreeCount(outport, vnet) > 0;
++            } else {
++                const int first_offset = escape_request ? adaptive_vcs : 0;
++                const int count = escape_request ? escape_vcs : adaptive_vcs;
++                output_available = output_unit->has_free_vc(
++                    vnet, first_offset, count);
++            }
++
++            // DP: adaptive-class admission also respects the downstream
++            // dimension-pair pool; escape VCs stay exempt. Routing already
++            // skips pool-full outports, so this is a belt check.
++            if (output_available && !escape_request &&
++                dp_governs(vnet, outport)) {
++                auto *net = m_router->get_net_ptr();
++                const PortDirection outport_dirn =
++                    output_unit->get_direction();
++                if (net->dpPoolFull(
++                        net->cbsDownstreamRouter(m_router->get_id(),
++                                                 outport_dirn),
++                        GarnetNetwork::cbsOppositeDirn(outport_dirn),
++                        vnet)) {
++                    output_available = false;
++                    net->increment_dp_pool_block();
++                }
++            }
++        } else if (dp_governs(vnet, outport)) {
++            // DP on DOR: the flit may take a pooled VC (pair under its
++            // cap) or a dedicated VC (per CBS rules on the dedicated
++            // window); see dp_cbs_admission.
++            bool shared_ok, dedicated_ok;
++            dp_cbs_admission(vnet, inport, invc, outport,
++                             shared_ok, dedicated_ok, true);
++            output_available = shared_ok || dedicated_ok;
++        } else {
++            bool wormhole_control =
++                m_router->get_net_ptr()->isWormhole() &&
++                m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
++            output_available =
++                (wormhole_control && output_unit->has_credit_vc(vnet)) ||
++                output_unit->has_free_vc(vnet);
++
++            // CBS: a packet entering a torus ring (injection or dimension
++            // change) may not consume the critical bubble. When the
++            // downstream inport hosts the mark, ring entry needs one extra
++            // free slot so the marked slot stays free.
++            if (output_available && cbs_governs(vnet, outport)) {
++                auto *net = m_router->get_net_ptr();
++                PortDirection outport_dirn = output_unit->get_direction();
++                PortDirection down_inport =
++                    GarnetNetwork::cbsOppositeDirn(outport_dirn);
++                PortDirection inport_dirn =
++                    m_router->getInputUnit(inport)->get_direction();
++                if (inport_dirn != down_inport) {
++                    // ring entry, not in-ring transit
++                    int down_router = net->cbsDownstreamRouter(
++                        m_router->get_id(), outport_dirn);
++                    if (net->cbsHasMark(down_router, down_inport, vnet) &&
++                        output_unit->count_free_vcs(vnet) < 2) {
++                        output_available = false;
++                        net->increment_cbs_entry_block();
++                    }
++                }
++            }
++        }
++        if (output_available) {
+ 
+             has_outvc = true;
+ 
+@@ -326,8 +689,14 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
+         int vc_base = vnet*m_vc_per_vnet;
+         for (int vc_offset = 0; vc_offset < m_vc_per_vnet; vc_offset++) {
+             int temp_vc = vc_base + vc_offset;
++            int temp_outport = input_unit->get_outport(temp_vc);
++            if (m_router->get_net_ptr()->isWormhole() &&
++                m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_ &&
++                input_unit->isReady(temp_vc, curTick())) {
++                temp_outport = input_unit->peekTopFlit(temp_vc)->get_outport();
++            }
+             if (input_unit->need_stage(temp_vc, SA_, curTick()) &&
+-               (input_unit->get_outport(temp_vc) == outport) &&
++               (temp_outport == outport) &&
+                (input_unit->get_enqueue_time(temp_vc) < t_enqueue_time)) {
+                 return false;
+             }
+@@ -339,14 +708,64 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
+ 
+ // Assign a free VC to the winner of the output port.
+ int
+-SwitchAllocator::vc_allocate(int outport, int inport, int invc)
++SwitchAllocator::vc_allocate(int outport, int inport, int invc,
++                             bool escape_request)
+ {
+     // Select a free VC from the output port
+-    int outvc =
+-        m_router->getOutputUnit(outport)->select_free_vc(get_vnet(invc));
++    int vnet = get_vnet(invc);
++    int outvc = -1;
++    if (m_router->get_net_ptr()->isTorus3DAdaptive()) {
++        auto *net = m_router->get_net_ptr();
++        const int escape_vcs = net->getEscapeVCs();
++        const int adaptive_vcs = m_vc_per_vnet - escape_vcs;
++        const PortDirection outdir =
++            m_router->getOutputUnit(outport)->get_direction();
++        if (net->dpPhysGoverns(vnet, outdir)) {
++            outvc = escape_request ?
++                m_router->dpPhysSelectEscapeVC(outport, vnet) :
++                m_router->dpPhysSelectAdaptiveVC(outport, vnet);
++        } else {
++            const int first_offset = escape_request ? adaptive_vcs : 0;
++            const int count = escape_request ? escape_vcs : adaptive_vcs;
++            outvc = m_router->getOutputUnit(outport)->select_free_vc(
++                vnet, first_offset, count);
++        }
++    } else if (dp_governs(vnet, outport)) {
++        // Shared-first: spend pool headroom before the dedicated reserve
++        // so the CBS bubbles keep their mobility.
++        auto output_unit = m_router->getOutputUnit(outport);
++        const int r = m_router->get_net_ptr()->getDPReserve();
++        bool shared_ok, dedicated_ok;
++        dp_cbs_admission(vnet, inport, invc, outport,
++                         shared_ok, dedicated_ok, false);
++        if (shared_ok)
++            outvc = output_unit->select_free_vc(vnet, r, m_vc_per_vnet - r);
++        if (outvc == -1 && dedicated_ok)
++            outvc = output_unit->select_free_vc(vnet, 0, r);
++    } else {
++        bool wormhole_control = m_router->get_net_ptr()->isWormhole() &&
++            m_router->get_net_ptr()->get_vnet_type(vnet) == CTRL_VNET_;
++        outvc = m_router->getOutputUnit(outport)->select_vc(
++            vnet, wormhole_control);
++    }
+ 
+     // has to get a valid VC since it checked before performing SA
+     assert(outvc != -1);
++
++    // DP: count the granted VC against its downstream dimension pool
++    // (dpNoteAlloc ignores non-pooled offsets, vnets, and directions).
++    auto *net = m_router->get_net_ptr();
++    if (net->isDPEnabled()) {
++        const PortDirection outport_dirn =
++            m_router->getOutputUnit(outport)->get_direction();
++        if (outport_dirn != "Local") {
++            net->dpNoteAlloc(
++                net->cbsDownstreamRouter(m_router->get_id(), outport_dirn),
++                GarnetNetwork::cbsOppositeDirn(outport_dirn),
++                vnet, outvc % m_vc_per_vnet);
++        }
++    }
++
+     m_router->getInputUnit(inport)->grant_outvc(invc, outvc);
+     return outvc;
+ }
+@@ -387,6 +806,12 @@ void
+ SwitchAllocator::clear_request_vector()
+ {
+     std::fill(m_port_requests.begin(), m_port_requests.end(), -1);
++    std::fill(m_vc_winners.begin(), m_vc_winners.end(), -1);
++    std::fill(m_escape_requests.begin(), m_escape_requests.end(), false);
++    std::fill(m_request_source_inport.begin(),
++              m_request_source_inport.end(), -1);
++    std::fill(m_dpphys_flat_winner.begin(),
++              m_dpphys_flat_winner.end(), -1);
+ }
+ 
+ void
+diff --git a/src/mem/ruby/network/garnet/SwitchAllocator.hh b/src/mem/ruby/network/garnet/SwitchAllocator.hh
+index 1072e0ad12..d2fbeb764a 100644
+--- a/src/mem/ruby/network/garnet/SwitchAllocator.hh
++++ b/src/mem/ruby/network/garnet/SwitchAllocator.hh
+@@ -63,8 +63,10 @@ class SwitchAllocator : public Consumer
+     void print(std::ostream& out) const {};
+     void arbitrate_inports();
+     void arbitrate_outports();
+-    bool send_allowed(int inport, int invc, int outport, int outvc);
+-    int vc_allocate(int outport, int inport, int invc);
++    bool send_allowed(int inport, int invc, int outport, int outvc,
++                      bool escape_request);
++    int vc_allocate(int outport, int inport, int invc,
++                    bool escape_request);
+ 
+     inline double
+     get_input_arbiter_activity()
+@@ -80,6 +82,14 @@ class SwitchAllocator : public Consumer
+     void resetStats();
+ 
+   private:
++    bool cbs_governs(int vnet, int outport);
++    bool dp_governs(int vnet, int outport);
++    bool try_request(int source_inport, int invc, int request_inport);
++    void arbitrate_dp_phys_inports(std::vector<bool> &paired_inports);
++    void dp_cbs_admission(int vnet, int inport, int invc, int outport,
++                          bool &shared_ok, bool &dedicated_ok,
++                          bool record_stats);
++
+     int m_num_inports, m_num_outports;
+     int m_num_vcs, m_vc_per_vnet;
+ 
+@@ -90,6 +100,11 @@ class SwitchAllocator : public Consumer
+     std::vector<int> m_round_robin_inport;
+     std::vector<int> m_port_requests;
+     std::vector<int> m_vc_winners;
++    std::vector<bool> m_escape_requests;
++    std::vector<int> m_request_source_inport;
++    std::vector<int> m_dpphys_flat_winner;
++    // [dimension pair][side * 2 + bank], bank 0=RES and bank 1=POOL.
++    std::vector<std::vector<int>> m_dpphys_bank_rr;
+ };
+ 
+ } // namespace garnet
+diff --git a/src/mem/ruby/network/garnet/VirtualChannel.cc b/src/mem/ruby/network/garnet/VirtualChannel.cc
+index 18e89a09b9..d9c4bfc489 100644
+--- a/src/mem/ruby/network/garnet/VirtualChannel.cc
++++ b/src/mem/ruby/network/garnet/VirtualChannel.cc
+@@ -42,7 +42,8 @@ namespace garnet
+ 
+ VirtualChannel::VirtualChannel()
+   : inputBuffer(), m_vc_state(IDLE_, Tick(0)), m_output_port(-1),
+-    m_enqueue_time(INFINITE_), m_output_vc(-1)
++    m_enqueue_time(INFINITE_), m_output_vc(-1), m_credit_inport(-1),
++    m_upstream_vc(-1), m_true_direction("Unknown")
+ {
+ }
+ 
+diff --git a/src/mem/ruby/network/garnet/VirtualChannel.hh b/src/mem/ruby/network/garnet/VirtualChannel.hh
+index 04b046b697..e5e34bd59b 100644
+--- a/src/mem/ruby/network/garnet/VirtualChannel.hh
++++ b/src/mem/ruby/network/garnet/VirtualChannel.hh
+@@ -62,7 +62,21 @@ class VirtualChannel
+ 
+     inline Tick get_enqueue_time()          { return m_enqueue_time; }
+     inline void set_enqueue_time(Tick time) { m_enqueue_time = time; }
+-    inline VC_state_type get_state()        { return m_vc_state.first; }
++    inline VC_state_type get_state() const  { return m_vc_state.first; }
++
++    void
++    set_ingress_metadata(int credit_inport, int upstream_vc,
++                         const PortDirection &true_direction)
++    {
++        m_credit_inport = credit_inport;
++        m_upstream_vc = upstream_vc;
++        m_true_direction = true_direction;
++    }
++
++    int get_credit_inport() const { return m_credit_inport; }
++    int get_upstream_vc() const { return m_upstream_vc; }
++    const PortDirection &get_true_direction() const
++    { return m_true_direction; }
+ 
+     inline bool
+     isReady(Tick curTime)
+@@ -104,6 +118,12 @@ class VirtualChannel
+     int m_output_port;
+     Tick m_enqueue_time;
+     int m_output_vc;
++    // DP-Phys may land a flit in the opposing InputUnit. These fields retain
++    // the link it actually arrived on so routing and credit return do not
++    // accidentally follow the physical storage location.
++    int m_credit_inport;
++    int m_upstream_vc;
++    PortDirection m_true_direction;
+ };
+ 
+ } // namespace garnet

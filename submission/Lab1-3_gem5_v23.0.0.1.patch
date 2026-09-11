@@ -1,0 +1,769 @@
+diff --git a/configs/example/garnet_synth_traffic.py b/configs/example/garnet_synth_traffic.py
+index 1da82e11b8..9666acbe20 100644
+--- a/configs/example/garnet_synth_traffic.py
++++ b/configs/example/garnet_synth_traffic.py
+@@ -173,7 +173,7 @@ root = Root(full_system=False, system=system)
+ root.system.mem_mode = "timing"
+ 
+ # Not much point in this being higher than the L1 latency
+-m5.ticks.setGlobalFrequency("1ps")
++m5.ticks.setGlobalFrequency("2GHz")
+ 
+ # instantiate configuration
+ m5.instantiate()
+diff --git a/configs/network/Network.py b/configs/network/Network.py
+index a5334741c0..b339a78117 100644
+--- a/configs/network/Network.py
++++ b/configs/network/Network.py
+@@ -97,6 +97,13 @@ def define_options(parser):
+             1: XY (for Mesh. see garnet/RoutingUnit.cc)
+             2: Custom (see garnet/RoutingUnit.cc""",
+     )
++    parser.add_argument(
++        "--wormhole",
++        action="store_true",
++        default=False,
++        help="""wormhole flow control: each ctrl VC buffers up to
++            16 single-flit packets""",
++    )
+     parser.add_argument(
+         "--network-fault-model",
+         action="store_true",
+@@ -168,6 +175,10 @@ def init_network(options, network, InterfaceClass):
+         network.vcs_per_vnet = options.vcs_per_vnet
+         network.ni_flit_size = options.link_width_bits / 8
+         network.routing_algorithm = options.routing_algorithm
++        network.wormhole = options.wormhole
++        if options.wormhole:
++            # Each ctrl VC must be able to hold 16 single-flit packets.
++            network.buffers_per_ctrl_vc = 16
+         network.garnet_deadlock_threshold = options.garnet_deadlock_threshold
+ 
+         # Create Bridges and connect them to the corresponding links
+diff --git a/configs/topologies/Ring.py b/configs/topologies/Ring.py
+new file mode 100644
+index 0000000000..5a522fe261
+--- /dev/null
++++ b/configs/topologies/Ring.py
+@@ -0,0 +1,162 @@
++# Copyright (c) 2010 Advanced Micro Devices, Inc.
++#               2016 Georgia Institute of Technology
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++from m5.params import *
++from m5.objects import *
++
++from common import FileSystemConfig
++
++from topologies.BaseTopology import SimpleTopology
++
++# Creates a bidirectional Ring (1D torus) assuming an equal number of
++# cache and directory controllers.
++# Router i is wired to router (i+1) % N through its "East" port and to
++# router (i-1) % N through its "West" port, so every router has exactly
++# two network neighbours.
++#
++# Two routing algorithms can drive this topology:
++#   --routing-algorithm=0  weight-based routing tables (default)
++#   --routing-algorithm=2  the custom ring routing in garnet/RoutingUnit.cc
++
++
++class Ring(SimpleTopology):
++    description = "Ring"
++
++    def __init__(self, controllers):
++        self.nodes = controllers
++
++    def makeTopology(self, options, network, IntLink, ExtLink, Router):
++        nodes = self.nodes
++
++        num_routers = options.num_cpus
++        assert num_routers > 2
++
++        # default values for link latency and router latency.
++        # Can be over-ridden on a per link/router basis
++        link_latency = options.link_latency  # used by simple and garnet
++        router_latency = options.router_latency  # only used by garnet
++
++        # There must be an evenly divisible number of cntrls to routers
++        cntrls_per_router, remainder = divmod(len(nodes), num_routers)
++
++        # Create the routers in the ring
++        routers = [
++            Router(router_id=i, latency=router_latency)
++            for i in range(num_routers)
++        ]
++        network.routers = routers
++
++        # link counter to set unique link ids
++        link_count = 0
++
++        # Add all but the remainder nodes to the list of nodes to be uniformly
++        # distributed across the network.
++        network_nodes = []
++        remainder_nodes = []
++        for node_index in range(len(nodes)):
++            if node_index < (len(nodes) - remainder):
++                network_nodes.append(nodes[node_index])
++            else:
++                remainder_nodes.append(nodes[node_index])
++
++        # Connect each node to the appropriate router
++        ext_links = []
++        for (i, n) in enumerate(network_nodes):
++            cntrl_level, router_id = divmod(i, num_routers)
++            assert cntrl_level < cntrls_per_router
++            ext_links.append(
++                ExtLink(
++                    link_id=link_count,
++                    ext_node=n,
++                    int_node=routers[router_id],
++                    latency=link_latency,
++                )
++            )
++            link_count += 1
++
++        # Connect the remainding nodes to router 0.  These should only be
++        # DMA nodes.
++        for (i, node) in enumerate(remainder_nodes):
++            assert node.type == "DMA_Controller"
++            assert i < remainder
++            ext_links.append(
++                ExtLink(
++                    link_id=link_count,
++                    ext_node=node,
++                    int_node=routers[0],
++                    latency=link_latency,
++                )
++            )
++            link_count += 1
++
++        network.ext_links = ext_links
++
++        # Create the ring links.
++        int_links = []
++
++        # Clockwise: router i sends East, router i+1 receives on West.
++        for i in range(num_routers):
++            east_out = i
++            west_in = (i + 1) % num_routers
++            int_links.append(
++                IntLink(
++                    link_id=link_count,
++                    src_node=routers[east_out],
++                    dst_node=routers[west_in],
++                    src_outport="East",
++                    dst_inport="West",
++                    latency=link_latency,
++                    weight=1,
++                )
++            )
++            link_count += 1
++
++        # Counter-clockwise: router i+1 sends West, router i receives on East.
++        for i in range(num_routers):
++            east_in = i
++            west_out = (i + 1) % num_routers
++            int_links.append(
++                IntLink(
++                    link_id=link_count,
++                    src_node=routers[west_out],
++                    dst_node=routers[east_in],
++                    src_outport="West",
++                    dst_inport="East",
++                    latency=link_latency,
++                    weight=1,
++                )
++            )
++            link_count += 1
++
++        network.int_links = int_links
++
++    # Register nodes with filesystem
++    def registerTopology(self, options):
++        for i in range(options.num_cpus):
++            FileSystemConfig.register_node(
++                [i], MemorySize(options.mem_size) // options.num_cpus, i
++            )
+diff --git a/src/mem/ruby/network/garnet/GarnetNetwork.cc b/src/mem/ruby/network/garnet/GarnetNetwork.cc
+index 57922698e0..3db94152f8 100644
+--- a/src/mem/ruby/network/garnet/GarnetNetwork.cc
++++ b/src/mem/ruby/network/garnet/GarnetNetwork.cc
+@@ -70,6 +70,7 @@ GarnetNetwork::GarnetNetwork(const Params &p)
+     m_buffers_per_data_vc = p.buffers_per_data_vc;
+     m_buffers_per_ctrl_vc = p.buffers_per_ctrl_vc;
+     m_routing_algorithm = p.routing_algorithm;
++    m_wormhole = p.wormhole;
+     m_next_packet_id = 0;
+ 
+     m_enable_fault_model = p.enable_fault_model;
+@@ -386,10 +387,20 @@ GarnetNetwork::regStats()
+ {
+     Network::regStats();
+ 
++    // Unit shorthands for the statistics registered below.
++    const auto *count = statistics::units::Count::get();
++    const auto *tick = statistics::units::Tick::get();
++    const auto *ratio = statistics::units::Ratio::get();
++    const auto *tick_per_pkt = statistics::units::Rate<
++        statistics::units::Tick, statistics::units::Count>::get();
++    const auto *hop_per_flit = statistics::units::Rate<
++        statistics::units::Count, statistics::units::Count>::get();
++
+     // Packets
+     m_packets_received
+         .init(m_virtual_networks)
+         .name(name() + ".packets_received")
++        .unit(count)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -397,6 +408,7 @@ GarnetNetwork::regStats()
+     m_packets_injected
+         .init(m_virtual_networks)
+         .name(name() + ".packets_injected")
++        .unit(count)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -404,12 +416,14 @@ GarnetNetwork::regStats()
+     m_packet_network_latency
+         .init(m_virtual_networks)
+         .name(name() + ".packet_network_latency")
++        .unit(tick)
+         .flags(statistics::oneline)
+         ;
+ 
+     m_packet_queueing_latency
+         .init(m_virtual_networks)
+         .name(name() + ".packet_queueing_latency")
++        .unit(tick)
+         .flags(statistics::oneline)
+         ;
+ 
+@@ -422,28 +436,33 @@ GarnetNetwork::regStats()
+ 
+     m_avg_packet_vnet_latency
+         .name(name() + ".average_packet_vnet_latency")
++        .unit(tick_per_pkt)
+         .flags(statistics::oneline);
+     m_avg_packet_vnet_latency =
+         m_packet_network_latency / m_packets_received;
+ 
+     m_avg_packet_vqueue_latency
+         .name(name() + ".average_packet_vqueue_latency")
++        .unit(tick_per_pkt)
+         .flags(statistics::oneline);
+     m_avg_packet_vqueue_latency =
+         m_packet_queueing_latency / m_packets_received;
+ 
+     m_avg_packet_network_latency
+-        .name(name() + ".average_packet_network_latency");
++        .name(name() + ".average_packet_network_latency")
++        .unit(tick_per_pkt);
+     m_avg_packet_network_latency =
+         sum(m_packet_network_latency) / sum(m_packets_received);
+ 
+     m_avg_packet_queueing_latency
+-        .name(name() + ".average_packet_queueing_latency");
++        .name(name() + ".average_packet_queueing_latency")
++        .unit(tick_per_pkt);
+     m_avg_packet_queueing_latency
+         = sum(m_packet_queueing_latency) / sum(m_packets_received);
+ 
+     m_avg_packet_latency
+-        .name(name() + ".average_packet_latency");
++        .name(name() + ".average_packet_latency")
++        .unit(tick_per_pkt);
+     m_avg_packet_latency
+         = m_avg_packet_network_latency + m_avg_packet_queueing_latency;
+ 
+@@ -451,6 +470,7 @@ GarnetNetwork::regStats()
+     m_flits_received
+         .init(m_virtual_networks)
+         .name(name() + ".flits_received")
++        .unit(count)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -458,6 +478,7 @@ GarnetNetwork::regStats()
+     m_flits_injected
+         .init(m_virtual_networks)
+         .name(name() + ".flits_injected")
++        .unit(count)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -465,12 +486,14 @@ GarnetNetwork::regStats()
+     m_flit_network_latency
+         .init(m_virtual_networks)
+         .name(name() + ".flit_network_latency")
++        .unit(tick)
+         .flags(statistics::oneline)
+         ;
+ 
+     m_flit_queueing_latency
+         .init(m_virtual_networks)
+         .name(name() + ".flit_queueing_latency")
++        .unit(tick)
+         .flags(statistics::oneline)
+         ;
+ 
+@@ -483,47 +506,73 @@ GarnetNetwork::regStats()
+ 
+     m_avg_flit_vnet_latency
+         .name(name() + ".average_flit_vnet_latency")
++        .unit(tick_per_pkt)
+         .flags(statistics::oneline);
+     m_avg_flit_vnet_latency = m_flit_network_latency / m_flits_received;
+ 
+     m_avg_flit_vqueue_latency
+         .name(name() + ".average_flit_vqueue_latency")
++        .unit(tick_per_pkt)
+         .flags(statistics::oneline);
+     m_avg_flit_vqueue_latency =
+         m_flit_queueing_latency / m_flits_received;
+ 
+     m_avg_flit_network_latency
+-        .name(name() + ".average_flit_network_latency");
++        .name(name() + ".average_flit_network_latency")
++        .unit(tick_per_pkt);
+     m_avg_flit_network_latency =
+         sum(m_flit_network_latency) / sum(m_flits_received);
+ 
+     m_avg_flit_queueing_latency
+-        .name(name() + ".average_flit_queueing_latency");
++        .name(name() + ".average_flit_queueing_latency")
++        .unit(tick_per_pkt);
+     m_avg_flit_queueing_latency =
+         sum(m_flit_queueing_latency) / sum(m_flits_received);
+ 
+     m_avg_flit_latency
+-        .name(name() + ".average_flit_latency");
++        .name(name() + ".average_flit_latency")
++        .unit(tick_per_pkt);
+     m_avg_flit_latency =
+         m_avg_flit_network_latency + m_avg_flit_queueing_latency;
+ 
+ 
++    // Reception rate: packets delivered per node per cycle.
++    // m_sim_cycles is sampled in collateStats(), which runs as a stat dump
++    // callback and therefore before this formula is evaluated.
++    const auto *pkt_per_cycle = statistics::units::Rate<
++        statistics::units::Count, statistics::units::Cycle>::get();
++    m_sim_cycles
++        .name(name() + ".sim_cycles")
++        .unit(statistics::units::Cycle::get());
++    m_reception_rate
++        .name(name() + ".reception_rate")
++        .unit(pkt_per_cycle);
++    m_reception_rate = sum(m_packets_received) /
++        (m_sim_cycles * (double)m_routers.size());
++
+     // Hops
+-    m_avg_hops.name(name() + ".average_hops");
++    m_total_hops.unit(count);
++    m_avg_hops.name(name() + ".average_hops")
++        .unit(hop_per_flit);
+     m_avg_hops = m_total_hops / sum(m_flits_received);
+ 
+     // Links
+     m_total_ext_in_link_utilization
+-        .name(name() + ".ext_in_link_utilization");
++        .name(name() + ".ext_in_link_utilization")
++        .unit(count);
+     m_total_ext_out_link_utilization
+-        .name(name() + ".ext_out_link_utilization");
++        .name(name() + ".ext_out_link_utilization")
++        .unit(count);
+     m_total_int_link_utilization
+-        .name(name() + ".int_link_utilization");
++        .name(name() + ".int_link_utilization")
++        .unit(count);
+     m_average_link_utilization
+-        .name(name() + ".avg_link_utilization");
++        .name(name() + ".avg_link_utilization")
++        .unit(ratio);
+     m_average_vc_load
+         .init(m_virtual_networks * m_max_vcs_per_vnet)
+         .name(name() + ".avg_vc_load")
++        .unit(ratio)
+         .flags(statistics::pdf | statistics::total | statistics::nozero |
+             statistics::oneline)
+         ;
+@@ -556,6 +605,9 @@ GarnetNetwork::collateStats()
+     RubySystem *rs = params().ruby_system;
+     double time_delta = double(curCycle() - rs->getStartCycle());
+ 
++    // Record the measurement window so reception_rate can normalise by it.
++    m_sim_cycles = time_delta;
++
+     for (int i = 0; i < m_networklinks.size(); i++) {
+         link_type type = m_networklinks[i]->getType();
+         int activity = m_networklinks[i]->getLinkUtilization();
+diff --git a/src/mem/ruby/network/garnet/GarnetNetwork.hh b/src/mem/ruby/network/garnet/GarnetNetwork.hh
+index db37628bea..1bb88f4f98 100644
+--- a/src/mem/ruby/network/garnet/GarnetNetwork.hh
++++ b/src/mem/ruby/network/garnet/GarnetNetwork.hh
+@@ -80,6 +80,11 @@ class GarnetNetwork : public Network
+     uint32_t getBuffersPerDataVC() { return m_buffers_per_data_vc; }
+     uint32_t getBuffersPerCtrlVC() { return m_buffers_per_ctrl_vc; }
+     int getRoutingAlgorithm() const { return m_routing_algorithm; }
++    bool isWormhole() const { return m_wormhole; }
++    // Wormhole flow control only concerns the ctrl vnets: they carry the
++    // single-flit packets that share a VC buffer.
++    bool isWormholeVnet(int vnet) const
++    { return m_wormhole && m_vnet_type[vnet] == CTRL_VNET_; }
+ 
+     bool isFaultModelEnabled() const { return m_enable_fault_model; }
+     FaultModel* fault_model;
+@@ -166,6 +171,7 @@ class GarnetNetwork : public Network
+     uint32_t m_buffers_per_ctrl_vc;
+     uint32_t m_buffers_per_data_vc;
+     int m_routing_algorithm;
++    bool m_wormhole;
+     bool m_enable_fault_model;
+ 
+     // Statistical variables
+@@ -200,6 +206,11 @@ class GarnetNetwork : public Network
+     statistics::Scalar  m_total_hops;
+     statistics::Formula m_avg_hops;
+ 
++    // Cycles simulated since the last stat reset, sampled in collateStats().
++    statistics::Scalar  m_sim_cycles;
++    // Packets delivered per node per cycle.
++    statistics::Formula m_reception_rate;
++
+     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
+     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;
+ 
+diff --git a/src/mem/ruby/network/garnet/GarnetNetwork.py b/src/mem/ruby/network/garnet/GarnetNetwork.py
+index 128118309c..45caa7b5fc 100644
+--- a/src/mem/ruby/network/garnet/GarnetNetwork.py
++++ b/src/mem/ruby/network/garnet/GarnetNetwork.py
+@@ -46,6 +46,9 @@ class GarnetNetwork(RubyNetwork):
+     buffers_per_data_vc = Param.UInt32(4, "buffers per data virtual channel")
+     buffers_per_ctrl_vc = Param.UInt32(1, "buffers per ctrl virtual channel")
+     routing_algorithm = Param.Int(0, "0: Weight-based Table, 1: XY, 2: Custom")
++    wormhole = Param.Bool(
++        False, "wormhole flow control: ctrl VCs queue several 1-flit packets"
++    )
+     enable_fault_model = Param.Bool(False, "enable network fault model")
+     fault_model = Param.FaultModel(NULL, "network fault model")
+     garnet_deadlock_threshold = Param.UInt32(
+diff --git a/src/mem/ruby/network/garnet/InputUnit.cc b/src/mem/ruby/network/garnet/InputUnit.cc
+index 179bb642b7..2e4606345d 100644
+--- a/src/mem/ruby/network/garnet/InputUnit.cc
++++ b/src/mem/ruby/network/garnet/InputUnit.cc
+@@ -87,20 +87,38 @@ InputUnit::wakeup()
+         int vc = t_flit->get_vc();
+         t_flit->increment_hops(); // for stats
+ 
++        int vnet = vc/m_vc_per_vnet;
++        // With wormhole flow control several single-flit packets share one
++        // ctrl VC, so a HEAD_TAIL_ flit may find its VC still ACTIVE_.
++        bool wormhole = m_router->get_net_ptr()->isWormholeVnet(vnet);
++
+         if ((t_flit->get_type() == HEAD_) ||
+             (t_flit->get_type() == HEAD_TAIL_)) {
+ 
+-            assert(virtualChannels[vc].get_state() == IDLE_);
+-            set_vc_active(vc, curTick());
++            if (virtualChannels[vc].get_state() == IDLE_) {
++                set_vc_active(vc, curTick());
++            } else {
++                assert(wormhole);
++                // Later packet joining a busy VC; refresh the enqueue time
++                // used by the SA ordering check.
++                virtualChannels[vc].set_enqueue_time(curTick());
++            }
+ 
+             // Route computation for this vc
+             int outport = m_router->route_compute(t_flit->get_route(),
+                 m_id, m_direction);
+ 
+-            // Update output port in VC
+-            // All flits in this packet will use this output port
+-            // The output port field in the flit is updated after it wins SA
+-            grant_outport(vc, outport);
++            if (wormhole) {
++                // Packets queued in the same VC can head for different
++                // outports, so the route is carried in the flit itself.
++                t_flit->set_outport(outport);
++            } else {
++                // Update output port in VC
++                // All flits in this packet will use this output port
++                // The output port field in the flit is updated after it
++                // wins SA
++                grant_outport(vc, outport);
++            }
+ 
+         } else {
+             assert(virtualChannels[vc].get_state() == ACTIVE_);
+@@ -110,7 +128,6 @@ InputUnit::wakeup()
+         // Buffer the flit
+         virtualChannels[vc].insertFlit(t_flit);
+ 
+-        int vnet = vc/m_vc_per_vnet;
+         // number of writes same as reads
+         // any flit that is written will be read only once
+         m_num_buffer_writes[vnet]++;
+diff --git a/src/mem/ruby/network/garnet/NetworkInterface.cc b/src/mem/ruby/network/garnet/NetworkInterface.cc
+index 31d625c4d5..1c6f2e9758 100644
+--- a/src/mem/ruby/network/garnet/NetworkInterface.cc
++++ b/src/mem/ruby/network/garnet/NetworkInterface.cc
+@@ -465,10 +465,14 @@ NetworkInterface::calculateVC(int vnet)
+         if (m_vc_allocator[vnet] == m_vc_per_vnet)
+             m_vc_allocator[vnet] = 0;
+ 
+-        if (outVcState[(vnet*m_vc_per_vnet) + delta].isInState(
+-                    IDLE_, curTick())) {
++        int vc = (vnet*m_vc_per_vnet) + delta;
++        // Under wormhole flow control a busy ctrl VC keeps accepting
++        // single-flit packets as long as it has credits left.
++        if (outVcState[vc].isInState(IDLE_, curTick()) ||
++            (m_net_ptr->isWormholeVnet(vnet) &&
++             outVcState[vc].has_credit())) {
+             vc_busy_counter[vnet] = 0;
+-            return ((vnet*m_vc_per_vnet) + delta);
++            return vc;
+         }
+     }
+ 
+diff --git a/src/mem/ruby/network/garnet/OutputUnit.cc b/src/mem/ruby/network/garnet/OutputUnit.cc
+index d5ad75327c..4d1150a415 100644
+--- a/src/mem/ruby/network/garnet/OutputUnit.cc
++++ b/src/mem/ruby/network/garnet/OutputUnit.cc
+@@ -106,13 +106,31 @@ OutputUnit::has_free_vc(int vnet)
+     return false;
+ }
+ 
+-// Assign a free output VC to the winner of Switch Allocation
++// Wormhole flow control: check whether any VC of this vnet, idle or
++// already active, still has a buffer credit for one more 1-flit packet
++bool
++OutputUnit::has_credit_vc(int vnet)
++{
++    int vc_base = vnet*m_vc_per_vnet;
++    for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
++        if (outVcState[vc].has_credit())
++            return true;
++    }
++
++    return false;
++}
++
++// Assign a free output VC to the winner of Switch Allocation.
++// Under wormhole flow control (allow_active) an ACTIVE_ VC that still has
++// credits may be picked as well: the packet queues up behind the one(s)
++// already occupying the VC downstream.
+ int
+-OutputUnit::select_free_vc(int vnet)
++OutputUnit::select_free_vc(int vnet, bool allow_active)
+ {
+     int vc_base = vnet*m_vc_per_vnet;
+     for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
+-        if (is_vc_idle(vc, curTick())) {
++        if (is_vc_idle(vc, curTick()) ||
++            (allow_active && outVcState[vc].has_credit())) {
+             outVcState[vc].setState(ACTIVE_, curTick());
+             return vc;
+         }
+diff --git a/src/mem/ruby/network/garnet/OutputUnit.hh b/src/mem/ruby/network/garnet/OutputUnit.hh
+index b07035c43a..d99c47aa45 100644
+--- a/src/mem/ruby/network/garnet/OutputUnit.hh
++++ b/src/mem/ruby/network/garnet/OutputUnit.hh
+@@ -68,7 +68,8 @@ class OutputUnit : public Consumer
+     void increment_credit(int out_vc);
+     bool has_credit(int out_vc);
+     bool has_free_vc(int vnet);
+-    int select_free_vc(int vnet);
++    bool has_credit_vc(int vnet);
++    int select_free_vc(int vnet, bool allow_active = false);
+ 
+     inline PortDirection get_direction() { return m_direction; }
+ 
+diff --git a/src/mem/ruby/network/garnet/RoutingUnit.cc b/src/mem/ruby/network/garnet/RoutingUnit.cc
+index f6075fb651..8bbde5078a 100644
+--- a/src/mem/ruby/network/garnet/RoutingUnit.cc
++++ b/src/mem/ruby/network/garnet/RoutingUnit.cc
+@@ -260,14 +260,47 @@ RoutingUnit::outportComputeXY(RouteInfo route,
+     return m_outports_dirn2idx[outport_dirn];
+ }
+ 
+-// Template for implementing custom routing algorithm
+-// using port directions. (Example adaptive)
++// Shortest-direction routing for the Ring (1D torus) topology of
++// configs/topologies/Ring.py.  Router i is connected to (i+1) % N over its
++// "East" port and to (i-1) % N over its "West" port, so a packet only ever
++// has two choices: keep going clockwise or counter-clockwise.  We pick
++// whichever direction covers fewer hops and break the tie (an exactly
++// diametrically opposite destination on an even-sized ring) deterministically
++// towards "East" so that all packets of a flow follow the same path.
++//
++// Routing is computed once per packet at the source-side hop and then simply
++// followed, so the direction chosen here never reverses mid-flight; the
++// asserts below check that invariant.
+ int
+ RoutingUnit::outportComputeCustom(RouteInfo route,
+                                  int inport,
+                                  PortDirection inport_dirn)
+ {
+-    panic("%s placeholder executed", __FUNCTION__);
++    int num_routers = m_router->get_net_ptr()->getNumRouters();
++    assert(num_routers > 2);
++
++    int my_id = m_router->get_id();
++    int dest_id = route.dest_router;
++
++    // already checked in outportCompute()
++    assert(my_id != dest_id);
++
++    // Hops needed if we keep travelling in each of the two directions.
++    int cw_hops = (dest_id - my_id + num_routers) % num_routers;
++    int ccw_hops = num_routers - cw_hops;
++
++    PortDirection outport_dirn = "Unknown";
++    if (cw_hops <= ccw_hops) {
++        // Clockwise: increasing router id, leave through "East".
++        assert(inport_dirn == "Local" || inport_dirn == "West");
++        outport_dirn = "East";
++    } else {
++        // Counter-clockwise: decreasing router id, leave through "West".
++        assert(inport_dirn == "Local" || inport_dirn == "East");
++        outport_dirn = "West";
++    }
++
++    return m_outports_dirn2idx[outport_dirn];
+ }
+ 
+ } // namespace garnet
+diff --git a/src/mem/ruby/network/garnet/SwitchAllocator.cc b/src/mem/ruby/network/garnet/SwitchAllocator.cc
+index e31733d42e..5bcbf30331 100644
+--- a/src/mem/ruby/network/garnet/SwitchAllocator.cc
++++ b/src/mem/ruby/network/garnet/SwitchAllocator.cc
+@@ -124,6 +124,14 @@ SwitchAllocator::arbitrate_inports()
+                 int outport = input_unit->get_outport(invc);
+                 int outvc = input_unit->get_outvc(invc);
+ 
++                // Under wormhole flow control the packets queued in a ctrl
++                // VC were routed individually on arrival, so the outport of
++                // the packet at the head lives in the flit, not in the VC.
++                if (m_router->get_net_ptr()->isWormholeVnet(
++                        get_vnet(invc))) {
++                    outport = input_unit->peekTopFlit(invc)->get_outport();
++                }
++
+                 // check if the flit in this InputVC is allowed to be sent
+                 // send_allowed conditions described in that function.
+                 bool make_request =
+@@ -224,15 +232,27 @@ SwitchAllocator::arbitrate_outports()
+                 if ((t_flit->get_type() == TAIL_) ||
+                     t_flit->get_type() == HEAD_TAIL_) {
+ 
+-                    // This Input VC should now be empty
+-                    assert(!(input_unit->isReady(invc, curTick())));
+-
+-                    // Free this VC
+-                    input_unit->set_vc_idle(invc, curTick());
+-
+-                    // Send a credit back
+-                    // along with the information that this VC is now idle
+-                    input_unit->increment_credit(invc, true, curTick());
++                    if (m_router->get_net_ptr()->isWormholeVnet(
++                            get_vnet(invc)) &&
++                        input_unit->isReady(invc, curTick())) {
++                        // Wormhole: further packets are queued in this VC.
++                        // Keep it active, clear the outvc so the next
++                        // packet does its own VC allocation, and return a
++                        // plain buffer credit.
++                        input_unit->grant_outvc(invc, -1);
++                        input_unit->increment_credit(invc, false, curTick());
++                    } else {
++                        // This Input VC should now be empty
++                        assert(!(input_unit->isReady(invc, curTick())));
++
++                        // Free this VC
++                        input_unit->set_vc_idle(invc, curTick());
++
++                        // Send a credit back
++                        // along with the information that this VC is now
++                        // idle
++                        input_unit->increment_credit(invc, true, curTick());
++                    }
+                 } else {
+                     // Send a credit back
+                     // but do not indicate that the VC is idle
+@@ -290,6 +310,7 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
+     int vnet = get_vnet(invc);
+     bool has_outvc = (outvc != -1);
+     bool has_credit = false;
++    bool wormhole = m_router->get_net_ptr()->isWormholeVnet(vnet);
+ 
+     auto output_unit = m_router->getOutputUnit(outport);
+     if (!has_outvc) {
+@@ -297,7 +318,10 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
+         // needs outvc
+         // this is only true for HEAD and HEAD_TAIL flits.
+ 
+-        if (output_unit->has_free_vc(vnet)) {
++        // Under wormhole flow control an ACTIVE_ VC with spare credits can
++        // take the packet as well: it queues up behind the previous one.
++        if (output_unit->has_free_vc(vnet) ||
++            (wormhole && output_unit->has_credit_vc(vnet))) {
+ 
+             has_outvc = true;
+ 
+@@ -326,8 +350,13 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
+         int vc_base = vnet*m_vc_per_vnet;
+         for (int vc_offset = 0; vc_offset < m_vc_per_vnet; vc_offset++) {
+             int temp_vc = vc_base + vc_offset;
++            int temp_outport = input_unit->get_outport(temp_vc);
++            if (wormhole && input_unit->isReady(temp_vc, curTick())) {
++                temp_outport =
++                    input_unit->peekTopFlit(temp_vc)->get_outport();
++            }
+             if (input_unit->need_stage(temp_vc, SA_, curTick()) &&
+-               (input_unit->get_outport(temp_vc) == outport) &&
++               (temp_outport == outport) &&
+                (input_unit->get_enqueue_time(temp_vc) < t_enqueue_time)) {
+                 return false;
+             }
+@@ -341,9 +370,11 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
+ int
+ SwitchAllocator::vc_allocate(int outport, int inport, int invc)
+ {
+-    // Select a free VC from the output port
+-    int outvc =
+-        m_router->getOutputUnit(outport)->select_free_vc(get_vnet(invc));
++    // Select a free VC from the output port (under wormhole flow control
++    // an active VC with spare credits may be shared by several packets)
++    int vnet = get_vnet(invc);
++    int outvc = m_router->getOutputUnit(outport)->select_free_vc(vnet,
++        m_router->get_net_ptr()->isWormholeVnet(vnet));
+ 
+     // has to get a valid VC since it checked before performing SA
+     assert(outvc != -1);
