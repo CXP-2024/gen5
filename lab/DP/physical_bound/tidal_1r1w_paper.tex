@@ -85,8 +85,8 @@ A pressure policy moves released credits toward the side with fuller reserved
 storage, keeps the previous owner on ties, caps ownership at three, and
 reclaims only idle peer-owned slots on demand.
 
-We implement the design in gem5 Garnet and evaluate an equal-storage
-four-private-VC baseline. Across 1,077 main-matrix simulations, all runs
+We implement the design in gem5 Garnet and evaluate it against an
+equal-storage four-private-VC baseline. Across 1,077 main-matrix simulations, all runs
 completed without deadlock and recorded zero cross-direction \pool read
 conflicts. Under persistent 90/10 X-direction skew with eight-cycle links,
 \system lowers network latency by 9.2\% and extends the stable offered
@@ -120,9 +120,9 @@ Private storage is wasteful precisely when the network is most stressed.
 Directionally skewed traffic---tornado permutations, biased
 dimension-ordered flows---drives one member of an opposing-direction pair
 against its input-credit limit while the peer sits nearly empty. The cost is
-measurable: at eight-cycle link latency, a fully skewed workload saturates a
-private four-VC baseline at an offered rate of 0.08, whereas the same eight
-buffer slots per pair, reorganized by \system, sustain 0.10 and deliver
+measurable: at eight-cycle link latency, a fully skewed workload caps a
+private four-VC baseline at a stable offered rate of 0.08, whereas the same
+eight buffer slots per pair, reorganized by \system, sustain 0.10 and deliver
 1.818 times as many packets beyond the baseline's saturation point
 (Section~\ref{sec:eval-skew}).
 
@@ -162,7 +162,9 @@ zero-contention input-credit bound of
   \quad\text{flits/cycle}.
 \end{equation}
 The exact saturation point can be lower because routing, output contention,
-and switch arbitration intervene. This bound is \emph{per direction}, and
+and switch arbitration intervene, and a workload that drives each packet $h$
+hops through the hot direction divides the bound by $h$, since every hop
+claims a credit at the next router. This bound is \emph{per direction}, and
 that is the problem: under persistent $+X$ skew the E input exhausts its
 credits and stalls its upstream sender while the four W slots one crossbar
 port away stay idle. The router holds enough total storage for the offered
@@ -481,8 +483,8 @@ total & 46 & $<5\%$ of 1{,}024 data bits\\
 controller, but the claim decision runs in the upstream allocator, which
 therefore observes eight bits per pair and vnet over a one-way sideband (or
 an upstream-mirrored copy updated by the same events). The simulator treats
-this observation as combinational; Section~\ref{sec:timing} prices
-registering it.
+this observation as combinational; Section~\ref{sec:timing} identifies it as
+the design's optimistic timing assumption.
 
 \textbf{Pipeline placement.} Upstream, the owner/busy check and the slot
 claim run inside output-VC selection at switch allocation and consume the
@@ -505,8 +507,9 @@ reserve an idle slot. Private and escape credits remain pinned.
 \subsection{Two credit planes}
 
 The implementation deliberately separates \emph{buffer occupancy} from
-\emph{Pool ownership}. They are both called credits informally, but they have
-different destinations and correctness roles:
+\emph{Pool ownership}. They are both called credits informally, but
+Table~\ref{tab:credit-planes} shows they have different destinations and
+correctness roles.
 \begin{table}[t]
 \centering
 \caption{The two credit planes in \system.}
@@ -537,7 +540,7 @@ idle must still pass the owner-table check before reusing that Pool slot.
 
 \subsection{Allocation, release, and handoff}
 
-Figure~\ref{fig:credit-life} follows one one-flit packet. The upstream router
+Figure~\ref{fig:credit-life} follows a single one-flit packet. The upstream router
 first searches its private adaptive VC, then idle Pool slots it already owns,
 then idle peer-owned slots that it may reclaim under the cap. A successful
 Pool choice atomically sets \texttt{owner[slot]}, sets
@@ -697,10 +700,6 @@ opposing upstream allocators. Adding a registered one-cycle grant, or a
 parameterized delay, is necessary before drawing frequency-sensitive
 conclusions.
 
-Blind owner round-robin is a useful control policy, but it is distinct from
-the round-robin arbitration inside the read scheduler. Rotating ownership
-without observing demand may park capacity at an inactive side.
-
 \section{Garnet Implementation}
 
 We implemented \system in gem5 Garnet's router, input unit, VC allocator, and
@@ -725,7 +724,8 @@ switch-allocation paths. The exact strict-1R1W snapshot is retained at
 Each physical InputUnit still contains four control-vnet VC records. Offsets
 0 and 3 are private; offsets 1 and 2 are that InputUnit's physical half of the
 pair Pool. An internal link exposes six \emph{logical} IDs so either opposing
-sender can name all four shared slots:
+sender can name all four shared slots; Table~\ref{tab:vc-map} gives the full
+numbering.
 \begin{table}[t]
 \centering
 \caption{VC numbering for the four-physical-VC design.}
@@ -786,8 +786,10 @@ write blocks, bank reads, per-direction activity, and peak borrowing.
 
 The primary baseline, \privatefour, dedicates four physical VCs to every input.
 All \system arms use two \res slots per side plus four shared slots per pair,
-preserving eight slots. We compare blind owner round-robin, pressure cap
-three, and pressure cap four.
+preserving eight slots. We compare blind owner round-robin---which rotates
+ownership without observing demand, and is distinct from the round-robin
+arbitration inside the read scheduler---against pressure with caps three and
+four.
 
 Tests use 4$\times$4$\times$4 or 8$\times$4$\times$4 3D torus networks, link
 latencies $L\in\{1,8\}$, one-flit control packets, 10,000 simulated cycles for
@@ -896,7 +898,8 @@ The 8$\times$4$\times$4 X-biased workload sends each packet three minimal
 X hops and varies the probability of choosing +X. It preserves spatially
 distributed destinations while controlling directional imbalance.
 Figure~\ref{fig:skew} reports $L=8$, injection 0.10, and four total VCs per
-input in the baseline.
+input in the baseline; Table~\ref{tab:xbias-detail} lists the underlying
+per-bias values.
 
 \begin{figure}[t]
 \centering
@@ -1353,10 +1356,11 @@ Cap 4 & 46.47 & .941 & .19\% & 2\\
 \end{tabular}
 \end{table}
 
-Cap two prevents borrowing and is behaviorally equivalent to static
-ownership. Cap three recovers most of cap four's latency benefit while
-retaining one credit at the cold side. Cap four is slightly faster here but
-can temporarily leave the peer with no Pool ownership.
+Table~\ref{tab:cap} isolates the owner cap. Cap two prevents borrowing and
+is behaviorally equivalent to static ownership. Cap three recovers most of
+cap four's latency benefit while retaining one credit at the cold side. Cap
+four is slightly faster here but can temporarily leave the peer with no Pool
+ownership.
 
 \begin{table}[t]
 \centering
@@ -1378,7 +1382,7 @@ Borrowed peak & 1 & Deadlocks & 0\\
 \end{tabular}
 \end{table}
 
-The event identities are visible numerically:
+The event identities of Table~\ref{tab:events} are visible numerically:
 \(202{,}267=201{,}267+1{,}000\) allocations and
 \(1{,}809=1{,}000+809\) migrations. Completed Pool reads also equal released
 keeps plus handoffs, \(202{,}083=201{,}274+809\); the allocation/read
@@ -1389,13 +1393,15 @@ the timing or area of a fabricated 1W array.
 
 \subsection{Where 1R1W loses}
 
-The phase schedule is a real bandwidth constraint. Against \privatefour,
+The phase schedule is a real bandwidth constraint; Table~\ref{tab:negative}
+collects the representative losses. Against \privatefour,
 uniform traffic at $L=8$, injection 0.9 raises latency by approximately 3.2\%.
 X-opposite traffic raises latency by 3--15\% because both members of a pair
 compete for one shared read. Tornado at $L=1$ raises latency by 25.1\% because
 the credit loop is too short for additional capacity to repay the phase cost.
 Reversing the hot X direction every 16 cycles raises latency by 7.8\% while
-ownership and old traffic drain in opposite directions.
+ownership and old traffic drain in opposite directions
+(Table~\ref{tab:reversal}).
 
 \begin{table}[t]
 \centering
@@ -1486,9 +1492,10 @@ three organizations~\cite{dallytowles2004}.
 
 The present evidence is preliminary and simulator-level. First, demand reclaim
 updates ownership with zero additional cycles; a one-cycle and parameterized
-grant path should measure timing sensitivity. Second, finer 0.005 injection
-steps, longer drain-aware runs, and at least five seeds are needed around every
-saturation knee. Third, a directed simultaneous E/W-write microbenchmark
+grant path should measure timing sensitivity. Second, the saturation knees
+are located at 0.01-rate resolution with three seeds; finer 0.005 steps,
+longer drain-aware runs, and five or more seeds would sharpen them further.
+Third, a directed simultaneous E/W-write microbenchmark
 should stress the write guard. Fourth, multi-flit packets require an explicit
 packet/VC ownership-retention rule. Finally, RTL synthesis should compare
 private buffers, 1R1W \system, and an idealized dual-access pool.
