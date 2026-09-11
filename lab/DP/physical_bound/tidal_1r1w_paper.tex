@@ -105,20 +105,32 @@ credit flow control, Garnet, gem5
 
 \section{Introduction}
 
-Virtual-channel flow control improves throughput by multiplexing logical
-channels over physical links, but it also makes buffer organization a central
-router design choice~\cite{dally1992virtual}. Garnet models a pipelined,
-credit-controlled network inside gem5 and is widely used to study these
-tradeoffs~\cite{agarwal2009garnet,binkert2011gem5}. Its conventional private
-organization is simple: input-direction VCs cannot migrate. When traffic is
-directionally skewed, a busy side can therefore stall while unused capacity
-remains stranded at its opposite peer.
+Virtual-channel (VC) flow control improves throughput by multiplexing logical
+channels over physical links, and it turns buffer organization into a central
+router design choice: input buffers account for a large share of an on-chip
+router's area and power budget~\cite{dally1992virtual,nicopoulos2006vichar}.
+Garnet models a pipelined, credit-controlled network inside gem5 and is widely
+used to study these tradeoffs~\cite{agarwal2009garnet,binkert2011gem5}. Its
+conventional organization is fully private: every input direction owns a
+fixed set of VCs, and storage never migrates.
 
-Fully shared buffers improve utilization, but unconstrained sharing requires
-multiported storage or arbitration that can erase the intended cost benefit.
-Our question is narrower: \emph{can an equal-capacity, direction-paired buffer
-recover useful elasticity while exposing only one shared read and one shared
-write service per pair and cycle?}
+Private storage is wasteful precisely when the network is most stressed.
+Directionally skewed traffic---tornado permutations, biased
+dimension-ordered flows---drives one member of an opposing-direction pair
+against its input-credit limit while the peer sits nearly empty. The cost is
+measurable: at eight-cycle link latency, a fully skewed workload saturates a
+private four-VC baseline at an offered rate of 0.08, whereas the same eight
+buffer slots per pair, reorganized by \system, sustain 0.10 and deliver
+1.818 times as many packets beyond the baseline's saturation point
+(Section~\ref{sec:eval-skew}).
+
+Elastic buffers are the classic remedy, but prior schemes buy their
+elasticity with multiported storage or wide arbitration, and industrial
+credit pools share only among the message classes of one link
+(Section~\ref{sec:background}). Our question is narrower: \emph{can an
+equal-capacity, direction-paired buffer recover useful elasticity while
+exposing only one shared read and one shared write service per pair and
+cycle?}
 
 This paper makes four contributions:
 \begin{itemize}
@@ -136,6 +148,7 @@ This paper makes four contributions:
 \end{itemize}
 
 \section{Background and Motivation}
+\label{sec:background}
 
 A conventional four-VC input assigns four physical VC slots to each
 direction. Credit round-trip time determines how quickly a released downstream
@@ -147,13 +160,36 @@ zero-contention input-credit bound of
   \quad\text{flits/cycle}.
 \end{equation}
 The exact saturation point can be lower because routing, output contention,
-and switch arbitration intervene.
+and switch arbitration intervene. This bound is \emph{per direction}, and
+that is the problem: under persistent $+X$ skew the E input exhausts its
+credits and stalls its upstream sender while the four W slots one crossbar
+port away stay idle. The router holds enough total storage for the offered
+load; it is partitioned along a boundary the traffic does not respect.
 
-\system targets the case in which one member of an opposing pair repeatedly
-approaches this limit while the peer is underused. It does not attempt to
-replace the escape channel used by deadlock-free routing. Deterministic escape
-resources remain private, consistent with the separation of deadlock avoidance
-from adaptive resource use~\cite{dally1987deadlock,duato1993theory}.
+Elastic buffers are the classic remedy. DAMQ buffers manage one physical
+buffer as linked lists whose queues grow with demand~\cite{tamir1992damq};
+ViChaR dispenses VCs themselves from a unified
+buffer~\cite{nicopoulos2006vichar}; ElastiStore backs all VCs of a port with
+a shared slack buffer~\cite{seitanidis2014elastistore}. All share storage
+\emph{within} one input port, and all pay in multiported storage, per-flit
+pointer management, or wider arbitration---costs that grow with the number of
+sharers. Production interconnects settled on a more conservative contract:
+a small private reservation per traffic class plus one shared, credit-managed
+pool (QPI/UPI's VN0/VNA~\cite{intel2009qpi}, Omni-Path's dedicated and
+shared receive regions~\cite{birrittella2015omnipath}, and CMN-700's
+per-link pools~\cite{arm2021cmn700}). But these pools share among the
+message classes of one physical link, so directional skew strands storage
+exactly as in the private baseline.
+
+\system combines the two: it applies the reserved-plus-pooled contract
+\emph{across} a router's two opposing inports---the axis skewed traffic
+actually unbalances---while constraining the shared bank up front to one read
+and one write per cycle, a budget conventional SRAM provides. Pairing
+exactly two sharers keeps the sharing hardware small, and admission moves by
+conserved ownership credits rather than per-flit pointers. Deadlock safety
+stays outside the elastic domain: every direction keeps a private
+deterministic escape VC, consistent with separating deadlock avoidance from
+adaptive resource use~\cite{dally1987deadlock,duato1993theory}.
 
 \section{Architecture}
 
@@ -208,10 +244,8 @@ credit returns to the correct sender.
 Figure~\ref{fig:router-microarch} places one pair inside a router tile. The
 same structure is replicated for E/W, N/S, and U/D. The two incoming links
 retain independent \res banks. Their adaptive arrivals also feed one shared
-\pool write arbiter. The four \pool entries may be implemented as a compact
-central array or as two physical halves with equivalent global arbitration;
-the Garnet model specifies the externally visible service contract rather than
-an SRAM circuit.
+\pool write arbiter. Section~\ref{sec:physical} details the pair's internal
+construction.
 
 \begin{figure*}[t]
 \centering
@@ -328,11 +362,133 @@ VC allocation and data arrival are one-to-one, so accepting at most one new
 Pool allocation per pair and cycle models a single Pool write service. A
 multi-flit extension would need a separate per-flit write schedule.
 
-In a physical implementation, the phase is the low bit of the router cycle
-counter, the Pool writer is a two-request arbiter, and the Pool reader is a
-four-entry bank selector followed by a true-ingress-lane multiplexer. The
-event-level Garnet implementation does not synthesize these blocks; it
-enforces their service limits and measures their utilization.
+\subsection{Physical construction of one pair}
+\label{sec:physical}
+
+Figure~\ref{fig:bank} draws the blocks that the service contract above
+implies for one pair and control vnet.
+
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[font=\sffamily\scriptsize,>=Latex,
+  blk/.style={draw=tidaldark,thick,rounded corners=2pt,fill=white,
+    align=center,inner sep=2.5pt},
+  ctl/.style={draw=tidalorange!90!black,thick,rounded corners=2pt,
+    fill=tidalorange!12,align=center,inner sep=2.5pt},
+  arr/.style={->,thick,draw=tidaldark},
+  sbd/.style={->,thick,dashed,draw=tidalorange!90!black}]
+
+  \node[blk] (ereq) at (0.85,4.05) {E adaptive\\arrival};
+  \node[blk] (wreq) at (0.85,2.95) {W adaptive\\arrival};
+  \node[ctl] (warb) at (2.5,3.5) {2:1 RR\\write arb};
+  \draw[arr] (ereq.east) -- (warb.west |- ereq.east);
+  \draw[arr] (wreq.east) -- (warb.west |- wreq.east);
+
+  \draw[draw=tidalblue,thick,rounded corners=2pt,fill=tidalblue!8]
+    (3.4,2.3) rectangle (6.1,4.6);
+  \node[font=\sffamily\bfseries\scriptsize,text=tidalblue]
+    at (4.75,4.38) {Pool array (1R1W)};
+  \foreach \i/\y in {0/3.82,1/3.40,2/2.98,3/2.56} {
+    \draw[fill=white,draw=tidalblue] (3.57,\y) rectangle ++(0.42,0.34);
+    \draw[fill=white,draw=tidalblue] (4.03,\y) rectangle ++(0.55,0.34);
+    \draw[fill=white,draw=tidalblue] (4.62,\y) rectangle ++(1.28,0.34);
+    \node[font=\tiny] at (3.78,\y+0.17) {o\,b};
+    \node[font=\tiny] at (4.305,\y+0.17) {tag};
+    \node[font=\tiny] at (5.26,\y+0.17) {flit P\i};
+  }
+  \draw[arr] (warb.east) -- node[above,font=\tiny]{1W} (3.4,3.5);
+
+  \node[blk] (rmux) at (6.95,3.5) {4:1\\mux};
+  \draw[arr] (6.1,3.5) -- node[above,font=\tiny]{1R} (rmux.west);
+  \node[blk] (lane) at (6.95,2.1) {ingress-lane\\latch};
+  \draw[arr] (rmux.south) -- (lane.north);
+  \draw[arr] (lane.east) -- ++(0.55,0);
+  \node[font=\tiny,anchor=north] at (8.15,1.95) {to crossbar};
+
+  \node[ctl] (phase) at (6.95,4.75) {$\varphi$ = cycle LSB};
+  \draw[sbd] (phase.south) -- (rmux.north);
+
+  \node[ctl] (pc) at (4.6,1.0)
+    {pair controller\\owner/busy · pressure cmp\\cap popcount · token · RR};
+  \draw[sbd] (4.75,0 |- pc.north) -- (4.75,2.3);
+  \node[blk] (esa) at (0.9,1.0) {E/W upstream\\SA stages};
+  \draw[sbd] (pc.west) -- node[above,font=\tiny]{$\times$8} (esa.east);
+\end{tikzpicture}%
+}
+\caption{Construction of one pair's shared bank: a two-request arbiter in
+front of the single write port, a phase-gated 4:1 read multiplexer onto the
+winner's true-ingress crossbar lane, and a local pair controller whose
+owner/busy bits both upstream allocators observe over a narrow sideband.
+o, b = per-slot owner and busy bits.}
+\label{fig:bank}
+\end{figure}
+
+\textbf{Storage.} The four \pool entries are flit-wide registers with a
+sidecar tag, built either as one central four-entry 1R1W register-file macro
+or as two two-entry halves colocated with each side's \res bank and numbered
+globally; the Garnet model mirrors the second layout
+(Section~\ref{sec:vc-map}). Each entry holds the 128-bit flit of the default
+Garnet link plus a seven-bit tag---true-ingress side (1 bit), credit inport
+(3 bits), and upstream logical VC (3 bits). The tag exists only because a
+slot may be borrowed by the opposite side; \res entries need none.
+
+\textbf{Read path.} The phase bit $\varphi$ is the low bit of the router
+cycle counter. Per side it masks which bank's requests enter switch
+allocation; within the active \pool bank a masked round-robin pointer picks
+one eligible entry, and a 4:1 flit multiplexer steers it onto the winner's
+true-ingress lane. The crossbar keeps one port per direction and gains none.
+
+\textbf{Write path.} Adaptive arrivals of both sides meet a two-request
+round-robin arbiter in front of the single write port; a token flop cleared
+every cycle enforces the single grant. The loser falls back to its private
+VC when that credit is free and otherwise waits upstream. \res writes bypass
+the arbiter.
+
+\textbf{Control state and policy logic.} Table~\ref{tab:state} counts the
+pair controller's state: 18 control bits plus four seven-bit tags per pair
+and vnet, under 5\% of the pair's 1{,}024 data bits. Pressure is a
+combinational count of each side's active \res VCs (range 0--2), so a
+release grant is a 2-bit compare; the cap check is a popcount of the four
+owner bits against three. All policy logic is local to the downstream pair
+controller.
+
+\begin{table}[t]
+\centering
+\caption{Per-pair, per-vnet control state.}
+\label{tab:state}
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{lrl}
+\toprule
+State & Bits & Role\\
+\midrule
+owner$[0..3]$ & 4 & authorized side per slot\\
+busy$[0..3]$ & 4 & in-flight guard (from VC-valid)\\
+write token & 1 & one \pool write per cycle\\
+bank RR pointers & 8 & read selection per side/bank\\
+policy RR bit & 1 & write-arbiter fairness\\
+ingress tags & $4\times7$ & credit return for borrowed slots\\
+\midrule
+total & 46 & $<5\%$ of 1{,}024 data bits\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Ownership observation.} Owner and busy bits live at the downstream
+controller, but the claim decision runs in the upstream allocator, which
+therefore observes eight bits per pair and vnet over a one-way sideband (or
+an upstream-mirrored copy updated by the same events). The simulator treats
+this observation as combinational; Section~\ref{sec:timing} prices
+registering it.
+
+\textbf{Pipeline placement.} Upstream, the owner/busy check and the slot
+claim run inside output-VC selection at switch allocation and consume the
+write token in the claim cycle. Downstream, the phase mask gates input
+arbitration, switch traversal is unchanged, and the release-time pressure
+grant runs at tail departure together with the ordinary credit enqueue. The
+event-level Garnet model does not synthesize these blocks; it enforces their
+service limits and measures their utilization.
 
 \section{Pool-Credit Control}
 
@@ -526,6 +682,7 @@ On equal pressure the old owner keeps the slot. If the preferred peer already
 owns three slots, the cap overrides pressure and the old owner keeps it.
 
 \subsection{Timing interpretation}
+\label{sec:timing}
 
 The ordinary occupancy credit is not idealized: it is inserted into the
 original InputUnit's credit queue and scheduled on Garnet's CreditLink one
@@ -561,6 +718,7 @@ switch-allocation paths. The exact strict-1R1W snapshot is retained at
 \end{itemize}
 
 \subsection{Physical and logical VC mapping}
+\label{sec:vc-map}
 
 Each physical InputUnit still contains four control-vnet VC records. Offsets
 0 and 3 are private; offsets 1 and 2 are that InputUnit's physical half of the
@@ -594,17 +752,11 @@ the true direction, not the physical host, and switch traversal uses E's
 crossbar lane. On release, the saved fields steer the ordinary credit back to
 E.
 
-\subsection{Control state and pipeline hooks}
+\subsection{Pipeline hooks}
 
-Conceptually, each pair and control vnet needs four owner bits, four busy
-indications, one policy-RR bit, a current-cycle Pool-write token, and bank-RR
-pointers. Busy state can be derived from or colocated with existing VC-valid
-state in RTL. The global cycle parity supplies the read phase. Per-VC
-true-ingress and upstream-ID tags are required only because a logical Pool
-slot may be physically hosted by its peer. Statistics and ownership-wait
-timestamps in the C++ model are instrumentation, not proposed hardware.
-
-The relevant Garnet hooks are:
+The C++ model carries exactly the control state of
+Table~\ref{tab:state}; statistics and ownership-wait timestamps are
+instrumentation, not proposed hardware. The relevant Garnet hooks are:
 \begin{itemize}
   \setlength{\itemsep}{0pt}
   \setlength{\topsep}{2pt}
@@ -716,6 +868,7 @@ cross-direction \pool read conflicts were zero. Under cap three, peak
 borrowing was one slot, confirming that the peer retained its final credit.
 
 \subsection{Persistent X-direction skew}
+\label{sec:eval-skew}
 
 The 8$\times$4$\times$4 X-biased workload sends each packet three minimal
 X hops and varies the probability of choosing +X. It preserves spatially
@@ -985,10 +1138,11 @@ copied over the repository's current working source.
 The evaluated comparison establishes equal buffer capacity and a one-read,
 one-write \pool service limit. This is a plausible manufacturing advantage
 over an ideal shared bank that must serve both directions simultaneously, but
-it is not yet an area or energy result. \system adds owner bits, physical-slot
-mapping, selectors, arbitration, control wiring, and a potentially critical
-ownership update path. We therefore claim reduced shared-port demand, not
-zero hardware cost. RTL synthesis against private and dual-access pool
+it is not yet an area or energy result. \system adds the control state,
+selectors, arbiters, and ownership sideband of Section~\ref{sec:physical};
+the state itself is under 5\% of the pair's data bits, but the selectors and
+the ownership update path can be timing-critical. We therefore claim reduced
+shared-port demand, not zero hardware cost. RTL synthesis against private and dual-access pool
 implementations is required to quantify area, energy, and frequency.
 
 This comparison explains both the intended cost saving and the performance
@@ -1018,13 +1172,15 @@ private buffers, 1R1W \system, and an idealized dual-access pool.
 Virtual-channel flow control and its buffer/throughput tradeoffs were
 formalized by Dally~\cite{dally1992virtual}. Deadlock-free routing can be
 constructed through channel-dependency restrictions~\cite{dally1987deadlock}
-or broader adaptive conditions~\cite{duato1993theory}. \system preserves a
+or broader adaptive conditions~\cite{duato1993theory}; \system preserves a
 private deterministic escape resource rather than changing those guarantees.
-Garnet provides the detailed router and credit model used here
-~\cite{agarwal2009garnet}; gem5 provides the surrounding simulation
-infrastructure~\cite{binkert2011gem5}. Our contribution is specifically the
-combination of direction-paired equal-capacity storage, a structurally 1R1W
-shared bank, and demand-aware ownership credits.
+Garnet provides the detailed router and credit model used
+here~\cite{agarwal2009garnet}, inside the gem5 simulation
+infrastructure~\cite{binkert2011gem5}. Shared-buffer organizations and
+industrial credit pools are positioned in Section~\ref{sec:background};
+relative to both lines, our contribution is the combination of
+direction-paired equal-capacity storage spanning two opposing inports, a
+structurally 1R1W shared bank, and demand-aware ownership credits.
 
 \section{Division of Labor}
 
