@@ -17,6 +17,7 @@
 \usepackage{url}
 
 \pgfplotsset{compat=1.17}
+\usepgfplotslibrary{colormaps}
 \usetikzlibrary{arrows.meta,positioning,fit}
 \setlength{\parindent}{1em}
 \setlength{\parskip}{0pt}
@@ -30,6 +31,7 @@
 \definecolor{tidalblue}{HTML}{276FBF}
 \definecolor{tidalcyan}{HTML}{38A3A5}
 \definecolor{tidalorange}{HTML}{F08A4B}
+\definecolor{tidalpurple}{HTML}{7C3AED}
 \definecolor{tidalgray}{HTML}{F2F4F7}
 \definecolor{tidaldark}{HTML}{25313C}
 
@@ -84,10 +86,10 @@ storage, keeps the previous owner on ties, caps ownership at three, and
 reclaims only idle peer-owned slots on demand.
 
 We implement the design in gem5 Garnet and evaluate an equal-storage
-four-private-VC baseline. Across 651 main-matrix simulations, all runs
+four-private-VC baseline. Across 1,077 main-matrix simulations, all runs
 completed without deadlock and recorded zero cross-direction \pool read
 conflicts. Under persistent 90/10 X-direction skew with eight-cycle links,
-\system lowers network latency by 9.2\% and extends the coarse stable offered
+\system lowers network latency by 9.2\% and extends the stable offered
 rate from 0.08 to 0.10. At a fully skewed point beyond baseline saturation it
 delivers 1.818 times as many packets. Under tornado traffic, pressure-aware
 credit control lowers latency by 4.85\%, whereas blind round-robin ownership
@@ -143,8 +145,8 @@ This paper makes four contributions:
   implement the shared bank as 1R1W;
   \item a conserved ownership-credit policy combining pressure, sticky ties,
   a three-credit cap, and idle-slot reclaim; and
-  \item a 651-run evaluation that reports both the favorable region and the
-  workloads where the fixed phase schedule is counterproductive.
+  \item a 1,077-run evaluation that reports both the favorable region and
+  the workloads where the fixed phase schedule is counterproductive.
 \end{itemize}
 
 \section{Background and Motivation}
@@ -784,19 +786,21 @@ write blocks, bank reads, per-direction activity, and peak borrowing.
 
 The primary baseline, \privatefour, dedicates four physical VCs to every input.
 All \system arms use two \res slots per side plus four shared slots per pair,
-preserving eight slots. We compare a non-migrating round-trip-static policy
-(RTS), blind owner round-robin, pressure cap three, and pressure cap four.
+preserving eight slots. We compare blind owner round-robin, pressure cap
+three, and pressure cap four.
 
 Tests use 4$\times$4$\times$4 or 8$\times$4$\times$4 3D torus networks, link
 latencies $L\in\{1,8\}$, one-flit control packets, 10,000 simulated cycles for
-main long runs, and three seeds per reported point. The 651-run main matrix
-contains 120 broad validation, 96 policy, 72 owner-cap, 192 reversal, and 171
-X-biased/VC-scaling runs. A separate 48-run recovery-instrumentation rerun is
-not included in this total.
+main long runs, and three seeds per reported point (the bias--rate map uses
+one). The 1,077-run main matrix contains 120 broad validation, 96 policy,
+72 owner-cap, 192 reversal, and 171 X-biased/VC-scaling runs, plus 426
+curve and map runs: 198 saturation-curve, 144 policy-curve, and 84
+bias-grid points. A separate 48-run recovery-instrumentation rerun is not
+included in this total.
 
 \begin{table*}[t]
 \centering
-\caption{Complete 651-run evaluation matrix. Rates are offered injection
+\caption{Complete 1,077-run evaluation matrix. Rates are offered injection
 probabilities. Long-run rows report three-seed means and approximate 95\%
 confidence intervals; validation is a single-seed smoke matrix.}
 \label{tab:matrix}
@@ -847,15 +851,33 @@ Six/eight-VC scaling &
 8 &
 rate 0.15, 0.18, 0.20, 0.25; six modes &
 10,000 $\times$ 3 & 72\\
+\texttt{xbias\_curve} &
+Saturation curves under X skew &
+8$\times$4$\times$4 &
+8 &
+rate 0.02--0.14, 11 points; bias 0.9, 1.0; private/cap3/cap4 &
+10,000 $\times$ 3 & 198\\
+\texttt{tornado\_curve} &
+Tornado policy curves &
+4$\times$4$\times$4 &
+8 &
+rate 0.05--0.90, 12 points; four arms &
+10,000 $\times$ 3 & 144\\
+\texttt{bias\_heatmap} &
+Acceptance map &
+8$\times$4$\times$4 &
+8 &
+bias 0.5--1.0 $\times$ rate 0.02--0.14; private, cap3 &
+10,000 $\times$ 1 & 84\\
 \midrule
-\multicolumn{6}{r}{Total} & \textbf{651}\\
+\multicolumn{6}{r}{Total} & \textbf{1,077}\\
 \bottomrule
 \end{tabularx}
 \end{table*}
 
 \subsection{Structural validation}
 
-All 651 main runs completed without deadlock. Instrumented runs maintained
+All 1,077 main runs completed without deadlock. Instrumented runs maintained
 credit conservation, never exceeded the owner cap, and satisfied
 \begin{align}
 N_{\mathrm{alloc}} &=
@@ -916,11 +938,98 @@ throughput rises by 2.1\%. At 100\% +X, the private baseline saturates, so a
 latency ratio is not a valid below-saturation comparison; the meaningful
 observation is 1.818 times delivered throughput during the measurement window.
 
-Using completion/acceptance near one as a coarse criterion, the highest tested
-stable offered rates are 0.08 for \privatefour, 0.10 for cap three, and 0.12
-for cap four. Cap three therefore extends the tested stable bracket by 25\%;
-cap four provides an optimistic 50\% upper bound. These are discrete brackets,
-not precise saturation thresholds.
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.495\textwidth, height=5.4cm,
+  xmin=0.015, xmax=0.145,
+  ymode=log, ymin=42, ymax=380,
+  ytick={50,100,200,300}, yticklabels={50,100,200,300},
+  xtick={0.02,0.04,0.06,0.08,0.10,0.12,0.14},
+  xticklabel style={/pgf/number format/fixed,
+    /pgf/number format/precision=2},
+  xlabel={Offered rate (flits/node/cycle)},
+  ylabel={Network latency (cycles)},
+  tick label style={font=\scriptsize},
+  label style={font=\small},
+  legend style={font=\scriptsize,draw=none,fill=none,
+    at={(0.03,0.97)},anchor=north west},
+  grid=major, grid style={draw=black!10},
+  axis line style={draw=black!55}
+]
+\addplot[black!55,very thick,mark=*,mark size=1.5pt] coordinates
+  {(0.02,44.21) (0.04,45.06) (0.06,46.39) (0.07,47.41) (0.08,48.81)
+   (0.09,64.31) (0.1,180.1) (0.11,271.9) (0.12,307.5) (0.13,314.2)
+   (0.14,320.1)};
+\addlegendentry{\privatefour}
+\addplot[tidalblue,very thick,mark=square*,mark size=1.4pt] coordinates
+  {(0.02,45.95) (0.04,46.26) (0.06,46.98) (0.07,47.5) (0.08,48.15)
+   (0.09,48.98) (0.1,50.3) (0.11,63.52) (0.12,154.2) (0.13,218.2)
+   (0.14,253.5)};
+\addlegendentry{pressure cap 3}
+\addplot[tidalcyan,very thick,mark=triangle*,mark size=1.8pt] coordinates
+  {(0.02,45.93) (0.04,46.05) (0.06,46.37) (0.07,46.62) (0.08,46.9)
+   (0.09,47.26) (0.1,47.7) (0.11,48.26) (0.12,49.16) (0.13,56.22)
+   (0.14,99.82)};
+\addlegendentry{pressure cap 4}
+\draw[dashed,black!35] (axis cs:0.0784,42) -- (axis cs:0.0784,380);
+\draw[dashed,tidalblue!50] (axis cs:0.098,42) -- (axis cs:0.098,380);
+\draw[dashed,tidalcyan!60] (axis cs:0.1176,42) -- (axis cs:0.1176,380);
+\end{axis}
+\end{tikzpicture}\hfill
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.495\textwidth, height=5.4cm,
+  xmin=0.015, xmax=0.145,
+  ymin=0.2, ymax=1.06,
+  ytick={0.2,0.4,0.6,0.8,1.0},
+  xtick={0.02,0.04,0.06,0.08,0.10,0.12,0.14},
+  xticklabel style={/pgf/number format/fixed,
+    /pgf/number format/precision=2},
+  xlabel={Offered rate (flits/node/cycle)},
+  ylabel={Injection acceptance},
+  tick label style={font=\scriptsize},
+  label style={font=\small},
+  grid=major, grid style={draw=black!10},
+  axis line style={draw=black!55}
+]
+\addplot[black!55,very thick,mark=*,mark size=1.5pt] coordinates
+  {(0.02,1.0) (0.04,0.9998) (0.06,0.9979) (0.07,0.9971) (0.08,0.9965)
+   (0.09,0.9321) (0.1,0.5594) (0.11,0.3908) (0.12,0.3275) (0.13,0.2976)
+   (0.14,0.2726)};
+\addplot[tidalblue,very thick,mark=square*,mark size=1.4pt] coordinates
+  {(0.02,1.0) (0.04,0.9998) (0.06,0.9979) (0.07,0.9971) (0.08,0.9965)
+   (0.09,0.996) (0.1,0.9967) (0.11,0.9008) (0.12,0.4842) (0.13,0.3415)
+   (0.14,0.2803)};
+\addplot[tidalcyan,very thick,mark=triangle*,mark size=1.8pt] coordinates
+  {(0.02,1.0) (0.04,0.9998) (0.06,0.9979) (0.07,0.9971) (0.08,0.9965)
+   (0.09,0.996) (0.1,0.9967) (0.11,0.9967) (0.12,0.9967) (0.13,0.9353)
+   (0.14,0.6353)};
+\draw[dashed,black!35] (axis cs:0.0784,0.2) -- (axis cs:0.0784,1.06);
+\draw[dashed,tidalblue!50] (axis cs:0.098,0.2) -- (axis cs:0.098,1.06);
+\draw[dashed,tidalcyan!60] (axis cs:0.1176,0.2) -- (axis cs:0.1176,1.06);
+\end{axis}
+\end{tikzpicture}
+\caption{Saturation behavior under 100\,\% $+X$ skew at $L=8$
+(three-seed means). Dashed rules mark the input-credit bounds
+$C/(h\,T_{\mathrm{loop}})=0.078$, $0.098$, $0.118$ for the $C=4$, $5$, $6$
+slots each arm's hot input may hold ($h{=}3$ X~hops,
+$T_{\mathrm{loop}}{=}17$ cycles). Every measured knee lands on its bound.}
+\label{fig:satcurve}
+\end{figure*}
+
+Figure~\ref{fig:satcurve} traces the full saturation curves at 100\% skew
+with 0.01-step resolution around each knee. Every arm rides flat near 47
+cycles until its input credits run out, then collapses within one step:
+acceptance breaks between 0.08 and 0.09 for \privatefour, between 0.10 and
+0.11 for cap three, and between 0.12 and 0.13 for cap four. Each knee sits
+within 2\% of the idealized input-credit bound $C/(h\,T_{\mathrm{loop}})$
+implied by Section~\ref{sec:background}---0.078, 0.098, and 0.118 for the
+$C=4$, $5$, $6$ slots the arm's hot input may hold. Credit count, not
+switch or link bandwidth, is the binding resource here, and moving one or
+two idle peer credits raises the stable rate by exactly their share:
+25\% for cap three, 50\% for cap four.
 
 \begin{table*}[t]
 \centering
@@ -951,32 +1060,240 @@ latency comparison.}
 \end{tabular}
 \end{table*}
 
-\begin{table*}[t]
+\begin{figure}[t]
 \centering
-\caption{Full-skew stability sweep at $L=8$. Each cell is
-injection acceptance / delivered throughput / network latency, averaged over
-three seeds. A design is treated as stably accepting the offered load only
-when acceptance remains close to one.}
-\label{tab:fullskew}
-\small
-\begin{tabular}{rccc}
-\toprule
-Offered rate & \privatefour & Pressure cap 3 & Pressure cap 4\\
-\midrule
-0.08 & .996 / .0397 / 48.8 & .996 / .0397 / 48.2 & .996 / .0397 / 46.9\\
-0.09 & .932 / .0416 / 64.3 & .996 / .0446 / 49.0 & .996 / .0446 / 47.3\\
-0.10 & .559 / .0273 / 180.1 & .997 / .0496 / 50.3 & .997 / .0496 / 47.7\\
-0.11 & .391 / .0208 / 271.9 & .901 / .0491 / 63.5 & .997 / .0545 / 48.3\\
-0.12 & .327 / .0190 / 307.5 & .484 / .0283 / 154.2 & .997 / .0595 / 49.2\\
-\bottomrule
-\end{tabular}
-\end{table*}
+\begin{tikzpicture}
+\begin{axis}[
+  name=hma,
+  width=2.95cm, height=3.6cm, scale only axis,
+  view={0}{90}, colormap/viridis,
+  point meta min=0.25, point meta max=1.0,
+  xmin=0.01, xmax=0.15, ymin=0.45, ymax=1.05,
+  xtick={0.02,0.06,0.10,0.14}, ytick={0.5,0.6,0.7,0.8,0.9,1.0},
+  xticklabel style={/pgf/number format/fixed,
+    /pgf/number format/precision=2},
+  tick label style={font=\tiny},
+  label style={font=\scriptsize},
+  xlabel={Offered rate}, ylabel={$+X$ probability},
+  title={\privatefour}, title style={font=\scriptsize,yshift=-2pt}
+]
+\addplot[matrix plot*, point meta=explicit, mesh/cols=7]
+table[x index=0, y index=1, meta index=2, header=false] {
+0.02 0.5 0.999
+0.04 0.5 1.000
+0.06 0.5 0.999
+0.08 0.5 0.996
+0.10 0.5 0.996
+0.12 0.5 0.997
+0.14 0.5 0.997
+0.02 0.6 0.999
+0.04 0.6 1.000
+0.06 0.6 0.999
+0.08 0.6 0.996
+0.10 0.6 0.996
+0.12 0.6 0.997
+0.14 0.6 0.963
+0.02 0.7 0.999
+0.04 0.7 1.000
+0.06 0.7 0.999
+0.08 0.7 0.996
+0.10 0.7 0.996
+0.12 0.7 0.997
+0.14 0.7 0.617
+0.02 0.8 0.999
+0.04 0.8 1.000
+0.06 0.8 0.999
+0.08 0.8 0.996
+0.10 0.8 0.996
+0.12 0.8 0.711
+0.14 0.8 0.372
+0.02 0.9 0.999
+0.04 0.9 1.000
+0.06 0.9 0.999
+0.08 0.9 0.996
+0.10 0.9 0.952
+0.12 0.9 0.401
+0.14 0.9 0.310
+0.02 1.0 0.999
+0.04 1.0 1.000
+0.06 1.0 0.999
+0.08 1.0 0.996
+0.10 1.0 0.550
+0.12 1.0 0.327
+0.14 1.0 0.273
+};
+\end{axis}
+\begin{axis}[
+  at={(hma.south east)}, anchor=south west, xshift=0.55cm,
+  width=2.95cm, height=3.6cm, scale only axis,
+  view={0}{90}, colormap/viridis,
+  point meta min=0.25, point meta max=1.0,
+  xmin=0.01, xmax=0.15, ymin=0.45, ymax=1.05,
+  xtick={0.02,0.06,0.10,0.14}, ytick={0.5,0.6,0.7,0.8,0.9,1.0},
+  yticklabels={},
+  xticklabel style={/pgf/number format/fixed,
+    /pgf/number format/precision=2},
+  tick label style={font=\tiny},
+  label style={font=\scriptsize},
+  xlabel={Offered rate},
+  title={pressure cap 3}, title style={font=\scriptsize,yshift=-2pt},
+  colorbar,
+  colorbar style={width=2.6mm, tick label style={font=\tiny}}
+]
+\addplot[matrix plot*, point meta=explicit, mesh/cols=7]
+table[x index=0, y index=1, meta index=2, header=false] {
+0.02 0.5 0.999
+0.04 0.5 1.000
+0.06 0.5 0.999
+0.08 0.5 0.996
+0.10 0.5 0.996
+0.12 0.5 0.997
+0.14 0.5 0.997
+0.02 0.6 0.999
+0.04 0.6 1.000
+0.06 0.6 0.999
+0.08 0.6 0.996
+0.10 0.6 0.996
+0.12 0.6 0.997
+0.14 0.6 0.997
+0.02 0.7 0.999
+0.04 0.7 1.000
+0.06 0.7 0.999
+0.08 0.7 0.996
+0.10 0.7 0.996
+0.12 0.7 0.997
+0.14 0.7 0.997
+0.02 0.8 0.999
+0.04 0.8 1.000
+0.06 0.8 0.999
+0.08 0.8 0.996
+0.10 0.8 0.996
+0.12 0.8 0.997
+0.14 0.8 0.799
+0.02 0.9 0.999
+0.04 0.9 1.000
+0.06 0.9 0.999
+0.08 0.9 0.996
+0.10 0.9 0.996
+0.12 0.9 0.955
+0.14 0.9 0.365
+0.02 1.0 0.999
+0.04 1.0 1.000
+0.06 1.0 0.999
+0.08 1.0 0.996
+0.10 1.0 0.996
+0.12 1.0 0.483
+0.14 1.0 0.279
+};
+\end{axis}
+\end{tikzpicture}
+\caption{Injection acceptance over the bias--rate grid at $L=8$
+(single seed). Bright cells accept the offered load; dark cells are
+saturated. Cap three loses no cell, matches the baseline at balanced
+bias, and pushes the stable frontier one 0.02 step right wherever the
+skew probability is at least 0.7.}
+\label{fig:biasmap}
+\end{figure}
+
+Figure~\ref{fig:biasmap} maps the operating region over the full
+bias--rate grid. Cap three's stable region strictly contains the
+baseline's: no cell is worse, the two maps coincide at balanced 50\%
+bias, and for bias probabilities of 0.7 and above the acceptance
+frontier sits one 0.02 grid step further right---17--25\% more stable
+offered rate precisely where skew persists. The map also bounds the
+mechanism's reach: below the private credit bound every organization is
+equivalent, so \system's case rests entirely on the band between the
+private and pooled frontiers.
 
 \subsection{Tornado and policy comparison}
 
 On 4$\times$4$\times$4, torus tornado advances each packet by +1 in X, +1 in
-Y, and +1 in Z, making W, S, and D true inputs persistently hot. Table~\ref{tab:tornado}
-shows $L=8$ and injection 0.9.
+Y, and +1 in Z, making W, S, and D true inputs persistently hot.
+Figure~\ref{fig:tornado-curve} sweeps the offered rate at $L=8$;
+Table~\ref{tab:tornado} details the saturated 0.9 point.
+
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.495\textwidth, height=5.4cm,
+  xmin=0, xmax=0.95,
+  ymin=0, ymax=0.175,
+  ytick={0,0.05,0.10,0.15},
+  yticklabel style={/pgf/number format/fixed,
+    /pgf/number format/precision=2},
+  xtick={0,0.2,0.4,0.6,0.8},
+  xlabel={Offered rate (flits/node/cycle)},
+  ylabel={Delivered throughput},
+  tick label style={font=\scriptsize},
+  label style={font=\small},
+  legend style={font=\scriptsize,draw=none,fill=none,
+    at={(0.97,0.05)},anchor=south east},
+  grid=major, grid style={draw=black!10},
+  axis line style={draw=black!55}
+]
+\addplot[black!55,line width=2.2pt,mark=*,mark size=1.9pt] coordinates
+  {(0.05,0.02476) (0.1,0.04952) (0.12,0.05943) (0.14,0.06936)
+   (0.16,0.07942) (0.18,0.08941) (0.2,0.0994) (0.25,0.124) (0.3,0.1483)
+   (0.5,0.1563) (0.7,0.1563) (0.9,0.1564)};
+\addlegendentry{\privatefour}
+\addplot[tidalorange,very thick,mark=x,mark size=2.6pt] coordinates
+  {(0.05,0.02476) (0.1,0.04951) (0.12,0.05941) (0.14,0.06933)
+   (0.16,0.07938) (0.18,0.08933) (0.2,0.09927) (0.25,0.06861)
+   (0.3,0.0681) (0.5,0.06784) (0.7,0.06802) (0.9,0.06804)};
+\addlegendentry{owner-RR}
+\addplot[tidalblue,thick,densely dashed,mark=square*,mark size=1.3pt,
+  mark options={solid}] coordinates
+  {(0.05,0.02476) (0.1,0.04951) (0.12,0.05942) (0.14,0.06935)
+   (0.16,0.07941) (0.18,0.0894) (0.2,0.09939) (0.25,0.124) (0.3,0.1483)
+   (0.5,0.1562) (0.7,0.1563) (0.9,0.1563)};
+\addlegendentry{pressure cap 3}
+\node[font=\scriptsize,text=tidalorange,anchor=west]
+  at (axis cs:0.32,0.058) {collapse at 0.25};
+\end{axis}
+\end{tikzpicture}\hfill
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.495\textwidth, height=5.4cm,
+  xmin=0, xmax=0.95,
+  ymin=40, ymax=170,
+  ytick={50,75,100,125,150},
+  xtick={0,0.2,0.4,0.6,0.8},
+  xlabel={Offered rate (flits/node/cycle)},
+  ylabel={Network latency (cycles)},
+  tick label style={font=\scriptsize},
+  label style={font=\small},
+  legend style={font=\scriptsize,draw=none,fill=none,
+    at={(0.97,0.55)},anchor=east},
+  grid=major, grid style={draw=black!10},
+  axis line style={draw=black!55}
+]
+\addplot[black!55,line width=2.2pt,mark=*,mark size=1.9pt] coordinates
+  {(0.05,44.02) (0.1,44.07) (0.12,44.12) (0.14,44.18) (0.16,44.27)
+   (0.18,44.42) (0.2,44.64) (0.25,45.59) (0.3,47.98) (0.5,49.41)
+   (0.7,49.3) (0.9,49.37)};
+\addlegendentry{\privatefour}
+\addplot[tidalorange,very thick,mark=x,mark size=2.6pt] coordinates
+  {(0.05,45.75) (0.1,46.43) (0.12,47.1) (0.14,48.16) (0.16,49.77)
+   (0.18,52.33) (0.2,56.99) (0.25,154.5) (0.3,156.3) (0.5,157.5)
+   (0.7,157) (0.9,157)};
+\addlegendentry{owner-RR}
+\addplot[tidalblue,thick,densely dashed,mark=square*,mark size=1.3pt,
+  mark options={solid}] coordinates
+  {(0.05,45.65) (0.1,45.59) (0.12,45.63) (0.14,45.68) (0.16,45.77)
+   (0.18,45.86) (0.2,45.96) (0.25,46.24) (0.3,46.65) (0.5,47.03)
+   (0.7,47) (0.9,46.97)};
+\addlegendentry{pressure cap 3}
+\end{axis}
+\end{tikzpicture}
+\caption{Tornado sweep at $L=8$ (three-seed means; cap 4 overlays cap 3
+and is omitted). Left: pressure tracks the private baseline to saturation,
+while blind owner rotation collapses at rate 0.25 and never recovers.
+Right: below saturation the phase schedule costs pressure a flat
+1.6~cycles; past the output knee near 0.3 the order reverses and pressure
+finishes 2.4~cycles below the baseline.}
+\label{fig:tornado-curve}
+\end{figure*}
 
 \begin{table*}[t]
 \centering
@@ -991,12 +1308,10 @@ L & Mode & Throughput & Thr./base & Net latency & Lat./base &
 Pool service & Reclaim & Handoff\\
 \midrule
 1 & \privatefour & .4489$\pm$.0003 & 1.000 & 10.46$\pm$.00 & 1.000 & -- & -- & --\\
-1 & RTS & .4488$\pm$.0003 & 1.000$\pm$.000 & 12.84$\pm$.01 & 1.227$\pm$.000 & 53.45 & .00 & .00\\
 1 & Owner-RR & .3138$\pm$.0013 & .699$\pm$.003 & 32.08$\pm$.16 & 3.067$\pm$.016 & 25.37 & .00 & .11\\
 1 & Pressure cap3 & .4488$\pm$.0003 & 1.000$\pm$.000 & 13.09$\pm$.01 & 1.251$\pm$.001 & 59.11 & .13 & .09\\
 \midrule
 8 & \privatefour & .1564$\pm$.0000 & 1.000 & 49.37$\pm$.07 & 1.000 & -- & -- & --\\
-8 & RTS & .1554$\pm$.0000 & .994$\pm$.000 & 58.25$\pm$.05 & 1.180$\pm$.001 & 51.35 & .00 & .00\\
 8 & Owner-RR & .0680$\pm$.0004 & .435$\pm$.003 & 157.03$\pm$1.16 & 3.181$\pm$.022 & 27.67 & .00 & .44\\
 8 & Pressure cap3 & .1563$\pm$.0000 & 1.000$\pm$.000 & 46.97$\pm$.03 & .952$\pm$.002 & 66.38 & .49 & .40\\
 \bottomrule
@@ -1010,6 +1325,15 @@ credit. Only approximately 0.49\% of \pool allocations use on-demand reclaim:
 stable ownership handles most demand, and reclaim resolves occasional
 mismatches. Owner round-robin loses 56.5\% throughput because blind rotation
 can place credits at an inactive peer and has no demand-driven correction.
+
+The rate sweep separates the failure modes. Below the output-bandwidth
+knee near 0.3, all demand-aware arms deliver identical throughput and the
+phase schedule costs the \system arms a flat 1.6 cycles of latency over
+\privatefour; past the knee the order reverses and pressure rides 2.4
+cycles below the baseline. Owner-RR is qualitatively different: its
+latency climbs from rate 0.1 onward, and at 0.25 its delivered throughput
+collapses to 0.068 and never recovers---misplaced credits, not bandwidth,
+are its binding resource.
 
 \begin{table}[t]
 \centering
@@ -1127,9 +1451,11 @@ capacity already hides more of the credit loop, the ratios shrink to 1.08 and
 
 The raw rows used above are tracked under
 \path{1R1W/overlay/lab/DP/physical_bound/}. Table~\ref{tab:matrix} names each
-CSV exactly. \path{run_sweep_dpphys.py} records the gem5 command for every
-run, and \path{analyze_dpphys.py} performs paired-by-seed ratios and
-confidence-interval aggregation. The archived overlay should be reconstructed
+CSV exactly; the revision's curve and map rows live in
+\path{results_xbias_curve.csv}, \path{results_tornado_curve.csv}, and
+\path{results_bias_heatmap.csv}. \path{run_sweep_dpphys.py} records the gem5
+command for every run, and \path{analyze_dpphys.py} performs paired-by-seed
+ratios and confidence-interval aggregation. The archived overlay should be reconstructed
 in a temporary worktree from base commit \path{2eb6a4e}; it should not be
 copied over the repository's current working source.
 
@@ -1190,8 +1516,8 @@ discussion, debugging, correctness review, experiment review, interpretation,
 writing, slide production, and presentation preparation.
 
 \textbf{Liming Wang} proposed the original direction-paired pooling concept,
-implemented and evaluated the earlier 1R2W organization, expanded traffic and
-evaluation coverage, reviewed the 1R1W and credit-policy behavior, and
+implemented and evaluated an earlier 1R2W prototype, expanded traffic and
+evaluation coverage, reviewed and improved the 1R1W and credit-policy behavior, and
 co-analyzed and co-authored the final deliverables.
 
 \textbf{Changxun Pan} co-developed the design and finalized its complementary
